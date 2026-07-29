@@ -459,6 +459,27 @@ def _parse_retry_after(value, default: int = 60) -> int:
         return default
 
 
+# ── Per-provider exclude list ─────────────────────────────────────────────────
+
+
+def _excluded_models(provider_name: str) -> set[str]:
+    """Case-insensitive exact model IDs listed in {PROVIDER}_EXCLUDE_MODELS.
+
+    Excluded models are stripped from a provider's active roster whether
+    they come from config or auto-discovery.
+    """
+    raw = os.environ.get(f"{provider_name.upper()}_EXCLUDE_MODELS", "")
+    return {m.strip().lower() for m in raw.split(",") if m.strip()}
+
+
+def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
+    """Drop models blocked by {PROVIDER}_EXCLUDE_MODELS (exact, case-insensitive)."""
+    excl = _excluded_models(provider_name)
+    if not excl:
+        return models
+    return [m for m in models if m.lower() not in excl]
+
+
 # ── Provider definitions ───────────────────────────────────────────────────────
 
 def _build_providers() -> list[dict]:
@@ -676,8 +697,12 @@ def _build_providers() -> list[dict]:
     for p in providers:
         models = [m.strip() for m in str(p.get("model", "")).split(",") if m.strip()]
         models = models or [p.get("model", "")]
-        p["models"] = models
-        p["model"]  = models[0] if models else ""
+        filtered = _filter_excluded(p["name"], models)
+        if models and not filtered:
+            log.warning(f"{p['name']}: all models excluded via "
+                        f"{p['name'].upper()}_EXCLUDE_MODELS — provider has no usable models")
+        p["models"] = filtered
+        p["model"]  = filtered[0] if filtered else ""
 
     # Per-provider "skip when the request is too big" ceiling. Some free tiers
     # reject large payloads outright, so trying them with a big prompt just wastes
@@ -1152,7 +1177,7 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
         log.info(f"[ratings]   {name}: model discovery skipped by default")
         return
     free_only = name in _FREE_ONLY_DISCOVERY
-    discovered = _discover_models(provider, key, free_only=free_only)
+    discovered = _filter_excluded(name, _discover_models(provider, key, free_only=free_only))
     if not discovered:
         return
 
@@ -1160,11 +1185,11 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     discovered_set = set(discovered)
     # Prune only when doing so still leaves a configured model; otherwise the
     # existing invalid-model repair path can try to recover a primary model.
-    kept = [m for m in configured if m in discovered_set]
+    kept = _filter_excluded(name, [m for m in configured if m in discovered_set])
     if not kept:
         kept = discovered[:1]
     # Never drop valid configured models; only bound appended discoveries.
-    refreshed = list(dict.fromkeys(kept + discovered))
+    refreshed = _filter_excluded(name, list(dict.fromkeys(kept + discovered)))
     if len(kept) < AUTO_DISCOVER_MODEL_LIMIT:
         refreshed = refreshed[:AUTO_DISCOVER_MODEL_LIMIT]
     if not refreshed or refreshed == configured:
