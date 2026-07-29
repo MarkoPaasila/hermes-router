@@ -1822,11 +1822,21 @@ class RequestRingBuffer:
         self._lock  = threading.Lock()
         self.maxlen = maxlen
 
-    def append(self, entry: dict) -> None:
+    def append(self, entry: dict) -> dict | None:
         if self._buf is None:
-            return
+            return None
         with self._lock:
             self._buf.append(entry)
+        return entry
+
+    def update_entry(self, entry: dict, **fields) -> None:
+        """Patch fields on an existing log entry if it is still in the buffer.
+        No-op when the buffer is disabled or the entry has already rotated out."""
+        if self._buf is None or not fields:
+            return
+        with self._lock:
+            if any(e is entry for e in self._buf):
+                entry.update(fields)
 
     def snapshot(self, limit: int = 100, provider: str | None = None,
                  status: str | None = None, endpoint: str | None = None) -> list:
@@ -2285,39 +2295,81 @@ def _with_cleanup(resp: requests.Response, gen):
         resp.close()
 
 
+class _StreamWithUsage:
+    """Iterable SSE wrapper that exposes captured usage for request-log patching."""
+    __slots__ = ("_it", "_hermes_stream_usage")
+
+    def __init__(self, it, captured: dict):
+        self._it = it
+        self._hermes_stream_usage = captured
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._it)
+
+    def close(self):
+        close = getattr(self._it, "close", None)
+        if close is not None:
+            close()
+
+
 def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None,
                           resp_headers: dict = None):
     """Wrap a streaming generator to capture the usage block from the final SSE
     chunk (present when stream_options.include_usage=true is sent upstream) and
     record tokens + cost in _provider_tokens/_provider_cost. Yields every chunk
-    unchanged."""
-    usage: dict = {}
-    for chunk in gen:
-        text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk
-        for line in text.split("\n"):
-            if line.startswith("data: ") and line != "data: [DONE]":
-                try:
-                    event = json.loads(line[6:])
-                    u = event.get("usage") or {}
-                    if not u:
-                        continue
-                    # Some translators omit total_tokens; derive it from the split.
-                    if not u.get("total_tokens"):
-                        pt = u.get("prompt_tokens")
-                        ct = u.get("completion_tokens")
-                        if pt is not None or ct is not None:
-                            u = {**u, "total_tokens": int(pt or 0) + int(ct or 0)}
-                    if u.get("total_tokens"):
-                        usage = u
-                except Exception:
-                    pass
-        yield chunk
-    if usage:
-        _add_provider_tokens(name, {"usage": usage}, model)
-        if key:
-            _actual = float(usage.get("total_tokens") or 0)
-            rate_limiter.update_from_headers(name, key, model, resp_headers or {})
-            rate_limiter.on_success(name, key, model, _actual)
+    unchanged. Captured usage is exposed on the returned iterable as
+    `_hermes_stream_usage` so handlers can patch the request log after the stream ends."""
+    captured: dict = {}
+
+    def _inner():
+        usage: dict = {}
+        for chunk in gen:
+            text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk
+            for line in text.split("\n"):
+                if line.startswith("data: ") and line != "data: [DONE]":
+                    try:
+                        event = json.loads(line[6:])
+                        u = event.get("usage") or {}
+                        if not u:
+                            continue
+                        # Some translators omit total_tokens; derive it from the split.
+                        if not u.get("total_tokens"):
+                            pt = u.get("prompt_tokens")
+                            ct = u.get("completion_tokens")
+                            if pt is not None or ct is not None:
+                                u = {**u, "total_tokens": int(pt or 0) + int(ct or 0)}
+                        if u.get("total_tokens"):
+                            usage = u
+                    except Exception:
+                        pass
+            yield chunk
+        if usage:
+            captured.clear()
+            captured.update(usage)
+            _add_provider_tokens(name, {"usage": usage}, model)
+            if key:
+                _actual = float(usage.get("total_tokens") or 0)
+                rate_limiter.update_from_headers(name, key, model, resp_headers or {})
+                rate_limiter.on_success(name, key, model, _actual)
+
+    return _StreamWithUsage(_inner(), captured)
+
+
+def _patch_stream_log_tokens(entry: dict | None, gen) -> None:
+    """After a stream finishes, copy captured usage onto the request-log entry."""
+    if entry is None:
+        return
+    usage = getattr(gen, "_hermes_stream_usage", None) or {}
+    if not usage:
+        return
+    request_log.update_entry(
+        entry,
+        prompt_tokens=usage.get("prompt_tokens"),
+        completion_tokens=usage.get("completion_tokens"),
+    )
 
 # ── Anthropic format translation ──────────────────────────────────────────────
 # Anthropic's Messages API uses a different format from OpenAI. These helpers
@@ -5242,8 +5294,9 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
     return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
 
 
-def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, elapsed: float) -> None:
-    """Append one entry to the request ring buffer. Never raises."""
+def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, elapsed: float) -> dict | None:
+    """Append one entry to the request ring buffer. Returns the entry (for later
+    stream-token patching) or None if logging is disabled / failed. Never raises."""
     try:
         messages = payload.get("messages", [])
         is_cache = getattr(_req_ctx, "cache_hit", False)
@@ -5280,7 +5333,7 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             if _pm not in ("", ROUTER_MODEL, "auto") and not _pm.endswith(":fast"):
                 _logged_model = _payload_model
 
-        request_log.append({
+        entry = {
             "ts":               time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "endpoint":         endpoint,
             "caller":           token[-6:] if token else "anon",
@@ -5294,9 +5347,10 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             "status":           status,
             "prompt_tokens":    ptok,
             "completion_tokens": ctok,
-        })
+        }
+        return request_log.append(entry)
     except Exception:
-        pass   # logging must never break the response path
+        return None   # logging must never break the response path
 
 
 @app.route("/v1/chat/completions", methods=["POST"])
@@ -5319,13 +5373,20 @@ def chat():
     result  = _route_completion(payload, payload.get("stream", False), _cache_ns())
     _record_request_tokens(token, payload, result)
 
-    _log_completion(token, "chat", payload, result, time.time() - t_start)
+    entry = _log_completion(token, "chat", payload, result, time.time() - t_start)
 
     if result[0] == "json":
         return jsonify(result[1]), 200
     if result[0] == "stream":
         _, gen, name = result
-        return Response(stream_with_context(gen), content_type="text/event-stream",
+
+        def _finalize():
+            try:
+                yield from gen
+            finally:
+                _patch_stream_log_tokens(entry, gen)
+
+        return Response(stream_with_context(_finalize()), content_type="text/event-stream",
                         headers={"X-Provider": name})
     return jsonify(result[1]), result[2]
 
@@ -5355,13 +5416,22 @@ def anthropic_messages():
     result    = _route_completion(payload, streaming, _cache_ns())
     _record_request_tokens(token, payload, result)
 
-    _log_completion(token, "messages", payload, result, time.time() - t_start)
+    entry = _log_completion(token, "messages", payload, result, time.time() - t_start)
 
     if result[0] == "json":
         return jsonify(_openai_response_to_anthropic(result[1])), 200
     if result[0] == "stream":
         _, gen, name = result
-        return Response(stream_with_context(_openai_stream_to_anthropic(gen)),
+
+        def _finalize():
+            try:
+                # Read usage from the inner OpenAI-format gen (_streaming_with_usage),
+                # not from the Anthropic translator wrapper.
+                yield from _openai_stream_to_anthropic(gen)
+            finally:
+                _patch_stream_log_tokens(entry, gen)
+
+        return Response(stream_with_context(_finalize()),
                         content_type="text/event-stream", headers={"X-Provider": name})
     return jsonify(_anthropic_error(result[1].get("error", {}).get("message", "error"))), result[2]
 

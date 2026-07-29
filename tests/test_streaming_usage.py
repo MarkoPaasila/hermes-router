@@ -98,5 +98,48 @@ def test_streaming_with_usage_derives_total_from_split():
         yield ("data: " + json.dumps(chunk) + "\n\n").encode()
         yield b"data: [DONE]\n\n"
 
-    list(router._streaming_with_usage(gen(), name, model="gpt-4o-mini"))
+    wrapped = router._streaming_with_usage(gen(), name, model="gpt-4o-mini")
+    list(wrapped)
     assert router._provider_tokens[name] == before + 14
+    assert wrapped._hermes_stream_usage["prompt_tokens"] == 10
+    assert wrapped._hermes_stream_usage["completion_tokens"] == 4
+    assert wrapped._hermes_stream_usage["total_tokens"] == 14
+
+
+def test_streaming_with_usage_exposes_usage_for_log_patch():
+    name = "_test_stream_log_patch"
+
+    def gen():
+        chunk = {
+            "id": "c2", "object": "chat.completion.chunk", "created": 1,
+            "model": "x", "choices": [],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9},
+        }
+        yield ("data: " + json.dumps(chunk) + "\n\n").encode()
+        yield b"data: [DONE]\n\n"
+
+    wrapped = router._streaming_with_usage(gen(), name, model="x")
+    entry = {
+        "status": "success",
+        "prompt_tokens": None,
+        "completion_tokens": None,
+    }
+    assert router.request_log.append(entry) is entry
+
+    # Mimic chat/_finalize: consume stream, then patch the log entry.
+    list(wrapped)
+    router._patch_stream_log_tokens(entry, wrapped)
+
+    assert entry["prompt_tokens"] == 7
+    assert entry["completion_tokens"] == 2
+    snap = router.request_log.snapshot(limit=5)
+    patched = next(e for e in snap if e is entry)
+    assert patched["prompt_tokens"] == 7
+    assert patched["completion_tokens"] == 2
+
+
+def test_update_entry_noop_when_not_in_buffer():
+    orphan = {"prompt_tokens": None, "completion_tokens": None}
+    router.request_log.update_entry(orphan, prompt_tokens=99, completion_tokens=1)
+    assert orphan["prompt_tokens"] is None
+    assert orphan["completion_tokens"] is None
