@@ -5558,6 +5558,13 @@ def status():
             entry["skip_if_tokens_over"] = p["skip_if_tokens_over"]
         if p.get("max_output_tokens"):
             entry["max_output_tokens"] = p["max_output_tokens"]
+        _models = p.get("models") or [p.get("model", "")]
+        _rl = {}
+        for _m in _models:
+            _k = pool.get_key(p["name"], _m)
+            if _k:
+                _rl[_m] = rate_limiter.snapshot(p["name"], _k, _m)
+        entry["rate_limits"] = _rl
         provider_stats[p["name"]] = entry
 
     return jsonify({
