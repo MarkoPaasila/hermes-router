@@ -14,6 +14,85 @@ RAISE_FACTOR = 1.05
 NEAR_CAP_RATIO = 0.85
 MIN_CAP = 256
 
+_INPUT_FIELDS = (
+    "context_length", "max_model_len", "max_input_tokens", "max_position_embeddings",
+)
+_OUTPUT_FIELDS = ("max_completion_tokens", "max_output_tokens", "max_tokens")
+
+_TOKEN_LIMIT_PHRASES = (
+    "context length",
+    "maximum context",
+    "too many tokens",
+    "token limit",
+    "prompt is too long",
+    "prompt too long",
+    "max_tokens",
+    "max_completion_tokens",
+    "maximum number of tokens",
+    "context_length_exceeded",
+    "payload too large",
+    "request too large",
+)
+
+
+def _first_positive_int(obj: dict, fields: tuple[str, ...]) -> int | None:
+    for f in fields:
+        v = obj.get(f)
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)) and v > 0:
+            return int(v)
+        if isinstance(v, str) and v.strip().isdigit():
+            n = int(v.strip())
+            if n > 0:
+                return n
+    return None
+
+
+def extract_caps_from_model_item(item: dict) -> tuple[int | None, int | None]:
+    if not isinstance(item, dict):
+        return None, None
+    buckets = [item]
+    for nest in ("top_provider", "architecture", "meta", "limits"):
+        nested = item.get(nest)
+        if isinstance(nested, dict):
+            buckets.append(nested)
+    max_in = max_out = None
+    for b in buckets:
+        if max_in is None:
+            max_in = _first_positive_int(b, _INPUT_FIELDS)
+        if max_out is None:
+            max_out = _first_positive_int(b, _OUTPUT_FIELDS)
+        if max_in is not None and max_out is not None:
+            break
+    return max_in, max_out
+
+
+def classify_token_limit_error(
+    status_code: int,
+    body: str,
+    *,
+    est_tokens: int = 0,
+    requested_max_tokens: int = 0,
+) -> str | None:
+    text = (body or "").lower()
+    if status_code == 413:
+        return "input"
+    if status_code != 400:
+        return None
+    if not any(p in text for p in _TOKEN_LIMIT_PHRASES):
+        return None
+    if "max_tokens" in text or "max_completion_tokens" in text or "completion" in text:
+        if "context" not in text and "prompt" not in text:
+            return "output"
+    if "context" in text or "prompt" in text:
+        return "input"
+    if est_tokens >= requested_max_tokens and est_tokens >= 1024:
+        return "input"
+    if requested_max_tokens > est_tokens and requested_max_tokens >= 4096:
+        return "output"
+    return "input"
+
 
 def _min_cap(env_bound: int, tracker_val: int | None) -> int | None:
     candidates = []

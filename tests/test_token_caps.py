@@ -1,6 +1,14 @@
 """Unit tests for TokenCapTracker (effective caps, learning, persistence)."""
 import pytest
-from token_caps import TokenCapTracker, MIN_CAP, CUT_FACTOR, RAISE_FACTOR, NEAR_CAP_RATIO
+from token_caps import (
+    TokenCapTracker,
+    MIN_CAP,
+    CUT_FACTOR,
+    RAISE_FACTOR,
+    NEAR_CAP_RATIO,
+    extract_caps_from_model_item,
+    classify_token_limit_error,
+)
 
 
 @pytest.fixture
@@ -92,3 +100,48 @@ def test_corrupt_file_fail_soft(tmp_path):
     t = TokenCapTracker(state_file=path, enabled=True)
     t.load()  # must not raise
     assert t.effective_input_cap("x", "y", 0) is None
+
+
+def test_extract_context_length():
+    assert extract_caps_from_model_item({"id": "m", "context_length": 8192}) == (8192, None)
+
+
+def test_extract_max_model_len_and_output():
+    item = {"id": "m", "max_model_len": 32768, "max_completion_tokens": 4096}
+    assert extract_caps_from_model_item(item) == (32768, 4096)
+
+
+def test_extract_nested_top_provider():
+    item = {
+        "id": "m",
+        "top_provider": {"context_length": 128000, "max_completion_tokens": 16384},
+    }
+    assert extract_caps_from_model_item(item) == (128000, 16384)
+
+
+def test_extract_missing_returns_nones():
+    assert extract_caps_from_model_item({"id": "m"}) == (None, None)
+
+
+def test_classify_413_as_input():
+    assert classify_token_limit_error(413, "Payload Too Large") == "input"
+
+
+def test_classify_400_context_length():
+    body = "This model's maximum context length is 8192 tokens"
+    assert classify_token_limit_error(400, body, est_tokens=9000) == "input"
+
+
+def test_classify_400_max_tokens_output():
+    body = "max_tokens is too large: 65536"
+    assert classify_token_limit_error(400, body, requested_max_tokens=65536) == "output"
+
+
+def test_classify_unrelated_400_returns_none():
+    assert classify_token_limit_error(400, "invalid tool schema") is None
+
+
+def test_classify_ambiguous_uses_heuristics():
+    body = "too many tokens"
+    assert classify_token_limit_error(400, body, est_tokens=12000, requested_max_tokens=256) == "input"
+    assert classify_token_limit_error(400, body, est_tokens=100, requested_max_tokens=100000) == "output"
