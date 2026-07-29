@@ -32,6 +32,7 @@ hr restart                            # apply
 | `persistent_cache` | `CACHE_PERSIST` | off | Mirror the cache to SQLite so it survives restarts |
 | `fast_routing` | `FAST_ROUTE_THRESHOLD` | off | Short requests prefer low-latency providers on ties |
 | `model_discovery` | `AUTO_DISCOVER_MODELS` | off | Refresh provider model lists from `/models` at startup |
+| `filter_specialized_models` | `FILTER_SPECIALIZED_MODELS` | off | Drop TTS/STT/image-gen/OCR/video/embedding/moderation/rerank IDs from discovery |
 | `metrics_auth` | `METRICS_REQUIRE_AUTH` | off | Require the proxy key on `/metrics` |
 | `cost_currency` | `COST_FX_RATE` | off | Show a second currency (e.g. ₹) alongside USD spend |
 | `key_budgets` | `auth.json` / `PROXY_LIMIT_*` | off | Per-key RPM / daily request / token / cost ceilings — manage with `hr limit` |
@@ -91,6 +92,7 @@ Sensible defaults — most users never touch these.
 | `FAST_ROUTE_THRESHOLD` | `0` | If >0, requests under this many tokens prefer low-latency providers first (`0` disables) |
 | `AUTO_DISCOVER_MODELS` | `0` | If `1`, fetch configured providers' `/models` lists at startup, prune listed models that disappeared, and append the best discovered models |
 | `AUTO_DISCOVER_MODEL_LIMIT` | `8` | Max models kept per provider when `AUTO_DISCOVER_MODELS=1` |
+| `FILTER_SPECIALIZED_MODELS` | `0` | If `1`, drop purpose-specific models from auto-discovery catalogs (configured `{PROVIDER}_MODEL` lists are never filtered) |
 | `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery, e.g. `OPENROUTER_EXCLUDE_MODELS=some/model:free` |
 | `ROUTER_MODEL_ID` | `hermes-router` | The model name clients send (the router maps it to each provider's real model) |
 | `ROUTER_STATE_FILE` | `./router_state.json` | Where provider ratings/capabilities are cached between restarts (use `/tmp/...` on read-only hosts like HF Spaces) |
@@ -259,6 +261,17 @@ This is opt-in because some gateways expose paid or very large catalogs. Known m
 free/paid gateways are filtered to free model ids where possible, and very large/special
 providers such as Hugging Face are skipped unless you opt in per provider with
 `HUGGINGFACE_AUTO_DISCOVER_MODELS=1`.
+
+### Filter specialized models from discovery
+
+Enable `FILTER_SPECIALIZED_MODELS=1` (or `hr features enable filter_specialized_models`)
+to drop purpose-specific models from discovered `/models` catalogs: TTS, STT/Whisper,
+image generation, OCR, video, embeddings, moderation, and rerank. Detection uses
+catalog metadata when present, otherwise name-pattern matching.
+
+Configured `{PROVIDER}_MODEL` lists are never filtered — put a specialized ID there
+explicitly if you want it in rotation. Embedding routing via `{PROVIDER}_EMBED_MODEL`
+is unchanged.
 
 ### Per-provider exclude list
 
