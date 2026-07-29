@@ -74,6 +74,39 @@ def test_unrelated_400_does_not_learn(monkeypatch, tmp_path):
     assert caps.snapshot("groq", "llama") is None
 
 
+def test_discover_seeds_context_length(monkeypatch, tmp_path):
+    caps = TokenCapTracker(state_file=tmp_path / "c.json", enabled=True)
+    monkeypatch.setattr(router, "token_caps", caps)
+    monkeypatch.setattr(router, "TOKEN_CAPS_ENABLED", True)
+    monkeypatch.setattr(router, "FILTER_SPECIALIZED_MODELS", False)
+
+    catalog = [
+        {
+            "id": "llama-3.3-70b-versatile",
+            "context_length": 8192,
+            "max_completion_tokens": 4096,
+        },
+        {"id": "whisper-1"},
+    ]
+
+    class _Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": catalog}
+
+    monkeypatch.setattr(router._HTTP, "get", lambda *a, **k: _Resp())
+    provider = {
+        "name": "groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "headers": {},
+    }
+    found = router._discover_models(provider, key="sk-test")
+    assert "llama-3.3-70b-versatile" in found
+    assert caps.effective_input_cap("groq", "llama-3.3-70b-versatile", 0) == 8192
+    assert caps.effective_output_cap("groq", "llama-3.3-70b-versatile", 0) == 4096
+
+
 def test_success_near_cap_nudge_helper(monkeypatch, tmp_path):
     caps = TokenCapTracker(state_file=tmp_path / "c.json", enabled=True)
     caps.seed_from_metadata("groq", "llama", max_input=1000)

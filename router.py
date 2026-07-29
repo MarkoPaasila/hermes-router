@@ -29,7 +29,11 @@ from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
 from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD
-from token_caps import TokenCapTracker, classify_token_limit_error
+from token_caps import (
+    TokenCapTracker,
+    classify_token_limit_error,
+    extract_caps_from_model_item,
+)
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -1251,6 +1255,12 @@ def _discover_models_with_catalog(provider: dict, key: str, free_only: bool = Fa
             normalized = mid.strip()
             if provider["name"] == "gemini" and normalized.startswith("models/"):
                 normalized = normalized[len("models/"):]
+            if TOKEN_CAPS_ENABLED:
+                max_in, max_out = extract_caps_from_model_item(item)
+                if max_in or max_out:
+                    token_caps.seed_from_metadata(
+                        provider["name"], normalized, max_in, max_out
+                    )
             catalog.append(normalized)
             if FILTER_SPECIALIZED_MODELS and _is_specialized_model(normalized, item):
                 dropped.append(normalized)
@@ -5890,6 +5900,9 @@ def _features_snapshot() -> dict:
         {"name": "filter_specialized_models", "title": "Filter specialized models", "kind": "flag",
          "enabled": FILTER_SPECIALIZED_MODELS, "env": "FILTER_SPECIALIZED_MODELS", "on": "1", "off": "0",
          "desc": "When model discovery is on, drop TTS / STT / image-gen / OCR / video / embedding / moderation / rerank IDs from discovered catalogs so they never enter the chat pool."},
+        {"name": "token_caps", "title": "Adaptive token caps", "kind": "flag",
+         "enabled": TOKEN_CAPS_ENABLED, "env": "TOKEN_CAPS", "on": "1", "off": "0",
+         "desc": "Track per-model input/output ceilings from /models metadata and classified 413/token-limit 400s."},
         {"name": "metrics_auth", "title": "Metrics auth", "kind": "flag",
          "enabled": bool(_int_env("METRICS_REQUIRE_AUTH", 0)), "env": "METRICS_REQUIRE_AUTH",
          "on": "1", "off": "0", "desc": "Require the proxy key on /metrics."},

@@ -149,6 +149,21 @@ restarts in `rate_limits_state.json`.
 The rate limit state is visible in the dashboard (Rate headroom column) and in
 `/v1/status` under each provider's `rate_limits` key.
 
+### Adaptive per-model token caps
+
+hermes-router tracks effective input/output token ceilings per `(provider, model)`.
+It seeds from `/models` metadata when available and tightens from classified
+413 / token-limit 400 responses (gentle raises on near-cap successes).
+
+| Var | Default | Notes |
+|---|---|---|
+| `TOKEN_CAPS` | `1` | `0` disables adaptive caps (static env/defaults only) |
+| `TOKEN_CAPS_STATE_FILE` | `./token_caps_state.json` | Persisted learned/metadata caps |
+
+`{PROVIDER}_SKIP_TOKENS_OVER` and `{PROVIDER}_MAX_OUTPUT_TOKENS` remain provider-wide
+outer fences — learned values may only tighten further inside them. Caps appear under
+each provider in `/v1/status` as `token_caps`.
+
 ### Cost / spend awareness
 
 The router estimates **spend** from a built-in price table (USD per 1M tokens, input/output).
@@ -205,8 +220,8 @@ The router auto-probes each provider at startup, but you can force the result:
 |---|---|---|
 | `<PROVIDER>_SUPPORTS_TOOLS` | *(auto-probed)* | Force tool-capability on/off (`1`/`0`) |
 | `<PROVIDER>_REASONING` | *(auto-probed)* | Force reasoning-model on/off (`1`/`0`) |
-| `<PROVIDER>_SKIP_TOKENS_OVER` | *(per provider)* | Skip this provider when an estimated request exceeds this many tokens (`0` = never) |
-| `<PROVIDER>_MAX_OUTPUT_TOKENS` | *(per provider)* | Clamp `max_tokens` down to this provider's output ceiling (`0` = no clamp) |
+| `<PROVIDER>_SKIP_TOKENS_OVER` | *(per provider)* | Skip this provider when an estimated request exceeds this many tokens (`0` = never). With `TOKEN_CAPS=1`, this is an outer fence — per-model learned caps may only tighten further. |
+| `<PROVIDER>_MAX_OUTPUT_TOKENS` | *(per provider)* | Clamp `max_tokens` down to this provider's output ceiling (`0` = no clamp). With `TOKEN_CAPS=1`, this is an outer fence — per-model learned caps may only tighten further. |
 
 ## Model overrides
 
