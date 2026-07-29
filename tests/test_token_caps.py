@@ -73,6 +73,13 @@ def test_success_far_below_does_not_raise(tracker):
     assert tracker.effective_input_cap("groq", "llama", 0) == 1000
 
 
+def test_success_near_cap_uses_env_bound_for_threshold(tracker):
+    tracker.seed_from_metadata("groq", "llama", max_input=8192)
+    tracker.on_success_near_cap("groq", "llama", "input", used_tokens=5000, env_bound=5500)
+    assert tracker.effective_input_cap("groq", "llama", 0) == int(8192 * RAISE_FACTOR)
+    assert tracker.effective_input_cap("groq", "llama", 5500) == 5500
+
+
 def test_seed_does_not_loosen_tighter_learned(tracker):
     tracker.on_token_limit_failure("groq", "llama", "input", observed_tokens=4000)
     learned = tracker.effective_input_cap("groq", "llama", 0)

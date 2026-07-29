@@ -1846,6 +1846,21 @@ def _effective_output_cap_for(provider: dict, model: str) -> int | None:
     )
 
 
+def _effective_requested_output_for_learning(
+    provider: dict, model: str, payload: dict
+) -> int:
+    req_max = 0
+    for field in ("max_tokens", "max_completion_tokens"):
+        if isinstance(payload.get(field), int):
+            req_max = max(req_max, payload[field])
+    out_cap = _effective_output_cap_for(provider, model)
+    if out_cap and req_max:
+        req_max = min(req_max, out_cap)
+    elif out_cap and not req_max:
+        req_max = out_cap
+    return req_max
+
+
 def _apply_output_token_cap(body: dict, provider: dict, model: str) -> None:
     out_cap = _effective_output_cap_for(provider, model)
     if not out_cap:
@@ -1890,16 +1905,19 @@ def _learn_token_cap_from_success(
     model: str,
     prompt_tokens: int | None,
     completion_tokens: int | None,
+    provider: dict | None = None,
 ) -> None:
     if not TOKEN_CAPS_ENABLED:
         return
+    input_bound = int(provider.get("skip_if_tokens_over") or 0) if provider else 0
+    output_bound = int(provider.get("max_output_tokens") or 0) if provider else 0
     if prompt_tokens:
         token_caps.on_success_near_cap(
-            provider_name, model, "input", int(prompt_tokens)
+            provider_name, model, "input", int(prompt_tokens), input_bound
         )
     if completion_tokens:
         token_caps.on_success_near_cap(
-            provider_name, model, "output", int(completion_tokens)
+            provider_name, model, "output", int(completion_tokens), output_bound
         )
 
 
@@ -2546,7 +2564,7 @@ class _StreamWithUsage:
 
 
 def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None,
-                          resp_headers: dict = None):
+                          resp_headers: dict = None, provider: dict | None = None):
     """Wrap a streaming generator to capture the usage block from the final SSE
     chunk (present when stream_options.include_usage=true is sent upstream) and
     record tokens + cost in _provider_tokens/_provider_cost. Yields every chunk
@@ -2588,6 +2606,7 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
                     model=model or "",
                     prompt_tokens=_pt,
                     completion_tokens=_ct,
+                    provider=provider,
                 )
             if key:
                 _actual = float(usage.get("total_tokens") or 0)
@@ -5413,10 +5432,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     _body_txt = resp.text[:500]
                 except Exception:
                     pass
-                _req_max = 0
-                for _f in ("max_tokens", "max_completion_tokens"):
-                    if isinstance(payload.get(_f), int):
-                        _req_max = max(_req_max, payload[_f])
+                _req_max = _effective_requested_output_for_learning(provider, model, payload)
                 _learn_token_cap_from_error(
                     provider_name=name,
                     model=model,
@@ -5465,7 +5481,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 # aggregate it into one response for non-streaming clients.
                 if streaming:
                     gen = _with_cleanup(resp, _codex_streaming_generator(resp))
-                    wrapped = _streaming_with_usage(gen, name, model, key=key, resp_headers=dict(resp.headers))
+                    wrapped = _streaming_with_usage(
+                        gen, name, model, key=key, resp_headers=dict(resp.headers),
+                        provider=provider,
+                    )
                     return ("stream", wrapped, name)
                 events = []
                 for raw in resp.iter_lines():
@@ -5493,6 +5512,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                         model=model,
                         prompt_tokens=_pt,
                         completion_tokens=_ct,
+                        provider=provider,
                     )
                 _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
                 _surplus = _est_tokens - _actual_tokens
@@ -5504,7 +5524,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
                        else _streaming_generator(resp))
-                wrapped = _streaming_with_usage(_with_cleanup(resp, gen), name, model, key=key, resp_headers=dict(resp.headers))
+                wrapped = _streaming_with_usage(
+                    _with_cleanup(resp, gen), name, model, key=key,
+                    resp_headers=dict(resp.headers), provider=provider,
+                )
                 return ("stream", wrapped, name)
             else:
                 try:
@@ -5554,6 +5577,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                         model=model,
                         prompt_tokens=_pt,
                         completion_tokens=_ct,
+                        provider=provider,
                     )
                 _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
                 _surplus = _est_tokens - _actual_tokens

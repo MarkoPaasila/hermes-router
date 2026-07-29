@@ -199,7 +199,12 @@ class TokenCapTracker:
         self.flush()
 
     def on_success_near_cap(
-        self, provider: str, model: str, kind: str, used_tokens: int
+        self,
+        provider: str,
+        model: str,
+        kind: str,
+        used_tokens: int,
+        env_bound: int = 0,
     ) -> None:
         if not self.enabled or used_tokens <= 0:
             return
@@ -212,7 +217,10 @@ class TokenCapTracker:
             cur = e.get(field)
             if cur is None or cur <= 0:
                 return
-            if used_tokens < int(cur * NEAR_CAP_RATIO):
+            ceiling = cur
+            if env_bound and env_bound > 0:
+                ceiling = min(cur, env_bound)
+            if used_tokens < int(ceiling * NEAR_CAP_RATIO):
                 return
             new_cap = int(cur * RAISE_FACTOR)
             if new_cap == cur:
