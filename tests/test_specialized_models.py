@@ -60,3 +60,84 @@ def test_openrouter_image_generation_modality_drops():
 def test_unclear_metadata_falls_back_to_name():
     item = {"id": "whisper-large-v3", "architecture": {}}
     assert router._is_specialized_model("whisper-large-v3", item) is True
+
+
+class _FakeModelsResp:
+    def __init__(self, models, status_code=200):
+        self.status_code = status_code
+        self._models = models
+
+    def json(self):
+        return {"data": self._models}
+
+
+def test_discover_models_filters_specialized_when_flag_on(monkeypatch):
+    monkeypatch.setattr(router, "FILTER_SPECIALIZED_MODELS", True)
+    catalog = [
+        {"id": "gpt-4o-mini"},
+        {"id": "whisper-1"},
+        {"id": "text-embedding-3-small"},
+        {"id": "dall-e-3"},
+        {"id": "claude-sonnet-4"},
+        {
+            "id": "vendor/gen",
+            "architecture": {"modality": "text->image", "output_modalities": ["image"]},
+        },
+    ]
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeModelsResp(catalog)
+
+    monkeypatch.setattr(router._HTTP, "get", fake_get)
+    provider = {"name": "openai", "base_url": "https://api.openai.com/v1", "headers": {}}
+    found = router._discover_models(provider, key="sk-test")
+    assert "gpt-4o-mini" in found
+    assert "claude-sonnet-4" in found
+    assert "whisper-1" not in found
+    assert "text-embedding-3-small" not in found
+    assert "dall-e-3" not in found
+    assert "vendor/gen" not in found
+
+
+def test_discover_models_keeps_specialized_when_flag_off(monkeypatch):
+    monkeypatch.setattr(router, "FILTER_SPECIALIZED_MODELS", False)
+    catalog = [
+        {"id": "gpt-4o-mini"},
+        {"id": "whisper-1"},
+        {"id": "text-embedding-3-small"},
+    ]
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeModelsResp(catalog)
+
+    monkeypatch.setattr(router._HTTP, "get", fake_get)
+    provider = {"name": "openai", "base_url": "https://api.openai.com/v1", "headers": {}}
+    found = router._discover_models(provider, key="sk-test")
+    assert set(found) == {"gpt-4o-mini", "whisper-1", "text-embedding-3-small"}
+
+
+def test_discover_best_model_skips_specialized_when_flag_on(monkeypatch):
+    monkeypatch.setattr(router, "FILTER_SPECIALIZED_MODELS", True)
+    catalog = [
+        {"id": "whisper-1"},
+        {"id": "gpt-4o-mini"},
+        {"id": "text-embedding-3-small"},
+    ]
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeModelsResp(catalog)
+
+    monkeypatch.setattr(router._HTTP, "get", fake_get)
+    best = router._discover_best_model("https://api.openai.com/v1", key="sk-test")
+    assert best == "gpt-4o-mini"
+
+
+def test_discover_best_model_all_specialized_returns_none(monkeypatch):
+    monkeypatch.setattr(router, "FILTER_SPECIALIZED_MODELS", True)
+    catalog = [{"id": "whisper-1"}, {"id": "dall-e-3"}]
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeModelsResp(catalog)
+
+    monkeypatch.setattr(router._HTTP, "get", fake_get)
+    assert router._discover_best_model("https://api.openai.com/v1", key="sk-test") is None

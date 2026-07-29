@@ -124,6 +124,10 @@ FAST_ROUTE_TOKENS = int(os.environ.get("FAST_ROUTE_THRESHOLD", 0))  # 0 = disabl
 # models alongside free ones, and some expose very large catalogs.
 AUTO_DISCOVER_MODELS = os.environ.get("AUTO_DISCOVER_MODELS", "0").strip().lower() not in ("0", "", "false", "no", "off")
 AUTO_DISCOVER_MODEL_LIMIT = max(1, int(os.environ.get("AUTO_DISCOVER_MODEL_LIMIT", "8")))
+# When discovery is on, drop purpose-specific models (TTS/STT/image-gen/OCR/video/
+# embedding/moderation/rerank) from discovered catalogs. Configured model lists
+# are never filtered. Opt-in.
+FILTER_SPECIALIZED_MODELS = os.environ.get("FILTER_SPECIALIZED_MODELS", "0").strip().lower() not in ("0", "", "false", "no", "off")
 # Semantic cache: serve a cached answer for a *similar* (not just identical) prompt,
 # by embedding prompts and comparing cosine similarity. Opt-in (needs an embedding
 # provider); falls back to exact match when off or unavailable.
@@ -1188,7 +1192,17 @@ def _discover_best_model(base_url: str, key: str, extra_headers: dict = None,
         r = _HTTP.get(f"{base_url.rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
             return None
-        models = [m["id"] for m in r.json().get("data", []) if isinstance(m.get("id"), str)]
+        models = []
+        for item in r.json().get("data", []):
+            if not isinstance(item, dict):
+                continue
+            mid = item.get("id")
+            if not isinstance(mid, str) or not mid.strip():
+                continue
+            normalized = mid.strip()
+            if FILTER_SPECIALIZED_MODELS and _is_specialized_model(normalized, item):
+                continue
+            models.append(normalized)
         if free_only:
             models = [m for m in models if _is_free_model_id(m)]
         return min(models, key=_rate_model) if models else None
@@ -1209,14 +1223,25 @@ def _discover_models(provider: dict, key: str, free_only: bool = False) -> list[
         if r.status_code != 200:
             return []
         models = []
+        dropped = []
         for item in r.json().get("data", []):
-            mid = item.get("id") if isinstance(item, dict) else None
-            if isinstance(mid, str) and mid.strip():
-                normalized = mid.strip()
-                # Gemini's OpenAI-compat /models returns ids like models/gemini-2.5-pro.
-                if provider["name"] == "gemini" and normalized.startswith("models/"):
-                    normalized = normalized[len("models/"):]
-                models.append(normalized)
+            if not isinstance(item, dict):
+                continue
+            mid = item.get("id")
+            if not isinstance(mid, str) or not mid.strip():
+                continue
+            normalized = mid.strip()
+            if provider["name"] == "gemini" and normalized.startswith("models/"):
+                normalized = normalized[len("models/"):]
+            if FILTER_SPECIALIZED_MODELS and _is_specialized_model(normalized, item):
+                dropped.append(normalized)
+                continue
+            models.append(normalized)
+        if dropped:
+            sample = ", ".join(dropped[:5])
+            more = f" (+{len(dropped) - 5} more)" if len(dropped) > 5 else ""
+            log.debug(f"[ratings]   {provider['name']}: dropped {len(dropped)} specialized "
+                      f"model(s): {sample}{more}")
         if free_only:
             models = [m for m in models if _is_free_model_id(m)]
         models = list(dict.fromkeys(models))
