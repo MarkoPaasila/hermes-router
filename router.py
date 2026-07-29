@@ -28,7 +28,7 @@ from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
-from rate_limiter import AdaptiveRateLimiter
+from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -2253,12 +2253,13 @@ def _with_cleanup(resp: requests.Response, gen):
         resp.close()
 
 
-def _streaming_with_usage(gen, name: str, model: str | None = None):
+def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None):
     """Wrap a streaming generator to capture the usage block from the final SSE
     chunk (present when stream_options.include_usage=true is sent upstream) and
     record tokens + cost in _provider_tokens/_provider_cost. Yields every chunk
     unchanged."""
     usage: dict = {}
+    last_headers: dict = {}
     for chunk in gen:
         text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk
         for line in text.split("\n"):
@@ -2268,11 +2269,18 @@ def _streaming_with_usage(gen, name: str, model: str | None = None):
                     u = event.get("usage") or {}
                     if u.get("total_tokens"):
                         usage = u
+                    h = event.get("x_headers") or {}
+                    if h:
+                        last_headers = h
                 except Exception:
                     pass
         yield chunk
     if usage:
         _add_provider_tokens(name, {"usage": usage}, model)
+        if key:
+            _actual = float(usage.get("total_tokens") or 0)
+            rate_limiter.update_from_headers(name, key, model, last_headers)
+            rate_limiter.on_success(name, key, model, _actual)
 
 # ── Anthropic format translation ──────────────────────────────────────────────
 # Anthropic's Messages API uses a different format from OpenAI. These helpers
@@ -4713,6 +4721,21 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
 
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
             _req_ctx.attempts += 1
+            _est_tokens = float(provider.get("skip_if_tokens_over") or 0) or \
+                max(1.0, sum(len(str(m.get("content", ""))) for m in
+                             payload.get("messages", [])) / 4)
+            _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                name, key, model, req_count=1.0, token_count=_est_tokens)
+            if not _rl_ok:
+                _wait_ms = _rl_wait * 1000
+                if 0 < _wait_ms <= RATE_SHORT_WAIT_MS:
+                    log.debug(f"  {name}/{model} thin bucket — waiting {_wait_ms:.0f}ms")
+                    time.sleep(_rl_wait)
+                    _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                        name, key, model, req_count=1.0, token_count=_est_tokens)
+                if not _rl_ok:
+                    log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
+                    continue
             t0   = time.time()
             resp = forward(provider, key, payload, streaming, model)
             elapsed = time.time() - t0
@@ -4728,6 +4751,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 # 429 is NOT a health failure — per-(key,model) cooldown handles it.
                 retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
                 pool.mark_rate_limited(name, key, model, retry_after=retry_after)
+                rate_limiter.on_429(name, key, model, dict(resp.headers))
                 log.warning(f"  {name}/{model} 429 — cooldown {retry_after}s, trying next")
                 continue
 
@@ -4811,12 +4835,17 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     pool.mark_rate_limited(name, key, model, retry_after=30)
                     break
                 _add_provider_tokens(name, data, model)
+                _actual_tokens = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
+                _surplus = _est_tokens - _actual_tokens
+                rate_limiter.restore(name, key, model, max(0.0, _surplus))
+                rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
+                rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
                 return ("json", data)
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
                        else _streaming_generator(resp))
-                wrapped = _streaming_with_usage(_with_cleanup(resp, gen), name, model)
+                wrapped = _streaming_with_usage(_with_cleanup(resp, gen), name, model, key=key)
                 return ("stream", wrapped, name)
             else:
                 try:
@@ -4859,6 +4888,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 if not is_anthropic:
                     _strip_response(data)
                 _add_provider_tokens(name, data, model)
+                _actual_tokens = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
+                _surplus = _est_tokens - _actual_tokens
+                rate_limiter.restore(name, key, model, max(0.0, _surplus))
+                rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
+                rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
                 return ("json", data)
 
