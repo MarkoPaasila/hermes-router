@@ -1676,6 +1676,24 @@ def _shutdown_flush():
 
 atexit.register(_shutdown_flush)
 
+
+def _configured_rate_group_ids() -> set[str]:
+    """Group ids that match currently configured provider keys/models."""
+    ids: set[str] = set()
+    for p in PROVIDERS:
+        name = p["name"]
+        keys = p.get("keys") or []
+        models = list(p.get("models") or ([p.get("model")] if p.get("model") else []))
+        if p.get("embed_model"):
+            models.append(p["embed_model"])
+        models = [m for m in dict.fromkeys(models) if m]
+        for key in keys:
+            ids.add(AdaptiveRateLimiter._group_key(name, key, None))
+            for m in models:
+                ids.add(AdaptiveRateLimiter._group_key(name, key, m))
+    return ids
+
+
 # Background: validate providers, fix models, assign ratings
 threading.Thread(target=_initialize_ratings, args=(PROVIDERS, pool), daemon=True).start()
 
@@ -5629,6 +5647,34 @@ def status():
         },
         "features": _features_snapshot(),
     })
+
+
+@app.route("/v1/rate-limits")
+def rate_limits_list():
+    err = _auth_check()
+    if err:
+        return err
+    raw = (request.args.get("include_orphans") or "0").strip().lower()
+    include = raw in ("1", "true", "yes")
+    groups = rate_limiter.list_groups(
+        include_orphans=include,
+        configured_ids=_configured_rate_group_ids(),
+    )
+    return jsonify({"generated_at": time.time(), "groups": groups})
+
+
+@app.route("/v1/rate-limits/clear", methods=["POST"])
+def rate_limits_clear():
+    err = _auth_check()
+    if err:
+        return err
+    body = request.get_json(silent=True) or {}
+    gid = body.get("id")
+    if not gid or not isinstance(gid, str):
+        return jsonify({"error": "id required"}), 400
+    if not rate_limiter.clear_group(gid):
+        return jsonify({"error": "unknown group"}), 404
+    return jsonify({"ok": True})
 
 
 @app.route("/v1/usage")
