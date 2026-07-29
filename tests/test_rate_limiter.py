@@ -175,6 +175,7 @@ def test_default_caps_fallback():
     assert "_default" in PROVIDER_RATE_DEFAULTS
 
 
+import json
 import tempfile
 from pathlib import Path
 from rate_limiter import AdaptiveRateLimiter
@@ -272,3 +273,22 @@ def test_run_all_inactive_checks_marks_quiet_buckets_inactive(tmp_path):
     rl.run_all_inactive_checks()
     # At least one bucket should be inactive (quiet groq group)
     assert any(not b.active for b in g.buckets.values())
+
+def test_clear_group_removes_and_flushes(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    gk = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    assert gk in rl._groups or AdaptiveRateLimiter._group_key("groq", "key-abc12345", "llama") in rl._groups
+    # Clear the provider-wide group that check_and_consume created
+    pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    mg = AdaptiveRateLimiter._group_key("groq", "key-abc12345", "llama")
+    assert rl.clear_group(pw) is True
+    assert pw not in rl._groups
+    # Disk no longer contains pw
+    rl.flush()  # ensure file readable; clear_group already flushed
+    doc = json.loads((Path(tmp_path) / "rate_limits_state.json").read_text())
+    assert pw not in (doc.get("groups") or {})
+
+def test_clear_group_unknown_returns_false(tmp_path):
+    rl = make_limiter(tmp_path)
+    assert rl.clear_group("provider:nope|key:deadbeef") is False

@@ -465,6 +465,14 @@ class AdaptiveRateLimiter:
                 "model":         _buckets_to_status(mg),
             }
 
+    def clear_group(self, group_id: str) -> bool:
+        with self._lock:
+            if group_id not in self._groups:
+                return False
+            del self._groups[group_id]
+        self.flush()
+        return True
+
     # ── Persistence ───────────────────────────────────────────────────────────
 
     def load(self) -> None:
