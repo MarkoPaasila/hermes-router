@@ -31,7 +31,6 @@ RATE_HEADROOM_THRESHOLD   = _float_env("RATE_HEADROOM_THRESHOLD", 0.05)
 RATE_LEARN_SUCCESS_STREAK = _int_env("RATE_LEARN_SUCCESS_STREAK", 20)
 RATE_LEARN_NUDGE_PCT      = _float_env("RATE_LEARN_NUDGE_PCT", 5.0)
 RATE_LEARN_CUT_FACTOR     = _float_env("RATE_LEARN_CUT_FACTOR", 0.8)
-RATE_LEARN_MAX_MULTIPLIER = _float_env("RATE_LEARN_MAX_MULTIPLIER", 10.0)
 RATE_STATE_FLUSH_INTERVAL = _int_env("RATE_STATE_FLUSH_INTERVAL", 60)
 
 # ── Window definitions ────────────────────────────────────────────────────────
@@ -107,10 +106,8 @@ class TokenBucket:
     def on_success(self) -> None:
         self._consecutive_successes += 1
         if self._consecutive_successes >= RATE_LEARN_SUCCESS_STREAK:
-            ceiling = self._initial_cap * RATE_LEARN_MAX_MULTIPLIER
-            if self.cap < ceiling:
-                self.cap = min(ceiling, self.cap * (1.0 + RATE_LEARN_NUDGE_PCT / 100.0))
-                log.info(f"[rate] nudged cap up to {self.cap:.1f}")
+            self.cap = self.cap * (1.0 + RATE_LEARN_NUDGE_PCT / 100.0)
+            log.info(f"[rate] nudged cap up to {self.cap:.1f}")
             self._consecutive_successes = 0
 
     def on_429(self, observed_rate: float) -> None:

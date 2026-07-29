@@ -141,7 +141,6 @@ restarts in `rate_limits_state.json`.
 | `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a cap up |
 | `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase cap on a success streak |
 | `RATE_LEARN_CUT_FACTOR` | `0.8` | Multiplier applied to observed rate on 429 |
-| `RATE_LEARN_MAX_MULTIPLIER` | `10` | Cap ceiling as multiple of the initial default |
 | `RATE_STATE_FLUSH_INTERVAL` | `60` | Seconds between background state flushes |
 | `RATE_DEFAULT_<PROVIDER>_<WINDOW>` | — | Override built-in default cap (e.g. `RATE_DEFAULT_GROQ_RPM=60`) |
 

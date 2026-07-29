@@ -65,6 +65,17 @@ def test_on_success_nudge():
         b.on_success()
     assert b.cap > 10.0
 
+def test_on_success_nudge_past_former_ceiling():
+    """Caps keep growing even above the old 10× initial-default ceiling."""
+    b = make_bucket(cap=10.0, tokens=10.0)
+    b._initial_cap = 10.0
+    b.cap = 110.0  # already above 10 × initial
+    before = b.cap
+    for _ in range(20):
+        b.on_success()
+    assert b.cap > before
+    assert b.cap == pytest.approx(before * 1.05)
+
 def test_set_from_header():
     b = make_bucket(cap=10.0, tokens=5.0)
     b.set_from_header(cap=100.0, remaining=80.0)
