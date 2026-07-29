@@ -129,6 +129,28 @@ in `auth.json` look like:
 { "proxy_keys": { "sk-team-1": { "rpm": 60, "req_per_day": 500, "tokens_per_day": 100000, "cost_per_day": 5 } } }
 ```
 
+### Adaptive upstream rate limiter
+
+hermes-router automatically discovers and tracks each upstream provider's rate limits.
+It starts from conservative built-in defaults and adjusts caps up or down based on
+`x-ratelimit-*` response headers and 429 signals. Learned limits persist across
+restarts in `rate_limits_state.json`.
+
+| Env var | Default | Description |
+|---|---|---|
+| `RATE_STATE_FILE` | `./rate_limits_state.json` | Path to learned-limits state file |
+| `RATE_SHORT_WAIT_MS` | `500` | Max ms to sleep when a bucket is nearly empty before failing over |
+| `RATE_HEADROOM_THRESHOLD` | `0.05` | Fraction of cap below which a bucket triggers pacing |
+| `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a cap up |
+| `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase cap on a success streak |
+| `RATE_LEARN_CUT_FACTOR` | `0.8` | Multiplier applied to observed rate on 429 |
+| `RATE_LEARN_MAX_MULTIPLIER` | `10` | Cap ceiling as multiple of the initial default |
+| `RATE_STATE_FLUSH_INTERVAL` | `60` | Seconds between background state flushes |
+| `RATE_DEFAULT_<PROVIDER>_<WINDOW>` | — | Override built-in default cap (e.g. `RATE_DEFAULT_GROQ_RPM=60`) |
+
+The rate limit state is visible in the dashboard (Rate headroom column) and in
+`/v1/status` under each provider's `rate_limits` key.
+
 ### Cost / spend awareness
 
 The router estimates **spend** from a built-in price table (USD per 1M tokens, input/output).
@@ -169,6 +191,7 @@ machine. It's keyless (cloud providers remain the fallback). See
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model override (set via `hr model set`) |
 | `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Model override (set via `hr model set`) |
 | `<PROVIDER>_MODEL` | *(varies)* | Same pattern applies to all providers |
+| `<PROVIDER>_EXCLUDE_MODELS` | *(empty)* | Comma-separated model IDs to block (exact, case-insensitive). Wins over `<PROVIDER>_MODEL` and auto-discovery appends |
 
 ### Per-provider embeddings
 
@@ -236,6 +259,7 @@ Enable `AUTO_DISCOVER_MODELS=1` (or `hr features enable model_discovery`) to hav
 router query configured providers' OpenAI-compatible `/models` endpoints at startup. It
 keeps the configured models that still exist, appends the best discovered models up to
 `AUTO_DISCOVER_MODEL_LIMIT`, and updates the in-memory routing pool for that run.
+Models listed in `<PROVIDER>_EXCLUDE_MODELS` are never kept or appended.
 
 This is opt-in because some gateways expose paid or very large catalogs. Known mixed
 free/paid gateways are filtered to free model ids where possible, and very large/special
