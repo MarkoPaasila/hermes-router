@@ -470,6 +470,91 @@ def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
     return [m for m in models if m.lower() not in excl]
 
 
+# Substrings that mark purpose-specific (non-chat) models when catalog metadata
+# does not explicitly classify the item. Avoid bare "image" — vision chat models
+# use that word too.
+_SPECIALIZED_NAME_PATTERNS = (
+    "whisper", "tts", "speech", "audio", "imagen", "dall-e", "dalle", "flux",
+    "ocr", "embed", "embedding", "moderation", "rerank", "video",
+)
+
+
+def _metadata_specialization(item: dict | None) -> str | None:
+    """Return 'specialized', 'chat', or None if metadata is absent/unclear."""
+    if not isinstance(item, dict):
+        return None
+    blobs: list[str] = []
+    arch = item.get("architecture")
+    if isinstance(arch, dict):
+        for key in ("modality", "output_modalities", "input_modalities"):
+            val = arch.get(key)
+            if isinstance(val, str):
+                blobs.append(val.lower())
+            elif isinstance(val, list):
+                blobs.extend(str(v).lower() for v in val)
+    for key in ("type", "object", "task"):
+        val = item.get(key)
+        if isinstance(val, str):
+            blobs.append(val.lower())
+    caps = item.get("capabilities")
+    if isinstance(caps, str):
+        blobs.append(caps.lower())
+    elif isinstance(caps, list):
+        blobs.extend(str(c).lower() for c in caps)
+    elif isinstance(caps, dict):
+        blobs.extend(str(k).lower() for k, v in caps.items() if v)
+
+    if not blobs:
+        return None
+    joined = " ".join(blobs)
+
+    specialized_tokens = (
+        "embedding", "embeddings", "tts", "speech", "audio", "asr", "stt",
+        "whisper", "moderation", "rerank", "reranking", "ocr", "video",
+        "image-generation", "image_generation", "text->image", "text→image",
+        "->image", "→image", "->embedding", "→embedding", "->audio", "→audio",
+    )
+    if any(tok in joined for tok in specialized_tokens):
+        # text+image->text is vision chat, not image generation
+        if "->image" in joined or "→image" in joined:
+            return "specialized"
+        if any(tok in joined for tok in (
+            "embedding", "embeddings", "tts", "speech", "audio", "asr", "stt",
+            "whisper", "moderation", "rerank", "reranking", "ocr", "video",
+            "image-generation", "image_generation",
+        )):
+            return "specialized"
+
+    chat_tokens = (
+        "text->text", "text→text", "text+image->text", "text+image→text",
+        "chat", "completion", "language",
+    )
+    if any(tok in joined for tok in chat_tokens) or (
+        "text" in joined and "embedding" not in joined and "->image" not in joined
+        and "→image" not in joined
+    ):
+        # output_modalities including text (and not only specialized outputs)
+        if "embeddings" in joined or "embedding" in joined:
+            return "specialized"
+        return "chat"
+    return None
+
+
+def _is_specialized_model(model_id: str, item: dict | None = None) -> bool:
+    """True when a catalog model is purpose-specific (not chat completions).
+
+    Detection order: explicit specialized metadata → drop; explicit chat/text
+    metadata → keep; otherwise name-pattern denylist.
+    """
+    kind = _metadata_specialization(item)
+    if kind == "specialized":
+        return True
+    if kind == "chat":
+        return False
+    mn = (model_id or "").lower()
+    return any(p in mn for p in _SPECIALIZED_NAME_PATTERNS)
+
+
 # ── Provider definitions ───────────────────────────────────────────────────────
 
 def _build_providers() -> list[dict]:
