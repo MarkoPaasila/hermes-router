@@ -31,6 +31,10 @@ RATE_HEADROOM_THRESHOLD   = _float_env("RATE_HEADROOM_THRESHOLD", 0.05)
 RATE_LEARN_SUCCESS_STREAK = _int_env("RATE_LEARN_SUCCESS_STREAK", 20)
 RATE_LEARN_NUDGE_PCT      = _float_env("RATE_LEARN_NUDGE_PCT", 5.0)
 RATE_LEARN_CUT_FACTOR     = _float_env("RATE_LEARN_CUT_FACTOR", 0.8)
+RATE_LEARN_CUT_FACTOR_PROVIDER      = _float_env("RATE_LEARN_CUT_FACTOR_PROVIDER", 0.95)
+RATE_LEARN_SOFT_CUT_FACTOR          = _float_env("RATE_LEARN_SOFT_CUT_FACTOR", 0.9)
+RATE_LEARN_SUCCESS_STREAK_PROVIDER  = _int_env("RATE_LEARN_SUCCESS_STREAK_PROVIDER", 10)
+RATE_LEARN_NUDGE_PCT_PROVIDER       = _float_env("RATE_LEARN_NUDGE_PCT_PROVIDER", 8.0)
 RATE_STATE_FLUSH_INTERVAL = _int_env("RATE_STATE_FLUSH_INTERVAL", 60)
 
 # ── Window definitions ────────────────────────────────────────────────────────
@@ -103,19 +107,23 @@ class TokenBucket:
             return float("inf")
         return (amount - self.tokens) / rate
 
-    def on_success(self) -> None:
+    def on_success(self, streak: int | None = None, nudge_pct: float | None = None) -> None:
+        need = RATE_LEARN_SUCCESS_STREAK if streak is None else streak
+        pct = RATE_LEARN_NUDGE_PCT if nudge_pct is None else nudge_pct
         self._consecutive_successes += 1
-        if self._consecutive_successes >= RATE_LEARN_SUCCESS_STREAK:
-            self.cap = self.cap * (1.0 + RATE_LEARN_NUDGE_PCT / 100.0)
+        if self._consecutive_successes >= need:
+            self.cap = self.cap * (1.0 + pct / 100.0)
             log.info(f"[rate] nudged cap up to {self.cap:.1f}")
             self._consecutive_successes = 0
 
-    def on_429(self, observed_rate: float) -> None:
+    def on_429(self, observed_rate: float, *, soft: bool = False) -> None:
         if self._period_consumed >= 3:
-            new_cap = max(1.0, observed_rate * RATE_LEARN_CUT_FACTOR)
+            factor = RATE_LEARN_CUT_FACTOR_PROVIDER if soft else RATE_LEARN_CUT_FACTOR
+            new_cap = max(1.0, observed_rate * factor)
         else:
-            new_cap = max(1.0, self.cap * 0.5)
-        log.info(f"[rate] 429 cut cap {self.cap:.1f} → {new_cap:.1f}")
+            frac = RATE_LEARN_SOFT_CUT_FACTOR if soft else 0.5
+            new_cap = max(1.0, self.cap * frac)
+        log.info(f"[rate] 429 {'soft ' if soft else ''}cut cap {self.cap:.1f} → {new_cap:.1f}")
         self.cap = new_cap
         self.tokens = 0.0
         self._consecutive_successes = 0

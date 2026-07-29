@@ -58,6 +58,36 @@ def test_on_429_without_history_halves():
     b.on_429(observed_rate=1.0)
     assert b.cap == pytest.approx(30.0)  # cap * 0.5
 
+def test_on_429_soft_with_history():
+    b = make_bucket(cap=60.0, tokens=30.0)
+    b._period_consumed = 10.0
+    b.on_429(observed_rate=10.0, soft=True)
+    # Default RATE_LEARN_CUT_FACTOR_PROVIDER = 0.95
+    assert b.cap == pytest.approx(9.5)
+    assert b.tokens == 0.0
+
+
+def test_on_429_soft_without_history():
+    b = make_bucket(cap=60.0, tokens=30.0)
+    b._period_consumed = 1.0
+    b.on_429(observed_rate=1.0, soft=True)
+    # Default RATE_LEARN_SOFT_CUT_FACTOR = 0.9
+    assert b.cap == pytest.approx(54.0)
+
+
+def test_on_429_hard_unchanged_default():
+    b = make_bucket(cap=60.0, tokens=30.0)
+    b._period_consumed = 10.0
+    b.on_429(observed_rate=10.0)  # soft=False default
+    assert b.cap == pytest.approx(8.0)
+
+
+def test_on_success_custom_streak_and_nudge():
+    b = make_bucket(cap=10.0, tokens=10.0)
+    for _ in range(10):
+        b.on_success(streak=10, nudge_pct=8.0)
+    assert b.cap == pytest.approx(10.0 * 1.08)
+
 def test_on_success_nudge():
     b = make_bucket(cap=10.0, tokens=10.0)
     b._initial_cap = 10.0
