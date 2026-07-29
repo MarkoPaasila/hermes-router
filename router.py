@@ -28,7 +28,7 @@ from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
-from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS
+from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -2258,13 +2258,13 @@ def _with_cleanup(resp: requests.Response, gen):
         resp.close()
 
 
-def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None):
+def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None,
+                          resp_headers: dict = None):
     """Wrap a streaming generator to capture the usage block from the final SSE
     chunk (present when stream_options.include_usage=true is sent upstream) and
     record tokens + cost in _provider_tokens/_provider_cost. Yields every chunk
     unchanged."""
     usage: dict = {}
-    last_headers: dict = {}
     for chunk in gen:
         text = chunk.decode("utf-8", errors="replace") if isinstance(chunk, bytes) else chunk
         for line in text.split("\n"):
@@ -2274,9 +2274,6 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
                     u = event.get("usage") or {}
                     if u.get("total_tokens"):
                         usage = u
-                    h = event.get("x_headers") or {}
-                    if h:
-                        last_headers = h
                 except Exception:
                     pass
         yield chunk
@@ -2284,7 +2281,7 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
         _add_provider_tokens(name, {"usage": usage}, model)
         if key:
             _actual = float(usage.get("total_tokens") or 0)
-            rate_limiter.update_from_headers(name, key, model, last_headers)
+            rate_limiter.update_from_headers(name, key, model, resp_headers or {})
             rate_limiter.on_success(name, key, model, _actual)
 
 # ── Anthropic format translation ──────────────────────────────────────────────
@@ -4749,6 +4746,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             _est_tokens = float(provider.get("skip_if_tokens_over") or 0) or \
                 max(1.0, sum(len(str(m.get("content", ""))) for m in
                              payload.get("messages", [])) / 4)
+            # Proactive pacing: gate when headroom is thin even if tokens remain
+            _current_headroom = rate_limiter.headroom(name, key, model)
+            if _current_headroom < RATE_HEADROOM_THRESHOLD:
+                log.info(f"  {name}/{model} thin headroom ({_current_headroom:.1%}) — skipping")
+                continue
             _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                 name, key, model, req_count=1.0, token_count=_est_tokens)
             if not _rl_ok:
@@ -4842,7 +4844,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 # aggregate it into one response for non-streaming clients.
                 if streaming:
                     gen = _with_cleanup(resp, _codex_streaming_generator(resp))
-                    wrapped = _streaming_with_usage(gen, name, model, key=key)
+                    wrapped = _streaming_with_usage(gen, name, model, key=key, resp_headers=dict(resp.headers))
                     return ("stream", wrapped, name)
                 events = []
                 for raw in resp.iter_lines():
@@ -4872,7 +4874,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
                        else _streaming_generator(resp))
-                wrapped = _streaming_with_usage(_with_cleanup(resp, gen), name, model, key=key)
+                wrapped = _streaming_with_usage(_with_cleanup(resp, gen), name, model, key=key, resp_headers=dict(resp.headers))
                 return ("stream", wrapped, name)
             else:
                 try:

@@ -122,6 +122,7 @@ class TokenBucket:
         self.cap = new_cap
         self.tokens = 0.0
         self._consecutive_successes = 0
+        self._period_consumed = 0.0
 
     def set_from_header(self, cap: float, remaining: float) -> None:
         self.cap    = float(cap)
@@ -264,11 +265,12 @@ class BucketGroup:
         # If headers contain hard data, use set_from_header for those buckets.
         updated = self._apply_headers(headers, on_429=True)
         for name, b in self.buckets.items():
-            if name not in updated and b.active:
-                b.on_429(observed_rate=b._period_consumed)
+            if name in updated:
+                continue
             if not b.active:
-                b.active = True   # re-activate on 429
+                b.active = True
                 log.info(f"[rate] bucket {name} re-activated by 429")
+            b.on_429(observed_rate=b._period_consumed)
 
     def update_from_headers(self, headers: dict) -> None:
         self._apply_headers(headers, on_429=False)
@@ -485,8 +487,8 @@ class AdaptiveRateLimiter:
     def flush(self) -> None:
         try:
             with self._lock:
-                groups = {gk: g.to_dict() for gk, g in self._groups.items()
-                          if g.to_dict()}
+                groups = {gk: d for gk, g in self._groups.items()
+                          if (d := g.to_dict())}
             doc = {"version": 1, "groups": groups}
             tmp = self.state_file.with_suffix(".tmp")
             tmp.write_text(json.dumps(doc, indent=2))
@@ -511,7 +513,10 @@ class AdaptiveRateLimiter:
                 self.flush()
                 sweep_counter += 1
                 if sweep_counter >= 10:
-                    self.run_all_inactive_checks()
+                    try:
+                        self.run_all_inactive_checks()
+                    except Exception as e:
+                        log.warning(f"[rate] inactive check failed: {e}")
                     sweep_counter = 0
         t = threading.Thread(target=_loop, daemon=True, name="rate-flush")
         t.start()
