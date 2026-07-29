@@ -392,14 +392,14 @@ def test_on_429_with_retry_after_blocks_consume(tmp_path, monkeypatch):
     now = 1_000_000.0
     monkeypatch.setattr(time, "time", lambda: now)
     # Prime groups so on_429 has buckets to update
-    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
-    # Refill tokens so only blocked_until (not empty buckets) causes failure
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
+    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "30"})
+    # Cap learning zeros tokens on both groups; refill so only model blocked_until binds
     for g in (rl.get_group("groq", "key-abc12345", None),
               rl.get_group("groq", "key-abc12345", "llama")):
         for b in g.buckets.values():
             b.tokens = b.cap
-    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "30"})
-    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
     assert ok is False
     assert wait == pytest.approx(30.0, abs=0.5)
 
@@ -441,18 +441,73 @@ def test_blocked_until_persists_when_future(tmp_path, monkeypatch):
     rl = make_limiter(tmp_path)
     now = 1_000_000.0
     monkeypatch.setattr(time, "time", lambda: now)
-    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
     rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "60"})
     rl.flush()
     doc = json.loads((Path(tmp_path) / "rate_limits_state.json").read_text())
+    mg = AdaptiveRateLimiter._group_key("groq", "key-abc12345", "llama")
     pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
-    assert doc["groups"][pw].get("blocked_until") == pytest.approx(now + 60.0)
+    assert doc["groups"][mg].get("blocked_until") == pytest.approx(now + 60.0)
+    assert "blocked_until" not in doc["groups"].get(pw, {})
     rl2 = make_limiter(tmp_path)
     monkeypatch.setattr(time, "time", lambda: now)
     rl2.load()
-    ok, wait = rl2.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    for g in (rl2.get_group("groq", "key-abc12345", None),
+              rl2.get_group("groq", "key-abc12345", "llama")):
+        for b in g.buckets.values():
+            b.tokens = b.cap
+            b.last_refill = now
+    ok, wait = rl2.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
     assert ok is False
     assert wait == pytest.approx(60.0, abs=0.5)
+
+
+def test_retry_after_does_not_block_sibling_model(tmp_path, monkeypatch):
+    """A Retry-After on one model must not hold sibling models on the same key."""
+    rl = make_limiter(tmp_path)
+    now = 1_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
+    rl.check_and_consume("groq", "key-abc12345", "mistral", 1.0, 1.0)
+    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "30"})
+    # Cap learning zeros tokens; refill so Retry-After is the only binder on llama
+    for g in (rl.get_group("groq", "key-abc12345", None),
+              rl.get_group("groq", "key-abc12345", "llama"),
+              rl.get_group("groq", "key-abc12345", "mistral")):
+        for b in g.buckets.values():
+            b.tokens = b.cap
+    # Hit model stays blocked
+    ok_hit, wait_hit = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
+    assert ok_hit is False
+    assert wait_hit == pytest.approx(30.0, abs=0.5)
+    assert rl.headroom("groq", "key-abc12345", "llama") == 0.0
+    # Sibling model remains usable
+    assert rl.headroom("groq", "key-abc12345", "mistral") > 0.0
+    ok_sib, wait_sib = rl.check_and_consume("groq", "key-abc12345", "mistral", 1.0, 1.0)
+    assert ok_sib is True
+    assert wait_sib == 0.0
+
+
+def test_load_clears_provider_wide_blocked_until(tmp_path, monkeypatch):
+    """Legacy provider-wide Retry-After holds are dropped on load."""
+    now = 1_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    pw = AdaptiveRateLimiter._group_key("opencode", "key-NsmiAsLz", None)
+    mg = AdaptiveRateLimiter._group_key("opencode", "key-NsmiAsLz", "deepseek")
+    doc = {
+        "version": 1,
+        "groups": {
+            pw: {"RPM": {"cap": 10.0, "tokens": 10.0, "last_refill": now},
+                 "blocked_until": now + 3600},
+            mg: {"RPM": {"cap": 10.0, "tokens": 10.0, "last_refill": now},
+                 "blocked_until": now + 3600},
+        },
+    }
+    (Path(tmp_path) / "rate_limits_state.json").write_text(json.dumps(doc))
+    rl = make_limiter(tmp_path)
+    rl.load()
+    assert rl.get_group("opencode", "key-NsmiAsLz", None).blocked_until <= now
+    assert rl.get_group("opencode", "key-NsmiAsLz", "deepseek").blocked_until == pytest.approx(now + 3600)
 
 
 def test_snapshot_includes_blocked_until(tmp_path, monkeypatch):

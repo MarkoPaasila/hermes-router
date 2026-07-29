@@ -282,7 +282,7 @@ class BucketGroup:
         for b in self._active():
             b.on_success()
 
-    def on_429(self, headers: dict) -> None:
+    def on_429(self, headers: dict, apply_retry_after: bool = True) -> None:
         # If headers contain hard data, use set_from_header for those buckets.
         updated = self._apply_headers(headers, on_429=True)
         for name, b in self.buckets.items():
@@ -292,6 +292,10 @@ class BucketGroup:
                 b.active = True
                 log.info(f"[rate] bucket {name} re-activated by 429")
             b.on_429(observed_rate=b._period_consumed)
+        # Retry-After holds are model-scoped (caller passes apply_retry_after=False
+        # for the provider-wide group so one model's 429 cannot block siblings).
+        if not apply_retry_after:
+            return
         retry = None
         if headers:
             # Case-insensitive Retry-After lookup
@@ -486,11 +490,15 @@ class AdaptiveRateLimiter:
 
     def on_429(self, provider_name: str, key: str, model: str,
                headers: dict) -> None:
+        # Cap learning applies to both scopes; Retry-After hold is model-only so
+        # a per-model free-tier 429 can fail over to a sibling model on the same key.
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            pw.on_429(headers)
-            if mg is not pw:
-                mg.on_429(headers)
+            if mg is pw:
+                pw.on_429(headers, apply_retry_after=True)
+            else:
+                pw.on_429(headers, apply_retry_after=False)
+                mg.on_429(headers, apply_retry_after=True)
 
     def update_from_headers(self, provider_name: str, key: str, model: str,
                             headers: dict) -> None:
@@ -617,12 +625,22 @@ class AdaptiveRateLimiter:
             if doc.get("version") != 1:
                 log.warning("[rate] state file version mismatch, skipping")
                 return
+            cleared_pw_holds = 0
             with self._lock:
                 for gk, bdict in (doc.get("groups") or {}).items():
                     pname = gk.split("|")[0].removeprefix("provider:")
-                    self._groups[gk] = BucketGroup.from_dict(bdict, provider_name=pname)
+                    g = BucketGroup.from_dict(bdict, provider_name=pname)
+                    # Migrate: Retry-After holds belong on (key, model) groups only.
+                    # Drop leftover provider-wide blocked_until so one model's 429
+                    # no longer blocks sibling models after restart.
+                    if "|model:" not in gk and g.blocked_until:
+                        g.blocked_until = 0.0
+                        cleared_pw_holds += 1
+                    self._groups[gk] = g
                 n = len(self._groups)
             log.info(f"[rate] loaded {n} bucket groups from {self.state_file}")
+            if cleared_pw_holds:
+                log.info(f"[rate] cleared {cleared_pw_holds} provider-wide Retry-After hold(s)")
         except Exception as e:
             log.warning(f"[rate] could not load state file: {e}")
 

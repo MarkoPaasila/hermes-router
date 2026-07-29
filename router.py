@@ -1157,6 +1157,54 @@ def _model_supports_tools(name: str, model: str) -> bool:
     return bool(_model_caps(name, model).get("supports_tools", True))
 
 
+def _promote_tools_support(name: str, model: str) -> None:
+    """Mark a model as tool-capable after a live response emitted tool_calls.
+
+    Startup probes can false-negative (small max_tokens / truncated replies);
+    correcting the cache here prevents the next tools request from skipping a
+    model that just proved it works.
+    """
+    st = _model_state.get((name, model))
+    if st is not None and st.get("supports_tools"):
+        return
+    if st is None:
+        _model_state[(name, model)] = {
+            "rating": _rate_model(model), "supports_tools": True, "reasoning": False}
+    else:
+        st = dict(st)
+        st["supports_tools"] = True
+        _model_state[(name, model)] = st
+    ps = _provider_state.get(name)
+    if isinstance(ps, dict) and ps.get("model") == model:
+        ps["supports_tools"] = True
+    try:
+        if not STATE_FILE.exists():
+            return
+        doc = json.loads(STATE_FILE.read_text())
+        key = f"{name}::{model}"
+        entry = dict((doc.get("model_state") or {}).get(key) or _model_state[(name, model)])
+        entry["supports_tools"] = True
+        doc.setdefault("model_state", {})[key] = entry
+        if name in (doc.get("providers") or {}) and doc["providers"][name].get("model") == model:
+            doc["providers"][name]["supports_tools"] = True
+        STATE_FILE.write_text(json.dumps(doc, indent=2))
+    except Exception as e:
+        log.debug(f"[ratings] could not persist tools promotion for {name}/{model}: {e}")
+
+
+def _response_has_tool_calls(data) -> bool:
+    """True when an OpenAI-format completion message includes tool_calls."""
+    if not isinstance(data, dict):
+        return False
+    for ch in data.get("choices") or []:
+        if not isinstance(ch, dict):
+            continue
+        msg = ch.get("message") or {}
+        if isinstance(msg, dict) and msg.get("tool_calls"):
+            return True
+    return False
+
+
 # Known vision-capable model families, matched by substring (mirrors _rate_model's
 # approach). Unlike tool support — which most modern chat models handle, so
 # _model_supports_tools defaults to True — vision support is the exception rather
@@ -1433,6 +1481,11 @@ def _probe_tools(provider: dict, key: str, model: str) -> bool | None:
     caching a transient probe failure as a confident False would silently and
     persistently (for STATE_TTL_HOURS) exclude a capable model from tool-aware
     routing. Callers should treat None as unknown and keep the optimistic default.
+
+    A 200 with no tool_calls is only a confident False when the model returned a
+    normal text answer (non-empty content, finish_reason stop/end). Truncated
+    (finish_reason=length) or empty replies are treated as inconclusive (None) —
+    small max_tokens probes often starve capable models into a false negative.
     """
     if provider.get("protocol") in ("anthropic", "codex"):
         return True   # both support function calling
@@ -1441,7 +1494,7 @@ def _probe_tools(provider: dict, key: str, model: str) -> bool | None:
             **provider.get("headers", {})}
     base = {"model": model, "max_tokens": 64, "tools": _TOOL_PROBE,
             "messages": [{"role": "user", "content": "What is the weather in Paris? Use the get_weather tool."}]}
-    got_response = False
+    saw_conclusive_no = False
     for choice in ("required", "auto"):
         try:
             r = _HTTP.post(url, headers=hdrs, json={**base, "tool_choice": choice}, timeout=12)
@@ -1449,14 +1502,23 @@ def _probe_tools(provider: dict, key: str, model: str) -> bool | None:
             continue   # network hiccup on this attempt — still try the other tool_choice
         if r.status_code != 200:
             continue   # provider may reject tool_choice=required → try auto
-        got_response = True
         try:
-            msg = (r.json().get("choices") or [{}])[0].get("message") or {}
+            choice_obj = (r.json().get("choices") or [{}])[0] or {}
+            msg = choice_obj.get("message") or {}
             if msg.get("tool_calls"):
                 return True
+            content = (msg.get("content") or "").strip()
+            finish = (choice_obj.get("finish_reason") or "").lower()
+            # Weak signal → inconclusive (do not cache as tools=no)
+            if finish == "length" or not content:
+                continue
+            if finish in ("", "stop", "end_turn", "completed"):
+                saw_conclusive_no = True
         except Exception:
             continue
-    return False if got_response else None
+    if saw_conclusive_no:
+        return False
+    return None  # no 200, or only weak/inconclusive 200s
 
 
 def _probe_reasoning(provider: dict, key: str, model: str) -> bool:
@@ -5318,24 +5380,45 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
     # within each candidate. A whole provider is taken out of the running for this
     # request (skip_providers) on auth / payload / unexpected errors — those won't
     # be fixed by another of its models.
+    # Tool-deferred: models cached as tools=no are skipped on the first pass, then
+    # retried once as a last resort if every tool-capable candidate was exhausted
+    # (false-negative probes must not 503 when a capable model remains).
     skip_providers: set = set()
-    for cand in ordered:
+    tool_deferred: list = []
+    work: list = [("main", c) for c in ordered]
+    wi = 0
+    appended_last_resort = False
+
+    def _queue_tool_last_resort() -> None:
+        nonlocal appended_last_resort, work
+        if wi >= len(work) and not appended_last_resort and tool_deferred:
+            log.info(f"⚒ last-resort: trying {len(tool_deferred)} candidate(s) "
+                     "skipped for no tool support")
+            appended_last_resort = True
+            work.extend(("last_resort", c) for c in tool_deferred)
+
+    while wi < len(work):
+        phase, cand = work[wi]
+        wi += 1
         provider = cand["provider"]
         name     = provider["name"]
         model    = cand["model"]
 
         if name in skip_providers:
+            _queue_tool_last_resort()
             continue
 
         # Caller's access key is scoped to specific providers — skip anything else.
         if caller_providers is not None and name not in caller_providers:
             skip_providers.add(name)
+            _queue_tool_last_resort()
             continue
 
         # Breaker open → skip the whole provider (unless all are open, then probe).
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} (circuit open)")
             skip_providers.add(name)
+            _queue_tool_last_resort()
             continue
 
         # Skip candidates whose payload ceiling this request would exceed
@@ -5343,17 +5426,23 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
         cap = _effective_input_cap_for(provider, model)
         if cap and est_tokens >= cap:
             log.info(f"⤳ skipping {name}/{model} (~{est_tokens} tok >= {cap} cap)")
+            _queue_tool_last_resort()
             continue
 
         # Tool request → skip candidates whose MODEL can't do function calling
         # (per-model; another model on the same provider may still qualify).
-        if enforce_tool and not _model_supports_tools(name, model):
+        # First pass only — deferred list is retried after tool-capable path exhausts.
+        if (enforce_tool and phase == "main"
+                and not _model_supports_tools(name, model)):
             log.info(f"⚒ skipping {name}/{model} (no tool support)")
+            tool_deferred.append(cand)
+            _queue_tool_last_resort()
             continue
 
         # Vision request → skip candidates whose MODEL isn't known to accept images.
         if enforce_vision and not _model_supports_vision(provider, model):
             log.info(f"🖼 skipping {name}/{model} (no vision support)")
+            _queue_tool_last_resort()
             continue
 
         attempts = pool.key_count(name, model) or 1
@@ -5520,6 +5609,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
                 rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
+                if _response_has_tool_calls(data):
+                    _promote_tools_support(name, model)
                 return ("json", data)
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
@@ -5585,7 +5676,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
                 rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
+                if _response_has_tool_calls(data):
+                    _promote_tools_support(name, model)
                 return ("json", data)
+
+        _queue_tool_last_resort()
 
     return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
 
