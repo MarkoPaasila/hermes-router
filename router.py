@@ -27,6 +27,7 @@ from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
+from rate_limiter import AdaptiveRateLimiter
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,7 @@ ROTATION_MODE     = os.environ.get("ROTATION_MODE", "round-robin").strip().lower
 if ROTATION_MODE not in ("round-robin", "sequential"):
     ROTATION_MODE = "round-robin"   # unknown value → safe default
 STATE_FILE        = Path(os.environ.get("ROUTER_STATE_FILE", "./router_state.json"))
+RATE_STATE_FILE   = Path(os.environ.get("RATE_STATE_FILE", "./rate_limits_state.json"))
 STATE_TTL_HOURS   = int(os.environ.get("ROUTER_STATE_TTL_HOURS", 24))  # 0 = re-probe every start
 AUTH_FILE         = Path(os.environ.get("ROUTER_AUTH_FILE", "./auth.json"))  # router's own key store
 # In-memory request log: last N requests kept in a ring buffer. Pure RAM, no disk
@@ -446,6 +448,20 @@ def _int_env(env_var: str, default: int = 0) -> int:
         return default
 
 
+def _excluded_models(provider_name: str) -> set[str]:
+    """Case-insensitive exact model IDs listed in {PROVIDER}_EXCLUDE_MODELS."""
+    raw = os.environ.get(f"{provider_name.upper()}_EXCLUDE_MODELS", "")
+    return {m.strip().lower() for m in raw.split(",") if m.strip()}
+
+
+def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
+    """Drop models blocked by {PROVIDER}_EXCLUDE_MODELS (exact, case-insensitive)."""
+    excl = _excluded_models(provider_name)
+    if not excl:
+        return models
+    return [m for m in models if m.lower() not in excl]
+
+
 def _parse_retry_after(value, default: int = 60) -> int:
     """Parse a Retry-After header value. RFC 9110 allows either delay-seconds
     or an HTTP date; some providers also send fractional seconds. Anything we
@@ -672,8 +688,13 @@ def _build_providers() -> list[dict]:
     # entry is the "primary" model used for probing, rating, and status display.
     for p in providers:
         models = [m.strip() for m in str(p.get("model", "")).split(",") if m.strip()]
-        p["models"] = models or [p.get("model", "")]
-        p["model"]  = p["models"][0]
+        models = models or [p.get("model", "")]
+        filtered = _filter_excluded(p["name"], models)
+        if models and not filtered:
+            log.warning(f"{p['name']}: all models excluded via "
+                        f"{p['name'].upper()}_EXCLUDE_MODELS — provider has no usable models")
+        p["models"] = filtered
+        p["model"]  = filtered[0] if filtered else (models[0] if models else "")
 
     # Per-provider "skip when the request is too big" ceiling. Some free tiers
     # reject large payloads outright, so trying them with a big prompt just wastes
@@ -1148,7 +1169,7 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
         log.info(f"[ratings]   {name}: model discovery skipped by default")
         return
     free_only = name in _FREE_ONLY_DISCOVERY
-    discovered = _discover_models(provider, key, free_only=free_only)
+    discovered = _filter_excluded(name, _discover_models(provider, key, free_only=free_only))
     if not discovered:
         return
 
@@ -1156,14 +1177,14 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     discovered_set = set(discovered)
     # Prune only when doing so still leaves a configured model; otherwise the
     # existing invalid-model repair path can try to recover a primary model.
-    kept = [m for m in configured if m in discovered_set]
+    kept = _filter_excluded(name, [m for m in configured if m in discovered_set])
     if not kept:
         kept = discovered[:1]
     # Never drop valid configured models; only bound appended discoveries.
-    refreshed = list(dict.fromkeys(kept + discovered))
+    refreshed = _filter_excluded(name, list(dict.fromkeys(kept + discovered)))
     if len(kept) < AUTO_DISCOVER_MODEL_LIMIT:
         refreshed = refreshed[:AUTO_DISCOVER_MODEL_LIMIT]
-    if refreshed == configured:
+    if not refreshed or refreshed == configured:
         return
 
     provider["models"] = refreshed
@@ -1543,6 +1564,10 @@ def _initialize_ratings(providers: list, pool_ref):
         log.info("[ratings] State persisted to disk")
     except Exception as e:
         log.warning(f"[ratings] Could not persist state: {e}")
+    try:
+        rate_limiter.flush()
+    except Exception as e:
+        log.warning(f"[rate_limiter] Could not flush state: {e}")
 
 
 class CredentialPool:
@@ -1650,6 +1675,10 @@ class CredentialPool:
 
 
 pool = CredentialPool(PROVIDERS)
+
+rate_limiter = AdaptiveRateLimiter(state_file=RATE_STATE_FILE, auth_file=AUTH_FILE)
+rate_limiter.load()
+rate_limiter.start_flush_thread()
 
 # Background: validate providers, fix models, assign ratings
 threading.Thread(target=_initialize_ratings, args=(PROVIDERS, pool), daemon=True).start()
