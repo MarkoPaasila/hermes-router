@@ -29,7 +29,7 @@ from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
 from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD
-from token_caps import TokenCapTracker
+from token_caps import TokenCapTracker, classify_token_limit_error
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -1849,6 +1849,50 @@ def _apply_output_token_cap(body: dict, provider: dict, model: str) -> None:
             body[field] = out_cap
 
 
+def _learn_token_cap_from_error(
+    *,
+    provider_name: str,
+    model: str,
+    status_code: int,
+    body: str,
+    est_tokens: int,
+    requested_max_tokens: int,
+) -> None:
+    if not TOKEN_CAPS_ENABLED:
+        return
+    kind = classify_token_limit_error(
+        status_code,
+        body,
+        est_tokens=est_tokens,
+        requested_max_tokens=requested_max_tokens,
+    )
+    if not kind:
+        return
+    observed = est_tokens if kind == "input" else requested_max_tokens
+    if observed <= 0:
+        return
+    token_caps.on_token_limit_failure(provider_name, model, kind, observed)
+
+
+def _learn_token_cap_from_success(
+    *,
+    provider_name: str,
+    model: str,
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+) -> None:
+    if not TOKEN_CAPS_ENABLED:
+        return
+    if prompt_tokens:
+        token_caps.on_success_near_cap(
+            provider_name, model, "input", int(prompt_tokens)
+        )
+    if completion_tokens:
+        token_caps.on_success_near_cap(
+            provider_name, model, "output", int(completion_tokens)
+        )
+
+
 def _shutdown_flush():
     try:
         rate_limiter.flush()
@@ -2526,6 +2570,15 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
             captured.clear()
             captured.update(usage)
             _add_provider_tokens(name, {"usage": usage}, model)
+            _pt = usage.get("prompt_tokens")
+            _ct = usage.get("completion_tokens")
+            if _pt is not None or _ct is not None:
+                _learn_token_cap_from_success(
+                    provider_name=name,
+                    model=model or "",
+                    prompt_tokens=_pt,
+                    completion_tokens=_ct,
+                )
             if key:
                 _actual = float(usage.get("total_tokens") or 0)
                 rate_limiter.update_from_headers(name, key, model, resp_headers or {})
@@ -5344,6 +5397,25 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 skip_providers.add(name)
                 break
 
+            if resp.status_code in (400, 413):
+                _body_txt = ""
+                try:
+                    _body_txt = resp.text[:500]
+                except Exception:
+                    pass
+                _req_max = 0
+                for _f in ("max_tokens", "max_completion_tokens"):
+                    if isinstance(payload.get(_f), int):
+                        _req_max = max(_req_max, payload[_f])
+                _learn_token_cap_from_error(
+                    provider_name=name,
+                    model=model,
+                    status_code=resp.status_code,
+                    body=_body_txt,
+                    est_tokens=int(_est_tokens),
+                    requested_max_tokens=_req_max,
+                )
+
             if resp.status_code in (400, 404):
                 stats.record_error(name)
                 # model-specific (e.g. bad model name) — just skip this candidate.
@@ -5402,7 +5474,17 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     log.warning(f"  {name}/{model} empty completion — cascading")
                     break
                 _add_provider_tokens(name, data, model)
-                _actual_tokens = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
+                _usage = data.get("usage") or {}
+                _pt = _usage.get("prompt_tokens")
+                _ct = _usage.get("completion_tokens")
+                if _pt is not None or _ct is not None:
+                    _learn_token_cap_from_success(
+                        provider_name=name,
+                        model=model,
+                        prompt_tokens=_pt,
+                        completion_tokens=_ct,
+                    )
+                _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
                 _surplus = _est_tokens - _actual_tokens
                 rate_limiter.restore(name, key, model, max(0.0, _surplus))
                 rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
@@ -5453,7 +5535,17 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 if not is_anthropic:
                     _strip_response(data)
                 _add_provider_tokens(name, data, model)
-                _actual_tokens = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
+                _usage = data.get("usage") or {}
+                _pt = _usage.get("prompt_tokens")
+                _ct = _usage.get("completion_tokens")
+                if _pt is not None or _ct is not None:
+                    _learn_token_cap_from_success(
+                        provider_name=name,
+                        model=model,
+                        prompt_tokens=_pt,
+                        completion_tokens=_ct,
+                    )
+                _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
                 _surplus = _est_tokens - _actual_tokens
                 rate_limiter.restore(name, key, model, max(0.0, _surplus))
                 rate_limiter.update_from_headers(name, key, model, dict(resp.headers))

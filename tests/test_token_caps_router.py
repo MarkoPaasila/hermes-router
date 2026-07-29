@@ -42,3 +42,46 @@ def test_token_caps_disabled_uses_env_only(monkeypatch, tmp_path):
     body = {"max_tokens": 65536}
     router._apply_output_token_cap(body, {**provider, "model": "llama"}, "llama")
     assert body["max_tokens"] == 8192
+
+
+def test_learn_from_classified_413(monkeypatch, tmp_path):
+    caps = TokenCapTracker(state_file=tmp_path / "c.json", enabled=True)
+    monkeypatch.setattr(router, "token_caps", caps)
+    monkeypatch.setattr(router, "TOKEN_CAPS_ENABLED", True)
+    router._learn_token_cap_from_error(
+        provider_name="groq",
+        model="llama",
+        status_code=413,
+        body="Payload Too Large",
+        est_tokens=6000,
+        requested_max_tokens=1024,
+    )
+    assert caps.effective_input_cap("groq", "llama", 0) is not None
+    assert caps.effective_input_cap("groq", "llama", 0) < 6000
+
+
+def test_unrelated_400_does_not_learn(monkeypatch, tmp_path):
+    caps = TokenCapTracker(state_file=tmp_path / "c.json", enabled=True)
+    monkeypatch.setattr(router, "token_caps", caps)
+    router._learn_token_cap_from_error(
+        provider_name="groq",
+        model="llama",
+        status_code=400,
+        body="invalid tool schema",
+        est_tokens=6000,
+        requested_max_tokens=1024,
+    )
+    assert caps.snapshot("groq", "llama") is None
+
+
+def test_success_near_cap_nudge_helper(monkeypatch, tmp_path):
+    caps = TokenCapTracker(state_file=tmp_path / "c.json", enabled=True)
+    caps.seed_from_metadata("groq", "llama", max_input=1000)
+    monkeypatch.setattr(router, "token_caps", caps)
+    router._learn_token_cap_from_success(
+        provider_name="groq",
+        model="llama",
+        prompt_tokens=900,
+        completion_tokens=10,
+    )
+    assert caps.effective_input_cap("groq", "llama", 0) > 1000
