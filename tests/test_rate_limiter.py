@@ -548,3 +548,64 @@ def test_snapshot_includes_blocked_until(tmp_path, monkeypatch):
     rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "15"})
     snap = rl.snapshot("groq", "key-abc12345", "llama")
     assert snap.get("blocked_until") == pytest.approx(now + 15.0)
+
+
+def test_update_from_headers_model_only(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    pw_rpm_before = pw.buckets["RPM"].cap
+    pw_tok_before = pw.buckets["RPM"].tokens
+    rl.update_from_headers("groq", "key-abc12345", "llama", {
+        "x-ratelimit-limit-requests": "100",
+        "x-ratelimit-remaining-requests": "40",
+    })
+    assert mg.buckets["RPM"].cap == pytest.approx(100.0)
+    assert mg.buckets["RPM"].tokens == pytest.approx(40.0)
+    assert pw.buckets["RPM"].cap == pytest.approx(pw_rpm_before)
+    assert pw.buckets["RPM"].tokens == pytest.approx(pw_tok_before)
+
+
+def test_on_429_asymmetric_cuts(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    for g in (pw, mg):
+        g.buckets["RPM"].cap = 100.0
+        g.buckets["RPM"].tokens = 50.0
+        g.buckets["RPM"]._period_consumed = 10.0
+    rl.on_429("groq", "key-abc12345", "llama", {})
+    assert mg.buckets["RPM"].cap == pytest.approx(8.0)    # 10 * 0.8
+    assert pw.buckets["RPM"].cap == pytest.approx(9.5)    # 10 * 0.95
+    assert pw.blocked_until <= time.time()
+
+
+def test_on_429_headers_apply_to_model_not_pw(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    pw_cap = pw.buckets["RPM"].cap
+    for g in (pw, mg):
+        g.buckets["RPM"]._period_consumed = 1.0  # low history → fractional cut path if used
+    rl.on_429("groq", "key-abc12345", "llama", {
+        "x-ratelimit-limit-requests": "200",
+        "x-ratelimit-remaining-requests": "0",
+        "Retry-After": "30",
+    })
+    assert mg.buckets["RPM"].cap == pytest.approx(200.0)
+    assert mg.buckets["RPM"].tokens == pytest.approx(0.0)
+    # PW must not take header caps; soft-cut instead
+    assert pw.buckets["RPM"].cap != pytest.approx(200.0)
+    assert pw.buckets["RPM"].cap == pytest.approx(pw_cap * 0.9)
+
+
+def test_on_success_pw_nudges_faster(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    pw.buckets["RPM"].cap = 100.0
+    mg.buckets["RPM"].cap = 100.0
+    for _ in range(10):
+        rl.on_success("groq", "key-abc12345", "llama", 1.0)
+    assert pw.buckets["RPM"].cap == pytest.approx(100.0 * 1.08)
+    assert mg.buckets["RPM"].cap == pytest.approx(100.0)  # needs 20

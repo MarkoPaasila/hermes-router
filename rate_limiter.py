@@ -286,20 +286,21 @@ class BucketGroup:
             return 1.0
         return min(b.headroom() for b in active)
 
-    def on_success(self, token_count: float) -> None:
+    def on_success(self, token_count: float,
+                   streak: int | None = None, nudge_pct: float | None = None) -> None:
         for b in self._active():
-            b.on_success()
+            b.on_success(streak=streak, nudge_pct=nudge_pct)
 
-    def on_429(self, headers: dict, apply_retry_after: bool = True) -> None:
-        # If headers contain hard data, use set_from_header for those buckets.
-        updated = self._apply_headers(headers, on_429=True)
+    def on_429(self, headers: dict, apply_retry_after: bool = True, *,
+               apply_headers: bool = True, soft: bool = False) -> None:
+        updated = self._apply_headers(headers, on_429=True) if apply_headers else set()
         for name, b in self.buckets.items():
             if name in updated:
                 continue
             if not b.active:
                 b.active = True
                 log.info(f"[rate] bucket {name} re-activated by 429")
-            b.on_429(observed_rate=b._period_consumed)
+            b.on_429(observed_rate=b._period_consumed, soft=soft)
         # Retry-After holds are model-scoped (caller passes apply_retry_after=False
         # for the provider-wide group so one model's 429 cannot block siblings).
         if not apply_retry_after:
@@ -492,29 +493,29 @@ class AdaptiveRateLimiter:
                    token_count: float) -> None:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            pw.on_success(token_count)
+            pw.on_success(
+                token_count,
+                streak=RATE_LEARN_SUCCESS_STREAK_PROVIDER,
+                nudge_pct=RATE_LEARN_NUDGE_PCT_PROVIDER,
+            )
             if mg is not pw:
-                mg.on_success(token_count)
+                mg.on_success(token_count)  # model defaults
 
     def on_429(self, provider_name: str, key: str, model: str,
                headers: dict) -> None:
-        # Cap learning applies to both scopes; Retry-After hold is model-only so
-        # a per-model free-tier 429 can fail over to a sibling model on the same key.
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
             if mg is pw:
-                pw.on_429(headers, apply_retry_after=True)
+                pw.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
             else:
-                pw.on_429(headers, apply_retry_after=False)
-                mg.on_429(headers, apply_retry_after=True)
+                pw.on_429(headers, apply_retry_after=False, apply_headers=False, soft=True)
+                mg.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
 
     def update_from_headers(self, provider_name: str, key: str, model: str,
                             headers: dict) -> None:
         with self._lock:
-            pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            pw.update_from_headers(headers)
-            if mg is not pw:
-                mg.update_from_headers(headers)
+            _pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            mg.update_from_headers(headers)
 
     def headroom(self, provider_name: str, key: str, model: str) -> float:
         """Read-only headroom for ranking. Does not create bucket groups."""
