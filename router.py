@@ -1217,12 +1217,23 @@ def _discover_models(provider: dict, key: str, free_only: bool = False) -> list[
     when appending extras). Fail-soft: any provider quirk simply disables discovery
     for that provider on this start.
     """
+    filtered, _catalog = _discover_models_with_catalog(provider, key, free_only=free_only)
+    return filtered
+
+
+def _discover_models_with_catalog(provider: dict, key: str, free_only: bool = False) -> tuple[list[str], list[str]]:
+    """Fetch models from /models; return (filtered, catalog).
+
+    ``catalog`` includes every normalized ID (membership checks for configured
+    models). ``filtered`` excludes specialized models when FILTER_SPECIALIZED_MODELS.
+    """
     try:
         hdrs = {"Authorization": f"Bearer {key}", **provider.get("headers", {})}
         r = _HTTP.get(f"{provider['base_url'].rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
-            return []
-        models = []
+            return [], []
+        catalog = []
+        filtered = []
         dropped = []
         for item in r.json().get("data", []):
             if not isinstance(item, dict):
@@ -1233,23 +1244,28 @@ def _discover_models(provider: dict, key: str, free_only: bool = False) -> list[
             normalized = mid.strip()
             if provider["name"] == "gemini" and normalized.startswith("models/"):
                 normalized = normalized[len("models/"):]
+            catalog.append(normalized)
             if FILTER_SPECIALIZED_MODELS and _is_specialized_model(normalized, item):
                 dropped.append(normalized)
                 continue
-            models.append(normalized)
+            filtered.append(normalized)
         if dropped:
             sample = ", ".join(dropped[:5])
             more = f" (+{len(dropped) - 5} more)" if len(dropped) > 5 else ""
             log.debug(f"[ratings]   {provider['name']}: dropped {len(dropped)} specialized "
                       f"model(s): {sample}{more}")
         if free_only:
-            models = [m for m in models if _is_free_model_id(m)]
-        models = list(dict.fromkeys(models))
-        models.sort(key=lambda m: (_price_rank(m), _quality_rank(provider["name"], m), m.lower()))
-        return models
+            catalog = [m for m in catalog if _is_free_model_id(m)]
+            filtered = [m for m in filtered if _is_free_model_id(m)]
+        catalog = list(dict.fromkeys(catalog))
+        filtered = list(dict.fromkeys(filtered))
+        sort_key = lambda m: (_price_rank(m), _quality_rank(provider["name"], m), m.lower())
+        catalog.sort(key=sort_key)
+        filtered.sort(key=sort_key)
+        return filtered, catalog
     except Exception as e:
         log.debug(f"[ratings]   {provider['name']}: model discovery skipped: {e}")
-        return []
+        return [], []
 
 
 def _provider_model_discovery_enabled(provider: dict) -> bool:
@@ -1277,15 +1293,19 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
         log.info(f"[ratings]   {name}: model discovery skipped by default")
         return
     free_only = name in _FREE_ONLY_DISCOVERY
-    discovered = _filter_excluded(name, _discover_models(provider, key, free_only=free_only))
+    discovery = _discover_models_with_catalog(provider, key, free_only=free_only)
+    discovered, catalog = discovery
+    discovered = _filter_excluded(name, discovered)
     if not discovered:
         return
 
     configured = list(provider.get("models") or [provider["model"]])
-    discovered_set = set(discovered)
+    # Configured models are kept when still in the API catalog, even if the
+    # specialized filter removed them from the discovery append list.
+    catalog_set = set(_filter_excluded(name, catalog))
     # Prune only when doing so still leaves a configured model; otherwise the
     # existing invalid-model repair path can try to recover a primary model.
-    kept = _filter_excluded(name, [m for m in configured if m in discovered_set])
+    kept = _filter_excluded(name, [m for m in configured if m in catalog_set])
     if not kept:
         kept = discovered[:1]
     # Never drop valid configured models; only bound appended discoveries.

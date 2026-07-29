@@ -141,3 +141,42 @@ def test_discover_best_model_all_specialized_returns_none(monkeypatch):
 
     monkeypatch.setattr(router._HTTP, "get", fake_get)
     assert router._discover_best_model("https://api.openai.com/v1", key="sk-test") is None
+
+
+class _FakePool:
+    def ensure_model(self, name, model, keys):
+        pass
+
+    def rename_model(self, old, new, model):
+        pass
+
+
+def test_refresh_keeps_configured_specialized_when_filter_on(monkeypatch):
+    """Configured whisper-1 stays after refresh even though discovery filters it."""
+    monkeypatch.setattr(router, "FILTER_SPECIALIZED_MODELS", True)
+    monkeypatch.setattr(router, "AUTO_DISCOVER_MODELS", True)
+    monkeypatch.setenv("OPENAI_AUTO_DISCOVER_MODELS", "1")
+    catalog = [
+        {"id": "gpt-4o-mini"},
+        {"id": "whisper-1"},
+        {"id": "dall-e-3"},
+        {"id": "claude-sonnet-4"},
+    ]
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeModelsResp(catalog)
+
+    monkeypatch.setattr(router._HTTP, "get", fake_get)
+    provider = {
+        "name": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "headers": {},
+        "model": "whisper-1",
+        "models": ["whisper-1", "gpt-4o-mini"],
+        "keys": ["sk-test"],
+    }
+    router._refresh_discovered_models(provider, "sk-test", _FakePool())
+    assert "whisper-1" in provider["models"]
+    assert "gpt-4o-mini" in provider["models"]
+    assert "dall-e-3" not in provider["models"]
+    assert "claude-sonnet-4" in provider["models"]
