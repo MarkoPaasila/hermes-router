@@ -110,6 +110,25 @@ def test_bucketgroup_consume_fails_when_rpm_empty():
         assert ok is False
         assert wait > 0
 
+def test_bucketgroup_consume_returns_max_wait_across_failing_buckets():
+    g = BucketGroup(provider_name="groq", caps={"RPM": 60.0, "TPM": 6000.0})
+    rpm, tpm = g.buckets["RPM"], g.buckets["TPM"]
+    rpm.tokens = 0.0   # rate 1 req/s → 1s wait for 1 req
+    tpm.tokens = 0.0   # rate 100 tok/s → 10s wait for 1000 tok
+    ok, wait = g.consume(req_count=1.0, token_count=1000.0)
+    assert ok is False
+    assert wait == pytest.approx(10.0, abs=0.1)
+
+def test_bucketgroup_consume_atomic_no_partial_debit():
+    g = BucketGroup(provider_name="groq", caps={"RPM": 30.0, "TPM": 6000.0})
+    rpm, tpm = g.buckets["RPM"], g.buckets["TPM"]
+    rpm.tokens = 30.0
+    tpm.tokens = 0.0
+    rpm_before = rpm.tokens
+    ok, _ = g.consume(req_count=1.0, token_count=100.0)
+    assert ok is False
+    assert rpm.tokens == rpm_before
+
 def test_bucketgroup_headroom_all_full():
     g = BucketGroup(provider_name="groq")
     assert g.headroom() == pytest.approx(1.0, abs=0.05)

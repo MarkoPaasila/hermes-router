@@ -216,6 +216,7 @@ class BucketGroup:
 
     def consume(self, req_count: float, token_count: float) -> tuple[bool, float]:
         """Check all active buckets. Consume atomically only if all pass."""
+        max_wait = 0.0
         checks: list[tuple[TokenBucket, float]] = []
         for name, b in self.buckets.items():
             if not b.active:
@@ -226,9 +227,11 @@ class BucketGroup:
                 continue
             b.refill(time.time())
             if b.tokens < amount:
-                wait = b.time_to_refill(amount)
-                return False, wait
-            checks.append((b, amount))
+                max_wait = max(max_wait, b.time_to_refill(amount))
+            else:
+                checks.append((b, amount))
+        if max_wait > 0:
+            return False, max_wait
         for b, amount in checks:
             b.tokens -= amount
             b._period_consumed += amount
