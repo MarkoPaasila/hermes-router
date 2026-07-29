@@ -3563,7 +3563,7 @@ tr:hover td{background:rgba(108,140,255,.04)}
                 <th class="right">Requests</th><th class="right">Errors</th>
                 <th class="right">Err %</th><th class="right">Avg Latency</th>
                 <th class="right">Tokens</th><th class="right">Cost (USD)</th>
-                <th>Keys</th><th>Breaker</th><th>Status</th>
+                <th>Keys</th><th>Breaker</th><th>Status</th><th>Rate headroom</th>
               </tr></thead>
               <tbody id="provider-tbody"></tbody>
             </table>
@@ -4076,6 +4076,25 @@ function renderProviders() {
     const erp = req ? err / req * 100 : 0;
     const lat = s.avg_latency_ms;
     const brk = p.breaker?.open || false;
+    const model = p.model || '';
+    // Rate headroom bar
+    const rlData = (p.rate_limits || {})[model] || {};
+    const allBuckets = {...(rlData.provider_wide || {}), ...(rlData.model || {})};
+    const bucketValues = Object.values(allBuckets);
+    const headroom = bucketValues.length
+        ? Math.min(...bucketValues.map(b => b.headroom))
+        : 1.0;
+    const hPct = Math.round(headroom * 100);
+    const hColor = hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
+    const hTitle = Object.entries(allBuckets)
+        .map(([k, v]) => `${k}: ${v.used}/${v.cap}`)
+        .join(' | ') || 'no rate data';
+    const headroomBar = `<div title="${hTitle}" style="display:inline-block;vertical-align:middle;margin-left:4px">
+  <div class="prog-track" style="width:48px;display:inline-block">
+    <div class="prog-fill ${hColor}" style="width:${hPct}%"></div>
+  </div>
+  <span class="muted" style="font-size:10px">${hPct}%</span>
+</div>`;
     const tr  = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${name}</strong></td>
@@ -4090,6 +4109,7 @@ function renderProviders() {
       <td>${keyDots(p.keys)}</td>
       <td>${brk?'<span class="pill pill-err">open</span>':'<span class="pill pill-ok">closed</span>'}</td>
       <td>${statusPill(s, brk)}</td>
+      <td>${headroomBar}</td>
     `;
     tbody.appendChild(tr);
   });
