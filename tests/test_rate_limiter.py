@@ -292,3 +292,48 @@ def test_clear_group_removes_and_flushes(tmp_path):
 def test_clear_group_unknown_returns_false(tmp_path):
     rl = make_limiter(tmp_path)
     assert rl.clear_group("provider:nope|key:deadbeef") is False
+
+def test_parse_group_key_provider_wide():
+    d = AdaptiveRateLimiter.parse_group_key("provider:groq|key:abc12345")
+    assert d == {"provider": "groq", "key_hint": "abc12345", "model": None}
+
+def test_parse_group_key_model():
+    d = AdaptiveRateLimiter.parse_group_key("provider:groq|key:abc12345|model:llama")
+    assert d == {"provider": "groq", "key_hint": "abc12345", "model": "llama"}
+
+def test_parse_group_key_malformed():
+    assert AdaptiveRateLimiter.parse_group_key("not-a-key") is None
+
+def test_list_groups_filters_orphans(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    mg = AdaptiveRateLimiter._group_key("groq", "key-abc12345", "llama")
+    # Only mark provider-wide as configured
+    rows = rl.list_groups(include_orphans=False, configured_ids={pw})
+    ids = {r["id"] for r in rows}
+    assert pw in ids
+    assert mg not in ids
+    rows_all = rl.list_groups(include_orphans=True, configured_ids={pw})
+    ids_all = {r["id"] for r in rows_all}
+    assert pw in ids_all and mg in ids_all
+    by_id = {r["id"]: r for r in rows_all}
+    assert by_id[pw]["configured"] is True
+    assert by_id[mg]["configured"] is False
+    assert by_id[pw]["scope"] == "provider_wide"
+    assert by_id[mg]["scope"] == "model"
+    assert by_id[mg]["model"] == "llama"
+    assert "RPM" in by_id[pw]["buckets"] or len(by_id[pw]["buckets"]) >= 1
+    b = next(iter(by_id[pw]["buckets"].values()))
+    assert set(b) >= {"cap", "used", "tokens", "headroom", "active"}
+
+def test_list_groups_headroom_null_when_no_active(tmp_path):
+    rl = make_limiter(tmp_path)
+    g = rl.get_group("groq", "key-abc12345", None)
+    for b in g.buckets.values():
+        b.active = False
+    pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    rows = rl.list_groups(include_orphans=True, configured_ids={pw})
+    row = next(r for r in rows if r["id"] == pw)
+    assert row["headroom"] is None
+    assert row["binding"] is None

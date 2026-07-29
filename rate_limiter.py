@@ -360,6 +360,22 @@ class AdaptiveRateLimiter:
             return f"provider:{provider_name}|key:{key_suffix}|model:{model}"
         return f"provider:{provider_name}|key:{key_suffix}"
 
+    @staticmethod
+    def parse_group_key(group_id: str) -> dict | None:
+        parts = {}
+        for piece in (group_id or "").split("|"):
+            if ":" not in piece:
+                return None
+            k, v = piece.split(":", 1)
+            parts[k] = v
+        if "provider" not in parts or "key" not in parts:
+            return None
+        return {
+            "provider": parts["provider"],
+            "key_hint": parts["key"],
+            "model": parts.get("model"),
+        }
+
     def _caps_for(self, provider_name: str) -> dict[str, float]:
         caps = _load_caps_for(provider_name)
         overrides = self._auth_rate_defaults.get(provider_name, {})
@@ -464,6 +480,49 @@ class AdaptiveRateLimiter:
                 "provider_wide": _buckets_to_status(pw),
                 "model":         _buckets_to_status(mg),
             }
+
+    def list_groups(self, include_orphans: bool = False,
+                    configured_ids: set[str] | None = None) -> list[dict]:
+        configured_ids = configured_ids or set()
+        now = time.time()
+        out = []
+        with self._lock:
+            for gk, g in self._groups.items():
+                is_cfg = gk in configured_ids
+                if not include_orphans and not is_cfg:
+                    continue
+                parsed = self.parse_group_key(gk)
+                if not parsed:
+                    continue
+                buckets = {}
+                for name, b in g.buckets.items():
+                    b.refill(now)
+                    used = max(0.0, b.cap - b.tokens)
+                    buckets[name] = {
+                        "cap": round(b.cap, 1),
+                        "used": round(used, 1),
+                        "tokens": round(b.tokens, 1),
+                        "headroom": round(b.headroom(), 3),
+                        "active": b.active,
+                    }
+                active = [(n, d) for n, d in buckets.items() if d["active"]]
+                if active:
+                    binding, bd = min(active, key=lambda x: x[1]["headroom"])
+                    headroom = bd["headroom"]
+                else:
+                    binding, headroom = None, None
+                out.append({
+                    "id": gk,
+                    "provider": parsed["provider"],
+                    "key_hint": parsed["key_hint"],
+                    "model": parsed["model"],
+                    "scope": "model" if parsed["model"] else "provider_wide",
+                    "configured": is_cfg,
+                    "headroom": headroom,
+                    "binding": binding,
+                    "buckets": buckets,
+                })
+        return out
 
     def clear_group(self, group_id: str) -> bool:
         with self._lock:
