@@ -1391,6 +1391,11 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         # are constant (0), leaving the existing round-robin/tie order untouched.
         breaker_open = 1 if stats.breaker_open(name) else 0  # open breakers sink within tier
         health       = stats.health_bucket(name)             # 0 healthy / 1 degraded / 2 bad
+        # Rate headroom: 0.0 = full headroom (best sort position), 1.0 = empty (worst)
+        _peek_key = pool.get_key(name, model)
+        _rate_score = 0.0
+        if _peek_key:
+            _rate_score = 1.0 - rate_limiter.headroom(name, _peek_key, model)
         price   = _price_rank(model)
         quality = _quality_rank(name, model)
         if rating <= complexity:
@@ -1403,7 +1408,7 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         # others on easy turns; it's a constant 1 otherwise, leaving order unchanged.
         # list_index trails so a provider's listed model order breaks rating ties.
         return (local_first, tier, price, quality, sort_within, breaker_open, health,
-                0 if avail else 1, fast, cand["list_index"])
+                _rate_score, 0 if avail else 1, fast, cand["list_index"])
 
     n = len(providers)
     offset = next(_rr_counter) % n if n else 0
