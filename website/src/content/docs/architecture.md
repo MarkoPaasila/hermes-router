@@ -67,7 +67,11 @@ across them isn't just a design claim, it's directly observable.
 **Multiple models per provider.** A provider's `<PROVIDER>_MODEL` can be a comma-separated
 list. Because free-tier rate limits are per-**model**, TBF buckets are tracked per **(key,
 model)** (plus a provider-wide group): when one model is rate-limited, the router fails over to
-the next model on the same key before cascading to the next provider. This multiplies free
+the next model on the same key before cascading to the next provider.
+
+> Provider-wide buckets are a shared-ceiling **estimate** (no header sync; softer cuts; faster recovery). Model buckets remain authoritative for that model’s upstream limits.
+
+This multiplies free
 capacity along a third axis — **keys × models × providers** — with no extra signups. Each listed
 model is also a first-class routing candidate (see [Smart routing](#smart-routing) below), not
 just failover. See [Configuration](/configuration/#multiple-models-per-provider).

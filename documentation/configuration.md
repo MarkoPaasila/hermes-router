@@ -135,6 +135,8 @@ It starts from conservative built-in defaults and adjusts caps up or down based 
 `x-ratelimit-*` response headers and 429 signals. Learned limits persist across
 restarts in `rate_limits_state.json`.
 
+> Two scopes are tracked per key: **model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers).
+
 | Env var | Default | Description |
 |---|---|---|
 | `RATE_STATE_FILE` | `./rate_limits_state.json` | Path to learned-limits state file |
@@ -143,6 +145,10 @@ restarts in `rate_limits_state.json`.
 | `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a cap up |
 | `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase cap on a success streak |
 | `RATE_LEARN_CUT_FACTOR` | `0.8` | Multiplier applied to observed rate on 429 |
+| `RATE_LEARN_CUT_FACTOR_PROVIDER` | `0.95` | Provider-wide soft cut vs observed rate on 429 |
+| `RATE_LEARN_SOFT_CUT_FACTOR` | `0.9` | Provider-wide soft cut vs current cap when history is thin |
+| `RATE_LEARN_SUCCESS_STREAK_PROVIDER` | `10` | Consecutive successes before nudging a provider-wide cap up |
+| `RATE_LEARN_NUDGE_PCT_PROVIDER` | `8` | Percent to increase a provider-wide cap on a success streak |
 | `RATE_STATE_FLUSH_INTERVAL` | `60` | Seconds between background state flushes |
 | `RATE_DEFAULT_<PROVIDER>_<WINDOW>` | — | Override built-in default cap (e.g. `RATE_DEFAULT_GROQ_RPM=60`) |
 
