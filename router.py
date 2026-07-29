@@ -3364,6 +3364,8 @@ th{padding:7px 12px;text-align:left;color:var(--muted);font-weight:500;
 td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(108,140,255,.04)}
+tr.rl-selected td{background:rgba(108,140,255,.10)}
+tr.rl-row{cursor:pointer}
 
 /* ── status dots ── */
 .dot-ok{display:inline-block;width:8px;height:8px;border-radius:50%;
@@ -3475,6 +3477,7 @@ tr:hover td{background:rgba(108,140,255,.04)}
     <nav class="sidebar-nav" id="sidebar-nav">
       <button class="nav-item active" data-page="overview" onclick="showPage('overview')">Overview</button>
       <button class="nav-item" data-page="providers" onclick="showPage('providers')"><span>Providers</span><span class="nav-dot" id="nav-dot-providers"></span></button>
+      <button class="nav-item" data-page="rate-limits" onclick="showPage('rate-limits')">Rate limits</button>
       <button class="nav-item" data-page="keys" onclick="showPage('keys')">Provider Keys</button>
       <button class="nav-item" data-page="access" onclick="showPage('access')">Access Keys</button>
       <button class="nav-item" data-page="models" onclick="showPage('models')">Models</button>
@@ -3584,6 +3587,48 @@ tr:hover td{background:rgba(108,140,255,.04)}
             </table>
           </div>
         </details>
+      </section>
+
+      <!-- ── Rate limits ──────────────────────────────────────────────────── -->
+      <section class="page" id="page-rate-limits">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Token bucket filters</span>
+            <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0">
+              <input type="checkbox" id="rl-orphans" onchange="refreshRateLimits()">
+              Show dormant / orphan groups
+            </label>
+          </div>
+          <div class="page-intro" style="padding:12px 14px 0">
+            Live adaptive rate-limit buckets. Click a row for per-bucket detail. Clear drops learned caps for that scope.
+          </div>
+          <div class="panel-body">
+            <table>
+              <thead><tr>
+                <th>Provider</th><th>Key</th><th>Scope</th>
+                <th>Binding</th><th>Headroom</th><th class="right">Buckets</th>
+              </tr></thead>
+              <tbody id="rl-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel" id="rl-detail-panel" style="display:none;margin-top:12px">
+          <div class="panel-header">
+            <span class="panel-title" id="rl-detail-title">Detail</span>
+            <button class="btn" onclick="clearRateGroup()">Clear learned state</button>
+          </div>
+          <div class="panel-body">
+            <div id="rl-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
+            <table>
+              <thead><tr>
+                <th>Bucket</th><th>Active</th>
+                <th class="right">Cap</th><th class="right">Used</th>
+                <th class="right">Left</th><th class="right">Headroom</th>
+              </tr></thead>
+              <tbody id="rl-detail-tbody"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <!-- ── Provider Keys ────────────────────────────────────────────────── -->
@@ -3784,12 +3829,14 @@ tr:hover td{background:rgba(108,140,255,.04)}
 // ── state ──────────────────────────────────────────────────────────────────────
 let apiKey = localStorage.getItem('hermes_dash_key') || '';
 let statusData = null, usageData = null, logsData = [], accessKeysData = [];
+let rateLimitsData = [];
+let selectedRateGroupId = null;
 let editingKeyTail = null;
 let INTERVAL = 5000;
 let timer = null;
 
 // ── sidebar navigation ───────────────────────────────────────────────────────
-const PAGES = ['overview', 'providers', 'keys', 'access', 'models', 'addons', 'logs'];
+const PAGES = ['overview', 'providers', 'rate-limits', 'keys', 'access', 'models', 'addons', 'logs'];
 
 function showPage(name) {
   if (!PAGES.includes(name)) name = 'overview';
@@ -3856,6 +3903,7 @@ async function refresh() {
     statusData = s; usageData = u; logsData = l.entries || []; accessKeysData = ak.keys || [];
     renderAll();
     setHeader(true);
+    await refreshRateLimits();
   } catch(e) {
     setHeader(false, 'unreachable');
   }
@@ -4573,6 +4621,128 @@ function renderModelCaps() {
     <td>${r.tools ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'}</td>
     <td>${r.reasoning ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'}</td>
   </tr>`).join('');
+}
+
+// ── rate limits (token bucket filters) ───────────────────────────────────────
+async function refreshRateLimits() {
+  if (!apiKey) return;
+  try {
+    const orphans = document.getElementById('rl-orphans')?.checked ? '1' : '0';
+    const r = await fetch('/v1/rate-limits?include_orphans=' + orphans, {
+      headers: {'Authorization': 'Bearer ' + apiKey},
+    });
+    if (r.status === 401) return;
+    if (!r.ok) return;
+    const data = await r.json();
+    rateLimitsData = data.groups || [];
+    renderRateLimits();
+  } catch (e) { /* page still usable */ }
+}
+
+function renderRateLimits() {
+  const tbody = document.getElementById('rl-tbody');
+  if (!tbody) return;
+  const rows = (rateLimitsData || []).slice().sort((a, b) => {
+    const ha = a.headroom, hb = b.headroom;
+    if (ha == null && hb == null) return 0;
+    if (ha == null) return 1;
+    if (hb == null) return -1;
+    return ha - hb;
+  });
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No rate data yet</td></tr>';
+    document.getElementById('rl-detail-panel').style.display = 'none';
+    return;
+  }
+  tbody.innerHTML = '';
+  rows.forEach(g => {
+    const tr = document.createElement('tr');
+    tr.className = 'rl-row' + (g.id === selectedRateGroupId ? ' rl-selected' : '');
+    tr.onclick = () => selectRateGroup(g.id);
+    const scope = g.scope === 'model' ? (g.model || '—') : 'provider-wide';
+    const hPct = g.headroom == null ? null : Math.round(g.headroom * 100);
+    const hColor = hPct == null ? '' : hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
+    const bar = hPct == null
+      ? '<span class="muted">—</span>'
+      : `<div style="display:inline-block;vertical-align:middle">
+           <div class="prog-track" style="width:64px;display:inline-block">
+             <div class="prog-fill ${hColor}" style="width:${hPct}%"></div>
+           </div>
+           <span class="muted" style="font-size:10px;margin-left:4px">${hPct}%</span>
+         </div>`;
+    const nBuckets = Object.keys(g.buckets || {}).length;
+    tr.innerHTML = `
+      <td><strong>${g.provider}</strong></td>
+      <td class="mono muted">…${g.key_hint || ''}</td>
+      <td class="mono muted">${scope}</td>
+      <td>${g.binding || '<span class="muted">—</span>'}</td>
+      <td>${bar}</td>
+      <td class="right muted">${nBuckets}</td>`;
+    tbody.appendChild(tr);
+  });
+  if (selectedRateGroupId) {
+    const still = rows.find(r => r.id === selectedRateGroupId);
+    if (still) renderRateDetail(still);
+    else {
+      selectedRateGroupId = null;
+      document.getElementById('rl-detail-panel').style.display = 'none';
+    }
+  }
+}
+
+function selectRateGroup(id) {
+  selectedRateGroupId = id;
+  renderRateLimits();
+}
+
+function renderRateDetail(g) {
+  const panel = document.getElementById('rl-detail-panel');
+  panel.style.display = '';
+  document.getElementById('rl-detail-title').textContent =
+    g.provider + ' · …' + (g.key_hint || '');
+  const cfg = g.configured
+    ? '<span class="pill pill-ok">configured</span>'
+    : '<span class="pill pill-warn">orphan</span>';
+  document.getElementById('rl-detail-meta').innerHTML =
+    `${cfg} · ${g.scope === 'model' ? 'model ' + (g.model || '') : 'provider-wide'} · <span class="mono">${g.id}</span>`;
+  const tb = document.getElementById('rl-detail-tbody');
+  const entries = Object.entries(g.buckets || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  if (!entries.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="muted">No buckets</td></tr>';
+    return;
+  }
+  tb.innerHTML = entries.map(([name, b]) => {
+    const muted = b.active ? '' : 'muted';
+    const hPct = Math.round((b.headroom || 0) * 100);
+    return `<tr class="${muted}">
+      <td class="mono">${name}</td>
+      <td>${b.active ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'}</td>
+      <td class="right">${fmt.num(b.cap)}</td>
+      <td class="right">${fmt.num(b.used)}</td>
+      <td class="right">${fmt.num(b.tokens)}</td>
+      <td class="right">${hPct}%</td>
+    </tr>`;
+  }).join('');
+}
+
+async function clearRateGroup() {
+  if (!selectedRateGroupId) return;
+  if (!confirm('Clear learned rate-limit state for this group? Caps will relearn from traffic.')) return;
+  try {
+    const r = await fetch('/v1/rate-limits/clear', {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      body: JSON.stringify({id: selectedRateGroupId}),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert(err.error || ('Clear failed: HTTP ' + r.status));
+    }
+    selectedRateGroupId = null;
+    await refreshRateLimits();
+  } catch (e) {
+    alert('Clear failed: ' + e);
+  }
 }
 </script>
 </body>
