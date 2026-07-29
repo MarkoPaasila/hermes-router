@@ -4065,7 +4065,9 @@ th.sortable.sorted-desc::after{content:'↓'}
             </label>
           </div>
           <div class="page-intro" style="padding:12px 14px 0">
-            Live adaptive rate-limit buckets. Click a row for per-bucket detail. Clear drops learned caps for that scope.
+            Live adaptive rate-limit buckets. Model rows are authoritative (headers + hard 429).
+            Provider-wide rows are shared-ceiling estimates (no header sync; softer cuts; faster recovery).
+            Click a row for per-bucket detail. Clear drops learned caps for that scope.
           </div>
           <div class="panel-body">
             <table>
@@ -5149,7 +5151,10 @@ function renderRateLimits() {
     const tr = document.createElement('tr');
     tr.className = 'rl-row' + (g.id === selectedRateGroupId ? ' rl-selected' : '');
     tr.onclick = () => selectRateGroup(g.id);
-    const scope = g.scope === 'model' ? (g.model || '—') : 'provider-wide';
+    const scopeLabel = g.scope === 'model' ? (g.model || '—') : 'provider-wide';
+    const role = g.role === 'estimate'
+      ? ' <span class="pill pill-grey">estimate</span>'
+      : (g.role === 'authoritative' ? ' <span class="pill pill-ok">authoritative</span>' : '');
     const hPct = g.headroom == null ? null : Math.round(g.headroom * 100);
     const hColor = hPct == null ? '' : hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
     const bar = hPct == null
@@ -5164,7 +5169,7 @@ function renderRateLimits() {
     tr.innerHTML = `
       <td><strong>${g.provider}</strong></td>
       <td class="mono muted">…${g.key_hint || ''}</td>
-      <td class="mono muted">${scope}</td>
+      <td class="mono muted">${scopeLabel}${role}</td>
       <td>${g.binding || '<span class="muted">—</span>'}</td>
       <td>${bar}</td>
       <td class="right muted">${nBuckets}</td>`;
@@ -5197,8 +5202,11 @@ function renderRateDetail(g) {
   const cfg = g.configured
     ? '<span class="pill pill-ok">configured</span>'
     : '<span class="pill pill-warn">orphan</span>';
+  const roleNote = g.role === 'estimate'
+    ? ' · shared-ceiling estimate — no header sync'
+    : (g.role === 'authoritative' ? ' · authoritative' : '');
   document.getElementById('rl-detail-meta').innerHTML =
-    `${cfg} · ${g.scope === 'model' ? 'model ' + (g.model || '') : 'provider-wide'} · <span class="mono">${g.id}</span>`;
+    `${cfg} · ${g.scope === 'model' ? 'model ' + (g.model || '') : 'provider-wide'}${roleNote} · <span class="mono">${g.id}</span>`;
   const tb = document.getElementById('rl-detail-tbody');
   const entries = Object.entries(g.buckets || {}).sort((a, b) => a[0].localeCompare(b[0]));
   if (!entries.length) {

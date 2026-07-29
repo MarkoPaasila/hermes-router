@@ -360,6 +360,16 @@ def test_parse_group_key_model():
 def test_parse_group_key_malformed():
     assert AdaptiveRateLimiter.parse_group_key("not-a-key") is None
 
+def test_list_groups_includes_role(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    mg = AdaptiveRateLimiter._group_key("groq", "key-abc12345", "llama")
+    rows = rl.list_groups(include_orphans=True, configured_ids={pw, mg})
+    by_id = {r["id"]: r for r in rows}
+    assert by_id[pw]["role"] == "estimate"
+    assert by_id[mg]["role"] == "authoritative"
+
 def test_list_groups_filters_orphans(tmp_path):
     rl = make_limiter(tmp_path)
     rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)

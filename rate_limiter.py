@@ -608,6 +608,7 @@ class AdaptiveRateLimiter:
                     "key_hint": parsed["key_hint"],
                     "model": parsed["model"],
                     "scope": "model" if parsed["model"] else "provider_wide",
+                    "role": "authoritative" if parsed["model"] else "estimate",
                     "configured": is_cfg,
                     "headroom": headroom,
                     "binding": binding,
