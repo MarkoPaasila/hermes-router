@@ -245,6 +245,11 @@ class BucketGroup:
             if b.active and LIMIT_KEYS.get(name, ("?",))[0] == "T":
                 b.restore(token_surplus)
 
+    def restore_requests(self, req_count: float) -> None:
+        for name, b in self.buckets.items():
+            if b.active and LIMIT_KEYS.get(name, ("?",))[0] == "R":
+                b.restore(req_count)
+
     def headroom(self) -> float:
         active = self._active()
         if not active:
@@ -390,9 +395,8 @@ class AdaptiveRateLimiter:
             mg_ok, mg_wait = mg.consume(req_count, token_count)
             if not mg_ok:
                 pw.restore_tokens(token_count)
-                pw_rpm = pw.buckets.get("RPM")
-                if pw_rpm and pw_rpm.active:
-                    pw_rpm.restore(req_count)
+                pw.restore_requests(req_count)
+                pw._requests_this_period -= int(req_count)
                 return False, mg_wait
             return True, 0.0
 

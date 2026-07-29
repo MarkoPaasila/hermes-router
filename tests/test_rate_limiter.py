@@ -1,5 +1,5 @@
 import time, pytest
-from rate_limiter import TokenBucket, BucketGroup, PROVIDER_RATE_DEFAULTS
+from rate_limiter import TokenBucket, BucketGroup, LIMIT_KEYS, PROVIDER_RATE_DEFAULTS
 
 WINDOW = 60.0  # 1-minute bucket
 
@@ -225,3 +225,33 @@ def test_snapshot_structure(tmp_path):
     snap = rl.snapshot("groq", "key-abc12345", "llama")
     assert "provider_wide" in snap
     assert "model" in snap
+
+def test_check_and_consume_rollback_restores_all_pw_r_buckets(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    req_count, token_count = 1.0, 100.0
+    r_before = {
+        name: b.tokens
+        for name, b in pw.buckets.items()
+        if b.active and LIMIT_KEYS.get(name, ("?",))[0] == "R"
+    }
+    assert r_before, "expected at least one active R-bucket on provider-wide group"
+    if "RPM" in mg.buckets:
+        mg.buckets["RPM"].tokens = 0.0
+    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", req_count, token_count)
+    assert ok is False
+    assert wait > 0
+    for name, before in r_before.items():
+        assert pw.buckets[name].tokens == pytest.approx(before)
+
+def test_check_and_consume_rollback_restores_requests_this_period(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    before = pw._requests_this_period
+    if "RPM" in mg.buckets:
+        mg.buckets["RPM"].tokens = 0.0
+    ok, _ = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 100.0)
+    assert ok is False
+    assert pw._requests_this_period == before
