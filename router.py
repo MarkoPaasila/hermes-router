@@ -3309,6 +3309,16 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
 .gate-box input:focus{border-color:var(--accent)}
 .gate-box .btn{width:100%;padding:7px}
 
+/* ── rate-limit detail modal ── */
+#rl-detail-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;
+  align-items:center;justify-content:center;z-index:90;padding:16px}
+#rl-detail-modal.hidden{display:none}
+.rl-detail-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  width:min(720px,92vw);max-height:min(80vh,640px);display:flex;flex-direction:column;overflow:hidden}
+.rl-detail-box .panel-header{flex:0 0 auto}
+.rl-detail-actions{display:flex;gap:8px;align-items:center}
+.rl-detail-box .panel-body{overflow:auto;flex:1;min-height:0}
+
 /* ── stat cards ── */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
@@ -3486,6 +3496,30 @@ th.sortable.sorted-desc::after{content:'↓'}
   </div>
 </div>
 
+<!-- Rate-limit group detail modal -->
+<div id="rl-detail-modal" class="hidden" onclick="if(event.target===this)closeRateDetail()">
+  <div class="rl-detail-box panel" role="dialog" aria-modal="true" aria-labelledby="rl-detail-title">
+    <div class="panel-header">
+      <span class="panel-title" id="rl-detail-title">Detail</span>
+      <div class="rl-detail-actions">
+        <button class="btn" onclick="clearRateGroup()">Clear learned state</button>
+        <button class="btn" onclick="closeRateDetail()">Close</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div id="rl-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
+      <table>
+        <thead><tr>
+          <th>Bucket</th><th>Active</th>
+          <th class="right">Cap</th><th class="right">Used</th>
+          <th class="right">Left</th><th class="right">Headroom</th>
+        </tr></thead>
+        <tbody id="rl-detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="app-shell">
   <aside class="sidebar">
     <div class="sidebar-brand"><span>Hermes</span> Router</div>
@@ -3628,23 +3662,6 @@ th.sortable.sorted-desc::after{content:'↓'}
                 <th class="sortable right" data-sort="buckets" onclick="sortRateLimits('buckets')">Buckets</th>
               </tr></thead>
               <tbody id="rl-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="panel" id="rl-detail-panel" style="display:none;margin-top:12px">
-          <div class="panel-header">
-            <span class="panel-title" id="rl-detail-title">Detail</span>
-            <button class="btn" onclick="clearRateGroup()">Clear learned state</button>
-          </div>
-          <div class="panel-body">
-            <div id="rl-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
-            <table>
-              <thead><tr>
-                <th>Bucket</th><th>Active</th>
-                <th class="right">Cap</th><th class="right">Used</th>
-                <th class="right">Left</th><th class="right">Headroom</th>
-              </tr></thead>
-              <tbody id="rl-detail-tbody"></tbody>
             </table>
           </div>
         </div>
@@ -3877,6 +3894,11 @@ function showPage(name) {
   });
   if (apiKey) { document.getElementById('key-gate').classList.add('hidden'); start(); }
   document.getElementById('key-input').addEventListener('keydown', e => { if (e.key==='Enter') submitKey(); });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const modal = document.getElementById('rl-detail-modal');
+    if (modal && !modal.classList.contains('hidden')) closeRateDetail();
+  });
 })();
 
 function submitKey() {
@@ -4703,7 +4725,7 @@ function renderRateLimits() {
   const rows = (rateLimitsData || []).slice().sort(_rlCompare);
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No rate data yet</td></tr>';
-    document.getElementById('rl-detail-panel').style.display = 'none';
+    closeRateDetail();
     return;
   }
   tbody.innerHTML = '';
@@ -4735,10 +4757,7 @@ function renderRateLimits() {
   if (selectedRateGroupId) {
     const still = rows.find(r => r.id === selectedRateGroupId);
     if (still) renderRateDetail(still);
-    else {
-      selectedRateGroupId = null;
-      document.getElementById('rl-detail-panel').style.display = 'none';
-    }
+    else closeRateDetail();
   }
 }
 
@@ -4747,9 +4766,16 @@ function selectRateGroup(id) {
   renderRateLimits();
 }
 
+function closeRateDetail() {
+  selectedRateGroupId = null;
+  const modal = document.getElementById('rl-detail-modal');
+  if (modal) modal.classList.add('hidden');
+  document.querySelectorAll('#rl-tbody tr.rl-selected').forEach(tr => tr.classList.remove('rl-selected'));
+}
+
 function renderRateDetail(g) {
-  const panel = document.getElementById('rl-detail-panel');
-  panel.style.display = '';
+  const modal = document.getElementById('rl-detail-modal');
+  if (modal) modal.classList.remove('hidden');
   document.getElementById('rl-detail-title').textContent =
     g.provider + ' · …' + (g.key_hint || '');
   const cfg = g.configured
@@ -4790,7 +4816,7 @@ async function clearRateGroup() {
       const err = await r.json().catch(() => ({}));
       alert(err.error || ('Clear failed: HTTP ' + r.status));
     }
-    selectedRateGroupId = null;
+    closeRateDetail();
     await refreshRateLimits();
   } catch (e) {
     alert('Clear failed: ' + e);
@@ -4857,6 +4883,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
     _req_ctx.model     = None
     _req_ctx.cache_hit = False
     _req_ctx.attempts  = 0   # total forward() calls made (cascades = attempts-1)
+    _req_ctx.last_tried_provider = None
+    _req_ctx.last_tried_model = None
 
     # Routing profile: `hermes-router:fast` (or header X-Hermes-Profile: fast)
     # prefers a local model for short/casual turns, with cloud as fallback. We
@@ -4982,7 +5010,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 break   # all keys for this (provider, model) are cooling → next candidate
 
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
-            _req_ctx.attempts += 1
+            _req_ctx.last_tried_provider = name
+            _req_ctx.last_tried_model = model
             _est_tokens = float(provider.get("skip_if_tokens_over") or 0) or \
                 max(1.0, sum(len(str(m.get("content", ""))) for m in
                              payload.get("messages", [])) / 4)
@@ -5003,6 +5032,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 if not _rl_ok:
                     log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
                     continue
+            _req_ctx.attempts += 1
             t0   = time.time()
             resp = forward(provider, key, payload, streaming, model)
             elapsed = time.time() - t0
@@ -5182,6 +5212,25 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             status = "error"
             ptok   = ctok = None
 
+        _ctx_model = getattr(_req_ctx, "model", None)
+        _ctx_provider = getattr(_req_ctx, "provider", None)
+        _last_model = getattr(_req_ctx, "last_tried_model", None)
+        _last_provider = getattr(_req_ctx, "last_tried_provider", None)
+        _payload_model = payload.get("model")
+        # Prefer the upstream model that succeeded, else the last candidate we
+        # tried. Never surface the client placeholder ROUTER_MODEL as if it were
+        # an upstream model (exhausted requests used to show hermes-router→hermes-router).
+        if is_cache:
+            _logged_provider = "cache"
+            _logged_model = _ctx_model or _last_model
+        else:
+            _logged_provider = _ctx_provider or _last_provider
+            _logged_model = _ctx_model or _last_model
+        if not _logged_model and _payload_model:
+            _pm = str(_payload_model)
+            if _pm not in ("", ROUTER_MODEL, "auto") and not _pm.endswith(":fast"):
+                _logged_model = _payload_model
+
         request_log.append({
             "ts":               time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "endpoint":         endpoint,
@@ -5189,8 +5238,8 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             "streaming":        bool(payload.get("stream", False)),
             "complexity":       classify_complexity(messages),
             "est_tokens":       _estimated_tokens(messages),
-            "provider":         "cache" if is_cache else getattr(_req_ctx, "provider", None),
-            "model":            getattr(_req_ctx, "model", None) or payload.get("model"),
+            "provider":         _logged_provider,
+            "model":            _logged_model,
             "latency_ms":       round(elapsed * 1000),
             "cascades":         max(0, attempts - 1),
             "status":           status,
