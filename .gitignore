@@ -25,6 +25,9 @@ env/
 # Git worktrees (local isolation)
 .worktrees/
 
+# Local agent design/plan docs (not part of the shipped product)
+docs/superpowers/
+
 # IDE
 .vscode/
 .idea/
