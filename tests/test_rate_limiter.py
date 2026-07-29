@@ -337,3 +337,81 @@ def test_list_groups_headroom_null_when_no_active(tmp_path):
     row = next(r for r in rows if r["id"] == pw)
     assert row["headroom"] is None
     assert row["binding"] is None
+
+
+def test_on_429_with_retry_after_blocks_consume(tmp_path, monkeypatch):
+    rl = make_limiter(tmp_path)
+    now = 1_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    # Prime groups so on_429 has buckets to update
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    # Refill tokens so only blocked_until (not empty buckets) causes failure
+    for g in (rl.get_group("groq", "key-abc12345", None),
+              rl.get_group("groq", "key-abc12345", "llama")):
+        for b in g.buckets.values():
+            b.tokens = b.cap
+    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "30"})
+    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    assert ok is False
+    assert wait == pytest.approx(30.0, abs=0.5)
+
+
+def test_on_429_retry_after_expires_allows_consume(tmp_path, monkeypatch):
+    rl = make_limiter(tmp_path)
+    now = {"t": 1_000_000.0}
+    monkeypatch.setattr(time, "time", lambda: now["t"])
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
+    for g in (rl.get_group("groq", "key-abc12345", None),
+              rl.get_group("groq", "key-abc12345", "llama")):
+        for b in g.buckets.values():
+            b.tokens = b.cap
+    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "30"})
+    now["t"] += 31.0
+    for g in (rl.get_group("groq", "key-abc12345", None),
+              rl.get_group("groq", "key-abc12345", "llama")):
+        for b in g.buckets.values():
+            b.tokens = b.cap
+            b.last_refill = now["t"]
+    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 1.0)
+    assert ok is True
+    assert wait == 0.0
+
+
+def test_on_429_without_retry_after_no_long_hold(tmp_path, monkeypatch):
+    rl = make_limiter(tmp_path)
+    now = 1_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    rl.on_429("groq", "key-abc12345", "llama", {})
+    pw = rl.get_group("groq", "key-abc12345", None)
+    mg = rl.get_group("groq", "key-abc12345", "llama")
+    assert pw.blocked_until <= now
+    assert mg.blocked_until <= now
+
+
+def test_blocked_until_persists_when_future(tmp_path, monkeypatch):
+    rl = make_limiter(tmp_path)
+    now = 1_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "60"})
+    rl.flush()
+    doc = json.loads((Path(tmp_path) / "rate_limits_state.json").read_text())
+    pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    assert doc["groups"][pw].get("blocked_until") == pytest.approx(now + 60.0)
+    rl2 = make_limiter(tmp_path)
+    monkeypatch.setattr(time, "time", lambda: now)
+    rl2.load()
+    ok, wait = rl2.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    assert ok is False
+    assert wait == pytest.approx(60.0, abs=0.5)
+
+
+def test_snapshot_includes_blocked_until(tmp_path, monkeypatch):
+    rl = make_limiter(tmp_path)
+    now = 1_000_000.0
+    monkeypatch.setattr(time, "time", lambda: now)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    rl.on_429("groq", "key-abc12345", "llama", {"Retry-After": "15"})
+    snap = rl.snapshot("groq", "key-abc12345", "llama")
+    assert snap.get("blocked_until") == pytest.approx(now + 15.0)

@@ -45,14 +45,17 @@ Every request flows through the same pipeline:
 ### Credential pool
 
 Every provider can hold many keys (from `auth.json` first, then `.env`). Keys are tracked in a
-thread-safe pool with per-key cooldowns. A key that gets rate-limited (HTTP 429) is put on a
-short cooldown and skipped until it recovers.
+thread-safe pool. **Upstream rate limits** are enforced by the adaptive token-bucket filter
+(TBF): it learns caps from response headers and 429s, paces or fails over when headroom is
+thin, and honors `Retry-After` as a hold on that (key, model) scope. The credential pool's
+per-key cool-downs are only for **health** failures (network errors / 5xx via `mark_key_down`),
+not for rate limits.
 
 **Rotation modes** (set with `hr mode`, see [Configuration](/configuration/#key-rotation-mode)):
 
 - `round-robin` *(default)* — spread requests evenly across all keys; they deplete together.
-- `sequential` — drain one key fully until it rate-limits, then move to the next, keeping later
-  keys/accounts fresh in reserve. Ideal for rationing many accounts.
+- `sequential` — drain one key fully until TBF blocks it (exhausted / held), then move to the
+  next, keeping later keys/accounts fresh in reserve. Ideal for rationing many accounts.
 
 **Verified even under real concurrency.** Selection holds a single short critical section (a
 deque rotation + a comparison), so a 50-thread / 10,000-call stress test showed perfectly even
@@ -62,12 +65,12 @@ web dashboard's key dots — so adding more keys to a provider and watching the 
 across them isn't just a design claim, it's directly observable.
 
 **Multiple models per provider.** A provider's `<PROVIDER>_MODEL` can be a comma-separated
-list. Because free-tier rate limits are per-**model**, cooldowns are tracked per **(key,
-model)** pair: when one model hits a 429, the router fails over to the next model on the same
-key before cascading to the next provider. This multiplies free capacity along a third axis —
-**keys × models × providers** — with no extra signups. Each listed model is also a first-class
-routing candidate (see [Smart routing](#smart-routing) below), not just failover. See
-[Configuration](/configuration/#multiple-models-per-provider).
+list. Because free-tier rate limits are per-**model**, TBF buckets are tracked per **(key,
+model)** (plus a provider-wide group): when one model is rate-limited, the router fails over to
+the next model on the same key before cascading to the next provider. This multiplies free
+capacity along a third axis — **keys × models × providers** — with no extra signups. Each listed
+model is also a first-class routing candidate (see [Smart routing](#smart-routing) below), not
+just failover. See [Configuration](/configuration/#multiple-models-per-provider).
 
 ### Smart routing
 

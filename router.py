@@ -449,16 +449,6 @@ def _int_env(env_var: str, default: int = 0) -> int:
         return default
 
 
-def _parse_retry_after(value, default: int = 60) -> int:
-    """Parse a Retry-After header value. RFC 9110 allows either delay-seconds
-    or an HTTP date; some providers also send fractional seconds. Anything we
-    can't read as a number falls back to the default cooldown."""
-    try:
-        return max(1, int(float(value)))
-    except (TypeError, ValueError):
-        return default
-
-
 # ── Per-provider exclude list ─────────────────────────────────────────────────
 
 
@@ -1584,19 +1574,22 @@ def _initialize_ratings(providers: list, pool_ref):
 
 
 class CredentialPool:
-    """Thread-safe key pool with per-key cooldown tracking.
+    """Thread-safe key pool with per-key health cooldown tracking.
 
     Two selection modes (set once via ROTATION_MODE):
       round-robin — advance every call so load spreads evenly across keys
       sequential  — keep returning the same key until it cools, then advance;
-                    this drains one account at a time and keeps the rest fresh"""
+                    this drains one account at a time and keeps the rest fresh
+
+    Upstream rate limits are handled by AdaptiveRateLimiter (TBF), not this pool.
+    cool_until here is only for network/5xx health failures via mark_key_down."""
 
     def __init__(self, providers: list[dict], mode: str = None):
         self.lock  = threading.Lock()
         self.mode  = mode or ROTATION_MODE
         # provider -> { model -> deque({key, cool_until}) }. Each model gets its own
-        # key deque so rate-limit cooldowns are tracked per (key, model): a 429 on
-        # one model never sidelines the provider's other models (separate quotas).
+        # key deque so health cooldowns (mark_key_down) are tracked per (key, model).
+        # Upstream rate limits go through AdaptiveRateLimiter, not cool_until.
         self.pools: dict[str, dict[str, deque]] = {}
         # (provider, key) -> total times this key has been handed out, across all of
         # the provider's models. Lets /v1/status show whether load is actually
@@ -1649,15 +1642,6 @@ class CredentialPool:
             if entries:
                 return entries[0]["key"]
         return None
-
-    def mark_rate_limited(self, provider_name: str, key: str, model: str, retry_after: int = 60):
-        """Cool a specific (key, model) — leaves the provider's other models ready."""
-        with self.lock:
-            for entry in self.pools.get(provider_name, {}).get(model, ()):
-                if entry["key"] == key:
-                    entry["cool_until"] = time.time() + retry_after
-                    log.warning(f"  {provider_name} key ...{key[-6:]} model {model} cooling for {retry_after}s")
-                    return
 
     def mark_key_down(self, provider_name: str, key: str, retry_after: int = 30):
         """Cool a key across ALL of the provider's models — for network/5xx (key/
@@ -4988,11 +4972,9 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
 
             if resp.status_code == 429:
                 stats.record_error(name)
-                # 429 is NOT a health failure — per-(key,model) cooldown handles it.
-                retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
-                pool.mark_rate_limited(name, key, model, retry_after=retry_after)
+                # 429 is NOT a health failure — TBF learns + Retry-After hold.
                 rate_limiter.on_429(name, key, model, dict(resp.headers))
-                log.warning(f"  {name}/{model} 429 — cooldown {retry_after}s, trying next")
+                log.warning(f"  {name}/{model} 429 — TBF hold, trying next")
                 continue
 
             if resp.status_code in (401, 403):
@@ -5074,7 +5056,6 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
-                    pool.mark_rate_limited(name, key, model, retry_after=30)
                     break
                 _add_provider_tokens(name, data, model)
                 _actual_tokens = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
@@ -5100,7 +5081,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 # a gateway that wraps an error in an HTTP-200 body (NVIDIA NIM's gRPC
                 # "ResourceExhausted: Worker local total request limit reached"), or a
                 # non-JSON body. Don't surface that to the caller as the answer —
-                # treat it as a provider failure, cool this (key,model), and cascade.
+                # treat it as a provider failure and cascade.
                 if not isinstance(data, dict) or not data.get("choices"):
                     stats.record_error(name)
                     stats.record_health(name, False)
@@ -5109,23 +5090,21 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                             else err if isinstance(err, str)
                             else (data.get("message", "") if isinstance(data, dict) else ""))
                     # NVIDIA NIM (and similar gateways) wrap a transient rate-limit /
-                    # resource-exhaustion error in an HTTP-200 body. That's expected under
-                    # load and is fully handled here (cascade + per-key cooldown), so log it
-                    # at debug to keep it out of the logs; only a genuinely unexpected empty
-                    # 2xx body warns.
+                    # resource-exhaustion error in an HTTP-200 body. Feed true RL
+                    # signals into TBF; other empty 2xx bodies just cascade.
                     _emsg_l = str(emsg).lower()
                     _transient = any(s in _emsg_l for s in (
                         "resourceexhausted", "resource exhausted", "request limit reached",
                         "rate limit", "too many requests", "quota", "overloaded"))
                     (log.debug if _transient else log.warning)(
                         f"  {name}/{model} 2xx without choices — cascading: {str(emsg)[:140]}")
-                    pool.mark_rate_limited(name, key, model, retry_after=30)
+                    if _transient:
+                        rate_limiter.on_429(name, key, model, dict(resp.headers))
                     break
                 if not _completion_has_output(data):
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
-                    pool.mark_rate_limited(name, key, model, retry_after=30)
                     break
                 if not is_anthropic:
                     _strip_response(data)
@@ -5308,6 +5287,25 @@ def embeddings():
                 break
 
             log.info(f"→ Trying {name} embeddings ({em}) ...{key[-6:]}")
+            _inp = payload.get("input", "")
+            _est_tokens = max(1.0, (len(_inp) if isinstance(_inp, str)
+                                    else sum(len(str(x)) for x in _inp)) / 4)
+            _current_headroom = rate_limiter.headroom(name, key, em)
+            if _current_headroom < RATE_HEADROOM_THRESHOLD:
+                log.info(f"  {name}/{em} thin headroom ({_current_headroom:.1%}) — skipping")
+                continue
+            _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                name, key, em, req_count=1.0, token_count=_est_tokens)
+            if not _rl_ok:
+                _wait_ms = _rl_wait * 1000
+                if 0 < _wait_ms <= RATE_SHORT_WAIT_MS:
+                    log.debug(f"  {name}/{em} thin bucket — waiting {_wait_ms:.0f}ms")
+                    time.sleep(_rl_wait)
+                    _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                        name, key, em, req_count=1.0, token_count=_est_tokens)
+                if not _rl_ok:
+                    log.info(f"  {name}/{em} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
+                    continue
             t0   = time.time()
             resp = forward_embeddings(provider, key, payload)
             elapsed = time.time() - t0
@@ -5318,8 +5316,8 @@ def embeddings():
                 continue
             if resp.status_code == 429:
                 stats.record_error(name)
-                pool.mark_rate_limited(name, key, em, retry_after=_parse_retry_after(resp.headers.get("Retry-After")))
-                log.warning(f"  {name} 429 — cooldown, trying next key")
+                rate_limiter.on_429(name, key, em, dict(resp.headers))
+                log.warning(f"  {name} embeddings 429 — TBF hold, trying next key")
                 continue
             if resp.status_code in (400, 401, 403, 404):
                 stats.record_error(name)   # request/auth/model-specific, not a health failure
@@ -5337,6 +5335,10 @@ def embeddings():
             stats.record_success(name, elapsed); stats.record_health(name, True)
             log.info(f"  ✓ {name} embeddings ({elapsed*1000:.0f}ms)")
             data = resp.json()
+            _actual = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
+            rate_limiter.restore(name, key, em, max(0.0, _est_tokens - _actual))
+            rate_limiter.update_from_headers(name, key, em, dict(resp.headers))
+            rate_limiter.on_success(name, key, em, _actual)
             key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)
             _add_provider_tokens(name, data)
             cache.set(payload, data, ns)

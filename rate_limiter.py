@@ -197,6 +197,15 @@ def _dim_window_to_limit(dim: str, window: str) -> str:
     return f"{prefix}P{window}"   # e.g. "RPM", "TPD"
 
 
+def _parse_retry_after(value, default: int | None = None) -> int | None:
+    """Parse a Retry-After header. RFC 9110 allows delay-seconds or an HTTP date;
+    fractional seconds are accepted. Returns default (or None) when unparsable."""
+    try:
+        return max(1, int(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 class BucketGroup:
     """All active token buckets for one (provider, key, model?) scope."""
 
@@ -204,6 +213,7 @@ class BucketGroup:
         self.provider_name = provider_name
         self.buckets: dict[str, TokenBucket] = {}
         self._requests_this_period = 0
+        self.blocked_until = 0.0
         caps = caps or _load_caps_for(provider_name)
         for limit_name, cap in caps.items():
             if limit_name not in LIMIT_KEYS:
@@ -217,6 +227,9 @@ class BucketGroup:
 
     def consume(self, req_count: float, token_count: float) -> tuple[bool, float]:
         """Check all active buckets. Consume atomically only if all pass."""
+        now = time.time()
+        if now < self.blocked_until:
+            return False, self.blocked_until - now
         max_wait = 0.0
         checks: list[tuple[TokenBucket, float]] = []
         for name, b in self.buckets.items():
@@ -226,7 +239,7 @@ class BucketGroup:
             amount = req_count if dim == "R" else token_count
             if amount <= 0:
                 continue
-            b.refill(time.time())
+            b.refill(now)
             if b.tokens < amount:
                 max_wait = max(max_wait, b.time_to_refill(amount))
             else:
@@ -252,6 +265,8 @@ class BucketGroup:
                 b.restore(req_count)
 
     def headroom(self) -> float:
+        if time.time() < self.blocked_until:
+            return 0.0
         active = self._active()
         if not active:
             return 1.0
@@ -271,6 +286,17 @@ class BucketGroup:
                 b.active = True
                 log.info(f"[rate] bucket {name} re-activated by 429")
             b.on_429(observed_rate=b._period_consumed)
+        retry = None
+        if headers:
+            # Case-insensitive Retry-After lookup
+            for k, v in headers.items():
+                if k.lower() == "retry-after":
+                    retry = _parse_retry_after(v)
+                    break
+        if retry:
+            until = time.time() + retry
+            self.blocked_until = max(self.blocked_until, until)
+            log.info(f"[rate] Retry-After hold until {self.blocked_until:.0f} ({retry}s)")
 
     def update_from_headers(self, headers: dict) -> None:
         self._apply_headers(headers, on_429=False)
@@ -316,18 +342,27 @@ class BucketGroup:
         self._requests_this_period = 0
 
     def to_dict(self) -> dict:
-        return {name: b.to_dict() for name, b in self.buckets.items() if b.active}
+        out = {name: b.to_dict() for name, b in self.buckets.items() if b.active}
+        now = time.time()
+        if self.blocked_until > now:
+            out["blocked_until"] = self.blocked_until
+        return out
 
     @classmethod
     def from_dict(cls, d: dict, provider_name: str) -> "BucketGroup":
-        caps = {name: v["cap"] for name, v in d.items()}
+        blocked = d.get("blocked_until")
+        bucket_data = {k: v for k, v in d.items()
+                       if k != "blocked_until" and isinstance(v, dict)}
+        caps = {name: v["cap"] for name, v in bucket_data.items()}
         g = cls(provider_name=provider_name, caps=caps)
-        for name, bdict in d.items():
+        for name, bdict in bucket_data.items():
             if name in g.buckets:
                 g.buckets[name].tokens = min(bdict["cap"] * 0.5,
                                              bdict.get("tokens", bdict["cap"]))
                 g.buckets[name].last_refill = bdict.get("last_refill", time.time())
                 g.buckets[name]._initial_cap = bdict["cap"]
+        if isinstance(blocked, (int, float)) and blocked > time.time():
+            g.blocked_until = float(blocked)
         return g
 
 
@@ -476,9 +511,11 @@ class AdaptiveRateLimiter:
                     }
                 return out
 
+            blocked = max(pw.blocked_until, mg.blocked_until)
             return {
                 "provider_wide": _buckets_to_status(pw),
                 "model":         _buckets_to_status(mg),
+                "blocked_until": blocked if blocked > time.time() else None,
             }
 
     def list_groups(self, include_orphans: bool = False,
@@ -521,6 +558,7 @@ class AdaptiveRateLimiter:
                     "headroom": headroom,
                     "binding": binding,
                     "buckets": buckets,
+                    "blocked_until": g.blocked_until if g.blocked_until > now else None,
                 })
         return out
 

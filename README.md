@@ -81,10 +81,11 @@ flows through it like this:
 **The moving parts:**
 
 - **Credential pool** — every provider can hold many keys (from `auth.json`, then `.env`).
-  Keys are rotated round-robin (verified perfectly even under real concurrent load); a key that
-  gets rate-limited is put on a short cooldown and skipped until it recovers. Each key's usage
-  count is visible in `/v1/status` and the web dashboard, so you can watch load spread across
-  keys as you add them.
+  Keys are rotated round-robin (verified perfectly even under real concurrent load). Upstream
+  rate limits are handled by an adaptive token-bucket filter (learns from headers/429s, paces
+  or fails over on low headroom, honors `Retry-After`); pool cool-downs are only for health
+  failures (network/5xx). Each key's usage count is visible in `/v1/status` and the web
+  dashboard, so you can watch load spread across keys as you add them.
 - **Smart routing** — each request is scored 1–5 for difficulty (by length and content, no
   extra API call), and each model is scored 1–5 for capability. The router picks the
   *cheapest* model that can still handle the request, and rotates among equally-good ones.

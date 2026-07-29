@@ -24,8 +24,11 @@ Two complementary behaviours:
 2. **Headroom-aware routing** — score candidates by remaining capacity across all active
    windows before selecting the best (key, model) to send to.
 
-Existing `mark_rate_limited` cooldown logic is preserved. A 429 still cools the (key, model)
-pair via `Retry-After` **and** additionally triggers the adaptive learning loop.
+**TBF is the sole upstream rate-limit mechanism.** CredentialPool `mark_rate_limited`
+cooldowns are not used. A 429 (or a 2xx body that is clearly a quota/rate-limit error)
+triggers the adaptive learning loop and, when present, a `Retry-After` hold on the
+bucket group (`blocked_until`) so refill math cannot re-admit that scope early.
+Network/5xx health failures still use CredentialPool `mark_key_down`.
 
 ---
 
@@ -93,7 +96,9 @@ yield to hard header data.
   and set `tokens` to 0. `observed_rate` is computed per-bucket: the total requests (or
   tokens) consumed from that bucket since its last full refill period. For buckets with no
   meaningful history (fewer than 3 requests recorded), the cut instead halves the current
-  `cap` rather than using a potentially noisy rate estimate.
+  `cap` rather than using a potentially noisy rate estimate. When a `Retry-After` header
+  is present, also set the group's `blocked_until` so `check_and_consume` rejects until
+  that time even if refill would otherwise restore tokens.
 - **20 consecutive successes without hitting the cap:** nudge `cap` up by 5%, clamped
   to a configurable ceiling (`RATE_LEARN_MAX_MULTIPLIER`, default 10× the initial default).
 
@@ -243,7 +248,8 @@ Extend per-provider stats with a `rate_limits` object:
 | Cap updated (429 cut or success nudge) | INFO |
 | Bucket marked inactive (heuristic drop) | INFO |
 | Bucket re-activated (429 or header) | INFO |
-| Existing cooldown warnings | WARNING (unchanged) |
+| Retry-After hold applied | INFO |
+| Health-key cooldown (`mark_key_down`) | WARNING |
 
 ---
 
