@@ -2299,6 +2299,14 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
                 try:
                     event = json.loads(line[6:])
                     u = event.get("usage") or {}
+                    if not u:
+                        continue
+                    # Some translators omit total_tokens; derive it from the split.
+                    if not u.get("total_tokens"):
+                        pt = u.get("prompt_tokens")
+                        ct = u.get("completion_tokens")
+                        if pt is not None or ct is not None:
+                            u = {**u, "total_tokens": int(pt or 0) + int(ct or 0)}
                     if u.get("total_tokens"):
                         usage = u
                 except Exception:
@@ -2469,6 +2477,8 @@ def _anthropic_streaming_generator(resp: requests.Response):
     created      = int(time.time())
     finish_reason = "stop"
     first_chunk  = True
+    prompt_tokens = None
+    completion_tokens = None
 
     buf = b""
     for raw_chunk in resp.iter_content(chunk_size=None):
@@ -2490,6 +2500,9 @@ def _anthropic_streaming_generator(resp: requests.Response):
                 msg    = event.get("message", {})
                 msg_id = msg.get("id", msg_id)
                 model  = msg.get("model", "")
+                usage  = msg.get("usage") or {}
+                if "input_tokens" in usage:
+                    prompt_tokens = usage.get("input_tokens", 0)
                 # Emit role chunk
                 chunk = {"id": msg_id, "object": "chat.completion.chunk", "created": created,
                          "model": model,
@@ -2511,12 +2524,28 @@ def _anthropic_streaming_generator(resp: requests.Response):
             elif etype == "message_delta":
                 sr = event.get("delta", {}).get("stop_reason", "end_turn")
                 finish_reason = "stop" if sr in ("end_turn", "stop_sequence") else "length"
+                usage = event.get("usage") or {}
+                if "output_tokens" in usage:
+                    completion_tokens = usage.get("output_tokens", 0)
 
             elif etype == "message_stop":
                 chunk = {"id": msg_id, "object": "chat.completion.chunk", "created": created,
                          "model": model,
                          "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]}
                 yield ("data: " + json.dumps(chunk) + "\n\n").encode()
+                if prompt_tokens is not None or completion_tokens is not None:
+                    pt = int(prompt_tokens or 0)
+                    ct = int(completion_tokens or 0)
+                    usage_chunk = {
+                        "id": msg_id, "object": "chat.completion.chunk", "created": created,
+                        "model": model, "choices": [],
+                        "usage": {
+                            "prompt_tokens":     pt,
+                            "completion_tokens": ct,
+                            "total_tokens":      pt + ct,
+                        },
+                    }
+                    yield ("data: " + json.dumps(usage_chunk) + "\n\n").encode()
                 yield b"data: [DONE]\n\n"
 
 
@@ -2945,17 +2974,19 @@ def _codex_streaming_generator(resp: requests.Response):
     SSE on the fly."""
     cid = "chatcmpl-codex"
     created = int(time.time())
+    model = "codex"
 
     def chunk(delta: dict, finish=None):
         return "data: " + json.dumps({
             "id": cid, "object": "chat.completion.chunk", "created": created,
-            "model": "codex",
+            "model": model,
             "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
         }) + "\n\n"
 
     yield chunk({"role": "assistant"})
     event_type = None
     finish = "stop"
+    usage_out = None
     for raw in resp.iter_lines():
         if not raw:
             continue
@@ -2978,12 +3009,30 @@ def _codex_streaming_generator(resp: requests.Response):
             if d:
                 yield chunk({"content": d})
         elif etype == "response.completed" and isinstance(ev.get("response"), dict):
-            _, tcs = _codex_text_and_tools(ev["response"])
+            resp_obj = ev["response"]
+            cid = resp_obj.get("id", cid) or cid
+            if resp_obj.get("model"):
+                model = resp_obj["model"]
+            _, tcs = _codex_text_and_tools(resp_obj)
             if tcs:
                 finish = "tool_calls"
                 for i, tc in enumerate(tcs):
                     yield chunk({"tool_calls": [{"index": i, **tc}]})
+            u = resp_obj.get("usage") or {}
+            if u:
+                pt = int(u.get("input_tokens") or 0)
+                ct = int(u.get("output_tokens") or 0)
+                usage_out = {
+                    "prompt_tokens":     pt,
+                    "completion_tokens": ct,
+                    "total_tokens":      int(u.get("total_tokens") or (pt + ct)),
+                }
     yield chunk({}, finish=finish)
+    if usage_out:
+        yield "data: " + json.dumps({
+            "id": cid, "object": "chat.completion.chunk", "created": created,
+            "model": model, "choices": [], "usage": usage_out,
+        }) + "\n\n"
     yield "data: [DONE]\n\n"
 
 
