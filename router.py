@@ -124,6 +124,10 @@ FAST_ROUTE_TOKENS = int(os.environ.get("FAST_ROUTE_THRESHOLD", 0))  # 0 = disabl
 # models alongside free ones, and some expose very large catalogs.
 AUTO_DISCOVER_MODELS = os.environ.get("AUTO_DISCOVER_MODELS", "0").strip().lower() not in ("0", "", "false", "no", "off")
 AUTO_DISCOVER_MODEL_LIMIT = max(1, int(os.environ.get("AUTO_DISCOVER_MODEL_LIMIT", "8")))
+# When discovery is on, drop purpose-specific models (TTS/STT/image-gen/OCR/video/
+# embedding/moderation/rerank) from discovered catalogs. Configured model lists
+# are never filtered. Opt-in.
+FILTER_SPECIALIZED_MODELS = os.environ.get("FILTER_SPECIALIZED_MODELS", "0").strip().lower() not in ("0", "", "false", "no", "off")
 # Semantic cache: serve a cached answer for a *similar* (not just identical) prompt,
 # by embedding prompts and comparing cosine similarity. Opt-in (needs an embedding
 # provider); falls back to exact match when off or unavailable.
@@ -468,6 +472,91 @@ def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
     if not excl:
         return models
     return [m for m in models if m.lower() not in excl]
+
+
+# Substrings that mark purpose-specific (non-chat) models when catalog metadata
+# does not explicitly classify the item. Avoid bare "image" — vision chat models
+# use that word too.
+_SPECIALIZED_NAME_PATTERNS = (
+    "whisper", "tts", "speech", "audio", "imagen", "dall-e", "dalle", "flux",
+    "ocr", "embed", "embedding", "moderation", "rerank", "video",
+)
+
+
+def _metadata_specialization(item: dict | None) -> str | None:
+    """Return 'specialized', 'chat', or None if metadata is absent/unclear."""
+    if not isinstance(item, dict):
+        return None
+    blobs: list[str] = []
+    arch = item.get("architecture")
+    if isinstance(arch, dict):
+        for key in ("modality", "output_modalities", "input_modalities"):
+            val = arch.get(key)
+            if isinstance(val, str):
+                blobs.append(val.lower())
+            elif isinstance(val, list):
+                blobs.extend(str(v).lower() for v in val)
+    for key in ("type", "object", "task"):
+        val = item.get(key)
+        if isinstance(val, str):
+            blobs.append(val.lower())
+    caps = item.get("capabilities")
+    if isinstance(caps, str):
+        blobs.append(caps.lower())
+    elif isinstance(caps, list):
+        blobs.extend(str(c).lower() for c in caps)
+    elif isinstance(caps, dict):
+        blobs.extend(str(k).lower() for k, v in caps.items() if v)
+
+    if not blobs:
+        return None
+    joined = " ".join(blobs)
+
+    specialized_tokens = (
+        "embedding", "embeddings", "tts", "speech", "audio", "asr", "stt",
+        "whisper", "moderation", "rerank", "reranking", "ocr", "video",
+        "image-generation", "image_generation", "text->image", "text→image",
+        "->image", "→image", "->embedding", "→embedding", "->audio", "→audio",
+    )
+    if any(tok in joined for tok in specialized_tokens):
+        # text+image->text is vision chat, not image generation
+        if "->image" in joined or "→image" in joined:
+            return "specialized"
+        if any(tok in joined for tok in (
+            "embedding", "embeddings", "tts", "speech", "audio", "asr", "stt",
+            "whisper", "moderation", "rerank", "reranking", "ocr", "video",
+            "image-generation", "image_generation",
+        )):
+            return "specialized"
+
+    chat_tokens = (
+        "text->text", "text→text", "text+image->text", "text+image→text",
+        "chat", "completion", "language",
+    )
+    if any(tok in joined for tok in chat_tokens) or (
+        "text" in joined and "embedding" not in joined and "->image" not in joined
+        and "→image" not in joined
+    ):
+        # output_modalities including text (and not only specialized outputs)
+        if "embeddings" in joined or "embedding" in joined:
+            return "specialized"
+        return "chat"
+    return None
+
+
+def _is_specialized_model(model_id: str, item: dict | None = None) -> bool:
+    """True when a catalog model is purpose-specific (not chat completions).
+
+    Detection order: explicit specialized metadata → drop; explicit chat/text
+    metadata → keep; otherwise name-pattern denylist.
+    """
+    kind = _metadata_specialization(item)
+    if kind == "specialized":
+        return True
+    if kind == "chat":
+        return False
+    mn = (model_id or "").lower()
+    return any(p in mn for p in _SPECIALIZED_NAME_PATTERNS)
 
 
 # ── Provider definitions ───────────────────────────────────────────────────────
@@ -1103,7 +1192,17 @@ def _discover_best_model(base_url: str, key: str, extra_headers: dict = None,
         r = _HTTP.get(f"{base_url.rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
             return None
-        models = [m["id"] for m in r.json().get("data", []) if isinstance(m.get("id"), str)]
+        models = []
+        for item in r.json().get("data", []):
+            if not isinstance(item, dict):
+                continue
+            mid = item.get("id")
+            if not isinstance(mid, str) or not mid.strip():
+                continue
+            normalized = mid.strip()
+            if FILTER_SPECIALIZED_MODELS and _is_specialized_model(normalized, item):
+                continue
+            models.append(normalized)
         if free_only:
             models = [m for m in models if _is_free_model_id(m)]
         return min(models, key=_rate_model) if models else None
@@ -1118,28 +1217,55 @@ def _discover_models(provider: dict, key: str, free_only: bool = False) -> list[
     when appending extras). Fail-soft: any provider quirk simply disables discovery
     for that provider on this start.
     """
+    filtered, _catalog = _discover_models_with_catalog(provider, key, free_only=free_only)
+    return filtered
+
+
+def _discover_models_with_catalog(provider: dict, key: str, free_only: bool = False) -> tuple[list[str], list[str]]:
+    """Fetch models from /models; return (filtered, catalog).
+
+    ``catalog`` includes every normalized ID (membership checks for configured
+    models). ``filtered`` excludes specialized models when FILTER_SPECIALIZED_MODELS.
+    """
     try:
         hdrs = {"Authorization": f"Bearer {key}", **provider.get("headers", {})}
         r = _HTTP.get(f"{provider['base_url'].rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
-            return []
-        models = []
+            return [], []
+        catalog = []
+        filtered = []
+        dropped = []
         for item in r.json().get("data", []):
-            mid = item.get("id") if isinstance(item, dict) else None
-            if isinstance(mid, str) and mid.strip():
-                normalized = mid.strip()
-                # Gemini's OpenAI-compat /models returns ids like models/gemini-2.5-pro.
-                if provider["name"] == "gemini" and normalized.startswith("models/"):
-                    normalized = normalized[len("models/"):]
-                models.append(normalized)
+            if not isinstance(item, dict):
+                continue
+            mid = item.get("id")
+            if not isinstance(mid, str) or not mid.strip():
+                continue
+            normalized = mid.strip()
+            if provider["name"] == "gemini" and normalized.startswith("models/"):
+                normalized = normalized[len("models/"):]
+            catalog.append(normalized)
+            if FILTER_SPECIALIZED_MODELS and _is_specialized_model(normalized, item):
+                dropped.append(normalized)
+                continue
+            filtered.append(normalized)
+        if dropped:
+            sample = ", ".join(dropped[:5])
+            more = f" (+{len(dropped) - 5} more)" if len(dropped) > 5 else ""
+            log.debug(f"[ratings]   {provider['name']}: dropped {len(dropped)} specialized "
+                      f"model(s): {sample}{more}")
         if free_only:
-            models = [m for m in models if _is_free_model_id(m)]
-        models = list(dict.fromkeys(models))
-        models.sort(key=lambda m: (_price_rank(m), _quality_rank(provider["name"], m), m.lower()))
-        return models
+            catalog = [m for m in catalog if _is_free_model_id(m)]
+            filtered = [m for m in filtered if _is_free_model_id(m)]
+        catalog = list(dict.fromkeys(catalog))
+        filtered = list(dict.fromkeys(filtered))
+        sort_key = lambda m: (_price_rank(m), _quality_rank(provider["name"], m), m.lower())
+        catalog.sort(key=sort_key)
+        filtered.sort(key=sort_key)
+        return filtered, catalog
     except Exception as e:
         log.debug(f"[ratings]   {provider['name']}: model discovery skipped: {e}")
-        return []
+        return [], []
 
 
 def _provider_model_discovery_enabled(provider: dict) -> bool:
@@ -1167,15 +1293,19 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
         log.info(f"[ratings]   {name}: model discovery skipped by default")
         return
     free_only = name in _FREE_ONLY_DISCOVERY
-    discovered = _filter_excluded(name, _discover_models(provider, key, free_only=free_only))
+    discovery = _discover_models_with_catalog(provider, key, free_only=free_only)
+    discovered, catalog = discovery
+    discovered = _filter_excluded(name, discovered)
     if not discovered:
         return
 
     configured = list(provider.get("models") or [provider["model"]])
-    discovered_set = set(discovered)
+    # Configured models are kept when still in the API catalog, even if the
+    # specialized filter removed them from the discovery append list.
+    catalog_set = set(_filter_excluded(name, catalog))
     # Prune only when doing so still leaves a configured model; otherwise the
     # existing invalid-model repair path can try to recover a primary model.
-    kept = _filter_excluded(name, [m for m in configured if m in discovered_set])
+    kept = _filter_excluded(name, [m for m in configured if m in catalog_set])
     if not kept:
         kept = discovered[:1]
     # Never drop valid configured models; only bound appended discoveries.
@@ -5625,6 +5755,9 @@ def _features_snapshot() -> dict:
         {"name": "model_discovery", "title": "Model discovery", "kind": "flag",
          "enabled": AUTO_DISCOVER_MODELS, "env": "AUTO_DISCOVER_MODELS", "on": "1", "off": "0",
          "desc": "Refresh configured provider model lists from /models at startup, bounded by AUTO_DISCOVER_MODEL_LIMIT."},
+        {"name": "filter_specialized_models", "title": "Filter specialized models", "kind": "flag",
+         "enabled": FILTER_SPECIALIZED_MODELS, "env": "FILTER_SPECIALIZED_MODELS", "on": "1", "off": "0",
+         "desc": "When model discovery is on, drop TTS / STT / image-gen / OCR / video / embedding / moderation / rerank IDs from discovered catalogs so they never enter the chat pool."},
         {"name": "metrics_auth", "title": "Metrics auth", "kind": "flag",
          "enabled": bool(_int_env("METRICS_REQUIRE_AUTH", 0)), "env": "METRICS_REQUIRE_AUTH",
          "on": "1", "off": "0", "desc": "Require the proxy key on /metrics."},
