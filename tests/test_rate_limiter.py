@@ -1,5 +1,5 @@
 import time, pytest
-from rate_limiter import TokenBucket
+from rate_limiter import TokenBucket, BucketGroup, PROVIDER_RATE_DEFAULTS
 
 WINDOW = 60.0  # 1-minute bucket
 
@@ -93,3 +93,64 @@ def test_to_dict_roundtrip():
     b2 = TokenBucket.from_dict(d, window_seconds=WINDOW, initial_cap=30.0)
     assert b2.cap == 30.0
     assert b2.tokens == 15.0
+
+
+def test_bucketgroup_consume_passes():
+    g = BucketGroup(provider_name="groq")
+    ok, wait = g.consume(req_count=1.0, token_count=100.0)
+    assert ok is True
+    assert wait == 0.0
+
+def test_bucketgroup_consume_fails_when_rpm_empty():
+    g = BucketGroup(provider_name="groq")
+    rpm = g.buckets.get("RPM")
+    if rpm:
+        rpm.tokens = 0.0
+        ok, wait = g.consume(req_count=1.0, token_count=0.0)
+        assert ok is False
+        assert wait > 0
+
+def test_bucketgroup_headroom_all_full():
+    g = BucketGroup(provider_name="groq")
+    assert g.headroom() == pytest.approx(1.0, abs=0.05)
+
+def test_bucketgroup_restore_tokens():
+    g = BucketGroup(provider_name="groq")
+    tpm = g.buckets.get("TPM")
+    if tpm:
+        tpm.tokens = 0.0
+        g.restore_tokens(100.0)
+        assert tpm.tokens == pytest.approx(100.0)
+
+def test_bucketgroup_update_from_headers():
+    g = BucketGroup(provider_name="groq")
+    g.update_from_headers({
+        "x-ratelimit-limit-requests": "60",
+        "x-ratelimit-remaining-requests": "45",
+    })
+    rpm = g.buckets.get("RPM")
+    assert rpm is not None
+    assert rpm.cap == 60.0
+    assert rpm.tokens == 45.0
+
+def test_bucketgroup_on_429_cuts_caps():
+    g = BucketGroup(provider_name="groq")
+    rpm = g.buckets.get("RPM")
+    if rpm:
+        original_cap = rpm.cap
+        rpm._period_consumed = 10.0
+        g.on_429({})
+        assert rpm.cap < original_cap
+
+def test_bucketgroup_to_dict_roundtrip():
+    g = BucketGroup(provider_name="groq")
+    d = g.to_dict()
+    g2 = BucketGroup.from_dict(d, provider_name="groq")
+    assert set(g2.buckets.keys()) == set(d.keys())
+
+def test_default_caps_table_has_groq():
+    assert "groq" in PROVIDER_RATE_DEFAULTS
+    assert PROVIDER_RATE_DEFAULTS["groq"]["RPM"] == 30
+
+def test_default_caps_fallback():
+    assert "_default" in PROVIDER_RATE_DEFAULTS

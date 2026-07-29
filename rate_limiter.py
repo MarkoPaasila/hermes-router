@@ -145,3 +145,177 @@ class TokenBucket:
                 tokens=d.get("tokens"), last_refill=d.get("last_refill"))
         b._initial_cap = initial_cap
         return b
+
+
+# ── Default caps table ────────────────────────────────────────────────────────
+# Only windows with known free-tier defaults are listed. Others start uncapped
+# (bucket not created until a header or 429 teaches a real limit).
+
+PROVIDER_RATE_DEFAULTS: dict[str, dict[str, float]] = {
+    "groq":         {"RPM": 30,  "TPM": 6_000,  "RPD": 14_400},
+    "gemini":       {"RPM": 15,  "TPM": 32_000, "RPD": 1_500},
+    "openrouter":   {"RPM": 20,  "TPM": 20_000},
+    "mistral":      {"RPM": 5,   "TPM": 16_000},
+    "cohere":       {"RPM": 20,  "TPM": 10_000},
+    "nvidia":       {"RPM": 40,  "TPM": 40_000},
+    "_default":     {"RPM": 10,  "TPM": 10_000},
+}
+
+
+def _load_caps_for(provider_name: str) -> dict[str, float]:
+    """Merge built-in defaults < env-var overrides. auth.json overrides are applied
+    at BucketGroup construction time by the caller (AdaptiveRateLimiter)."""
+    base = dict(PROVIDER_RATE_DEFAULTS.get(provider_name)
+                or PROVIDER_RATE_DEFAULTS["_default"])
+    # Env overrides: RATE_DEFAULT_GROQ_RPM, RATE_DEFAULT_GROQ_TPM, …
+    prefix = f"RATE_DEFAULT_{provider_name.upper()}_"
+    for key in list(os.environ):
+        if key.startswith(prefix):
+            limit_name = key[len(prefix):]  # e.g. "RPM"
+            try:
+                base[limit_name] = float(os.environ[key])
+            except (TypeError, ValueError):
+                pass
+    return base
+
+
+# ── BucketGroup ───────────────────────────────────────────────────────────────
+
+# Maps x-ratelimit header suffixes to (dimension, window_key) for bucket lookup.
+_HEADER_MAP = {
+    "requests":        ("R", "M"),   # x-ratelimit-{limit,remaining}-requests → RPM
+    "tokens":          ("T", "M"),   # x-ratelimit-{limit,remaining}-tokens   → TPM
+    "requests-day":    ("R", "D"),
+    "tokens-day":      ("T", "D"),
+    "requests-hour":   ("R", "H"),
+    "tokens-hour":     ("T", "H"),
+}
+
+def _dim_window_to_limit(dim: str, window: str) -> str:
+    prefix = "R" if dim == "R" else "T"
+    return f"{prefix}P{window}"   # e.g. "RPM", "TPD"
+
+
+class BucketGroup:
+    """All active token buckets for one (provider, key, model?) scope."""
+
+    def __init__(self, provider_name: str, caps: dict[str, float] = None):
+        self.provider_name = provider_name
+        self.buckets: dict[str, TokenBucket] = {}
+        self._requests_this_period = 0
+        caps = caps or _load_caps_for(provider_name)
+        for limit_name, cap in caps.items():
+            if limit_name not in LIMIT_KEYS:
+                continue
+            _, window_key = LIMIT_KEYS[limit_name]
+            self.buckets[limit_name] = TokenBucket(
+                window_seconds=WINDOWS[window_key], cap=float(cap))
+
+    def _active(self):
+        return [b for b in self.buckets.values() if b.active]
+
+    def consume(self, req_count: float, token_count: float) -> tuple[bool, float]:
+        """Check all active buckets. Consume atomically only if all pass."""
+        checks: list[tuple[TokenBucket, float]] = []
+        for name, b in self.buckets.items():
+            if not b.active:
+                continue
+            dim, _ = LIMIT_KEYS[name]
+            amount = req_count if dim == "R" else token_count
+            if amount <= 0:
+                continue
+            b.refill(time.time())
+            if b.tokens < amount:
+                wait = b.time_to_refill(amount)
+                return False, wait
+            checks.append((b, amount))
+        for b, amount in checks:
+            b.tokens -= amount
+            b._period_consumed += amount
+            if b.tokens <= 0:
+                b._hit_zero = True
+        self._requests_this_period += int(req_count)
+        return True, 0.0
+
+    def restore_tokens(self, token_surplus: float) -> None:
+        for name, b in self.buckets.items():
+            if b.active and LIMIT_KEYS.get(name, ("?",))[0] == "T":
+                b.restore(token_surplus)
+
+    def headroom(self) -> float:
+        active = self._active()
+        if not active:
+            return 1.0
+        return min(b.headroom() for b in active)
+
+    def on_success(self, token_count: float) -> None:
+        for b in self._active():
+            b.on_success()
+
+    def on_429(self, headers: dict) -> None:
+        # If headers contain hard data, use set_from_header for those buckets.
+        updated = self._apply_headers(headers, on_429=True)
+        for name, b in self.buckets.items():
+            if name not in updated and b.active:
+                b.on_429(observed_rate=b._period_consumed)
+            if not b.active:
+                b.active = True   # re-activate on 429
+                log.info(f"[rate] bucket {name} re-activated by 429")
+
+    def update_from_headers(self, headers: dict) -> None:
+        self._apply_headers(headers, on_429=False)
+
+    def _apply_headers(self, headers: dict, on_429: bool) -> set:
+        """Parse x-ratelimit-* headers and update matching buckets. Returns
+        set of limit names that were updated from headers."""
+        updated = set()
+        limits   = {}
+        remaining = {}
+        for raw_key, val in headers.items():
+            k = raw_key.lower()
+            if k.startswith("x-ratelimit-limit-"):
+                suffix = k[len("x-ratelimit-limit-"):]
+                try: limits[suffix] = float(val)
+                except (TypeError, ValueError): pass
+            elif k.startswith("x-ratelimit-remaining-"):
+                suffix = k[len("x-ratelimit-remaining-"):]
+                try: remaining[suffix] = float(val)
+                except (TypeError, ValueError): pass
+        for suffix, cap_val in limits.items():
+            rem_val = remaining.get(suffix, cap_val)
+            pair = _HEADER_MAP.get(suffix)
+            if not pair:
+                continue
+            dim, window_key = pair
+            limit_name = _dim_window_to_limit(dim, window_key)
+            if limit_name not in self.buckets:
+                _, wk = LIMIT_KEYS[limit_name]
+                self.buckets[limit_name] = TokenBucket(
+                    window_seconds=WINDOWS[wk], cap=cap_val, tokens=rem_val)
+                log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
+            else:
+                self.buckets[limit_name].set_from_header(cap_val, rem_val)
+            updated.add(limit_name)
+        return updated
+
+    def run_inactive_check(self) -> None:
+        n = self._requests_this_period
+        for b in self.buckets.values():
+            if b.active:
+                b.check_inactive(n)
+        self._requests_this_period = 0
+
+    def to_dict(self) -> dict:
+        return {name: b.to_dict() for name, b in self.buckets.items() if b.active}
+
+    @classmethod
+    def from_dict(cls, d: dict, provider_name: str) -> "BucketGroup":
+        caps = {name: v["cap"] for name, v in d.items()}
+        g = cls(provider_name=provider_name, caps=caps)
+        for name, bdict in d.items():
+            if name in g.buckets:
+                g.buckets[name].tokens = min(bdict["cap"] * 0.5,
+                                             bdict.get("tokens", bdict["cap"]))
+                g.buckets[name].last_refill = bdict.get("last_refill", time.time())
+                g.buckets[name]._initial_cap = bdict["cap"]
+        return g
