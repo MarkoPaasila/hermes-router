@@ -322,3 +322,180 @@ class BucketGroup:
                 g.buckets[name].last_refill = bdict.get("last_refill", time.time())
                 g.buckets[name]._initial_cap = bdict["cap"]
         return g
+
+
+# ── AdaptiveRateLimiter ───────────────────────────────────────────────────────
+
+class AdaptiveRateLimiter:
+    """Top-level manager: one BucketGroup per (provider, key[-8:], model?)."""
+
+    def __init__(self, state_file: Path, auth_file: Path = None):
+        self.state_file = state_file
+        self._lock   = threading.Lock()
+        self._groups: dict[str, BucketGroup] = {}
+        self._auth_rate_defaults: dict[str, dict] = {}
+        if auth_file and auth_file.exists():
+            try:
+                doc = json.loads(auth_file.read_text())
+                raw = doc.get("rate_defaults") or {}
+                self._auth_rate_defaults = {
+                    k: dict(v) for k, v in raw.items() if isinstance(v, dict)
+                }
+            except Exception as e:
+                log.warning(f"[rate] could not read auth rate_defaults: {e}")
+
+    # ── Internal helpers ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def _group_key(provider_name: str, key: str, model: str | None) -> str:
+        key_suffix = (key or "")[-8:] or "unknown"
+        if model:
+            return f"provider:{provider_name}|key:{key_suffix}|model:{model}"
+        return f"provider:{provider_name}|key:{key_suffix}"
+
+    def _caps_for(self, provider_name: str) -> dict[str, float]:
+        caps = _load_caps_for(provider_name)
+        overrides = self._auth_rate_defaults.get(provider_name, {})
+        if overrides:
+            caps = {**caps, **overrides}
+        return caps
+
+    def _get_group_unlocked(self, provider_name: str, key: str,
+                            model: str | None) -> BucketGroup:
+        gk = self._group_key(provider_name, key, model)
+        if gk not in self._groups:
+            self._groups[gk] = BucketGroup(
+                provider_name=provider_name, caps=self._caps_for(provider_name))
+        return self._groups[gk]
+
+    def get_group(self, provider_name: str, key: str, model: str | None) -> BucketGroup:
+        with self._lock:
+            return self._get_group_unlocked(provider_name, key, model)
+
+    def _both_groups_unlocked(self, provider_name: str, key: str, model: str):
+        """Returns (provider_wide_group, model_group). model_group may equal
+        provider_wide_group when model is None."""
+        return (self._get_group_unlocked(provider_name, key, None),
+                self._get_group_unlocked(provider_name, key, model))
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def check_and_consume(self, provider_name: str, key: str, model: str,
+                          req_count: float, token_count: float) -> tuple[bool, float]:
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            pw_ok, pw_wait = pw.consume(req_count, token_count)
+            if not pw_ok:
+                return False, pw_wait
+            mg_ok, mg_wait = mg.consume(req_count, token_count)
+            if not mg_ok:
+                pw.restore_tokens(token_count)
+                pw_rpm = pw.buckets.get("RPM")
+                if pw_rpm and pw_rpm.active:
+                    pw_rpm.restore(req_count)
+                return False, mg_wait
+            return True, 0.0
+
+    def restore(self, provider_name: str, key: str, model: str,
+                token_surplus: float) -> None:
+        if token_surplus <= 0:
+            return
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            pw.restore_tokens(token_surplus)
+            if mg is not pw:
+                mg.restore_tokens(token_surplus)
+
+    def on_success(self, provider_name: str, key: str, model: str,
+                   token_count: float) -> None:
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            pw.on_success(token_count)
+            if mg is not pw:
+                mg.on_success(token_count)
+
+    def on_429(self, provider_name: str, key: str, model: str,
+               headers: dict) -> None:
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            pw.on_429(headers)
+            if mg is not pw:
+                mg.on_429(headers)
+
+    def update_from_headers(self, provider_name: str, key: str, model: str,
+                            headers: dict) -> None:
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            pw.update_from_headers(headers)
+            if mg is not pw:
+                mg.update_from_headers(headers)
+
+    def headroom(self, provider_name: str, key: str, model: str) -> float:
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            return min(pw.headroom(), mg.headroom())
+
+    def snapshot(self, provider_name: str, key: str, model: str) -> dict:
+        """Returns a dict suitable for inclusion in /v1/status."""
+        with self._lock:
+            pw = self._get_group_unlocked(provider_name, key, None)
+            mg = self._get_group_unlocked(provider_name, key, model)
+
+            def _buckets_to_status(g: BucketGroup) -> dict:
+                out = {}
+                for name, b in g.buckets.items():
+                    if not b.active:
+                        continue
+                    used = b.cap - b.tokens
+                    out[name] = {
+                        "cap":      round(b.cap, 1),
+                        "used":     round(max(0.0, used), 1),
+                        "headroom": round(b.headroom(), 3),
+                    }
+                return out
+
+            return {
+                "provider_wide": _buckets_to_status(pw),
+                "model":         _buckets_to_status(mg),
+            }
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def load(self) -> None:
+        if not self.state_file.exists():
+            return
+        try:
+            doc = json.loads(self.state_file.read_text())
+            if doc.get("version") != 1:
+                log.warning("[rate] state file version mismatch, skipping")
+                return
+            with self._lock:
+                for gk, bdict in (doc.get("groups") or {}).items():
+                    pname = gk.split("|")[0].removeprefix("provider:")
+                    self._groups[gk] = BucketGroup.from_dict(bdict, provider_name=pname)
+                n = len(self._groups)
+            log.info(f"[rate] loaded {n} bucket groups from {self.state_file}")
+        except Exception as e:
+            log.warning(f"[rate] could not load state file: {e}")
+
+    def flush(self) -> None:
+        try:
+            with self._lock:
+                groups = {gk: g.to_dict() for gk, g in self._groups.items()
+                          if g.to_dict()}
+            doc = {"version": 1, "groups": groups}
+            tmp = self.state_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(doc, indent=2))
+            tmp.replace(self.state_file)
+            log.debug(f"[rate] flushed {len(groups)} groups to {self.state_file}")
+        except Exception as e:
+            log.warning(f"[rate] flush failed: {e}")
+
+    def start_flush_thread(self) -> None:
+        def _loop():
+            while True:
+                time.sleep(RATE_STATE_FLUSH_INTERVAL)
+                self.flush()
+        t = threading.Thread(target=_loop, daemon=True, name="rate-flush")
+        t.start()
+        log.info(f"[rate] flush thread started (interval={RATE_STATE_FLUSH_INTERVAL}s)")

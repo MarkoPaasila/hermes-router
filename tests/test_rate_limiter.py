@@ -173,3 +173,55 @@ def test_default_caps_table_has_groq():
 
 def test_default_caps_fallback():
     assert "_default" in PROVIDER_RATE_DEFAULTS
+
+
+import tempfile
+from pathlib import Path
+from rate_limiter import AdaptiveRateLimiter
+
+def make_limiter(tmp_path):
+    return AdaptiveRateLimiter(state_file=Path(tmp_path) / "rate_limits_state.json")
+
+def test_check_and_consume_passes(tmp_path):
+    rl = make_limiter(tmp_path)
+    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 100.0)
+    assert ok is True
+
+def test_check_and_consume_fails_when_rpm_full(tmp_path):
+    rl = make_limiter(tmp_path)
+    g = rl.get_group("groq", "key-abc12345", None)
+    if "RPM" in g.buckets:
+        g.buckets["RPM"].tokens = 0.0
+    ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 100.0)
+    assert ok is False
+
+def test_headroom_returns_float(tmp_path):
+    rl = make_limiter(tmp_path)
+    h = rl.headroom("groq", "key-abc12345", "llama")
+    assert 0.0 <= h <= 1.0
+
+def test_on_429_updates_buckets(tmp_path):
+    rl = make_limiter(tmp_path)
+    g = rl.get_group("groq", "key-abc12345", None)
+    if "RPM" in g.buckets:
+        original = g.buckets["RPM"].cap
+        g.buckets["RPM"]._period_consumed = 10.0
+        rl.on_429("groq", "key-abc12345", "llama", {})
+        assert g.buckets["RPM"].cap <= original
+
+def test_flush_and_load(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    rl.flush()
+    state_file = Path(tmp_path) / "rate_limits_state.json"
+    assert state_file.exists()
+    rl2 = make_limiter(tmp_path)
+    rl2.load()
+    h = rl2.headroom("groq", "key-abc12345", "llama")
+    assert 0.0 <= h <= 1.0
+
+def test_snapshot_structure(tmp_path):
+    rl = make_limiter(tmp_path)
+    snap = rl.snapshot("groq", "key-abc12345", "llama")
+    assert "provider_wide" in snap
+    assert "model" in snap
