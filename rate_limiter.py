@@ -495,11 +495,24 @@ class AdaptiveRateLimiter:
         except Exception as e:
             log.warning(f"[rate] flush failed: {e}")
 
+    def run_all_inactive_checks(self) -> None:
+        """Call run_inactive_check on every group. Called periodically."""
+        with self._lock:
+            groups = list(self._groups.values())
+        for g in groups:
+            g.run_inactive_check()
+        log.debug(f"[rate] inactive check complete ({len(groups)} groups)")
+
     def start_flush_thread(self) -> None:
         def _loop():
+            sweep_counter = 0
             while True:
                 time.sleep(RATE_STATE_FLUSH_INTERVAL)
                 self.flush()
+                sweep_counter += 1
+                if sweep_counter >= 10:
+                    self.run_all_inactive_checks()
+                    sweep_counter = 0
         t = threading.Thread(target=_loop, daemon=True, name="rate-flush")
         t.start()
         log.info(f"[rate] flush thread started (interval={RATE_STATE_FLUSH_INTERVAL}s)")

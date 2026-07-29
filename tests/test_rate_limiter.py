@@ -255,3 +255,20 @@ def test_check_and_consume_rollback_restores_requests_this_period(tmp_path):
     ok, _ = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 100.0)
     assert ok is False
     assert pw._requests_this_period == before
+
+def test_run_all_inactive_checks_no_error(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 50.0)
+    rl.run_all_inactive_checks()  # must not raise
+
+def test_run_all_inactive_checks_marks_quiet_buckets_inactive(tmp_path):
+    rl = make_limiter(tmp_path)
+    g = rl.get_group("groq", "key-abc12345", None)
+    # Force all buckets to be quiet (never hit zero, zero requests)
+    for b in g.buckets.values():
+        b._hit_zero = False
+        b._period_consumed = 0.0
+    g._requests_this_period = 0
+    rl.run_all_inactive_checks()
+    # At least one bucket should be inactive (quiet groq group)
+    assert any(not b.active for b in g.buckets.values())
