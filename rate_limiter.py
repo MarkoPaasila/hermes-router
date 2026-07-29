@@ -128,11 +128,20 @@ class TokenBucket:
             self.active = True
             log.info("[rate] bucket re-activated by header")
 
-    def check_inactive(self, requests_this_period: int) -> None:
-        threshold = max(10, self.cap * 0.1)
-        if not self._hit_zero and requests_this_period < threshold:
+    def check_inactive(self, activity: float) -> None:
+        """Mark this bucket inactive when it is not a binding constraint.
+
+        Minute-window buckets (RPM/TPM) are never auto-deactivated — they are the
+        primary pacing controls and must stay available for headroom + consume.
+        Longer windows use *activity* (requests for R-buckets, tokens consumed for
+        T-buckets) against max(10, 10% of cap).
+        """
+        if self.window_seconds <= 60:
+            return
+        threshold = max(10.0, self.cap * 0.1)
+        if not self._hit_zero and activity < threshold:
             self.active = False
-            log.info(f"[rate] bucket marked inactive (requests={requests_this_period}, threshold={threshold:.0f})")
+            log.info(f"[rate] bucket marked inactive (activity={activity:.1f}, threshold={threshold:.0f})")
 
     def to_dict(self) -> dict:
         return {"cap": self.cap, "tokens": self.tokens, "last_refill": self.last_refill}
@@ -333,10 +342,17 @@ class BucketGroup:
 
     def run_inactive_check(self) -> None:
         n = self._requests_this_period
-        for b in self.buckets.values():
-            if b.active:
-                b.check_inactive(n)
+        for name, b in self.buckets.items():
+            if not b.active:
+                continue
+            dim = LIMIT_KEYS.get(name, ("?",))[0]
+            # R-buckets: request count this period. T-buckets: tokens consumed
+            # (comparing request count to a token cap falsely deactivates TPM/TPD).
+            activity = float(n) if dim == "R" else float(b._period_consumed)
+            b.check_inactive(activity)
         self._requests_this_period = 0
+        for b in self.buckets.values():
+            b._period_consumed = 0.0
 
     def to_dict(self) -> dict:
         out = {name: b.to_dict() for name, b in self.buckets.items() if b.active}
@@ -485,9 +501,20 @@ class AdaptiveRateLimiter:
                 mg.update_from_headers(headers)
 
     def headroom(self, provider_name: str, key: str, model: str) -> float:
+        """Read-only headroom for ranking. Does not create bucket groups."""
         with self._lock:
-            pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            return min(pw.headroom(), mg.headroom())
+            pw_key = self._group_key(provider_name, key, None)
+            mg_key = self._group_key(provider_name, key, model)
+            pw = self._groups.get(pw_key)
+            mg = self._groups.get(mg_key)
+            if pw is None and mg is None:
+                return 1.0
+            scores = []
+            if pw is not None:
+                scores.append(pw.headroom())
+            if mg is not None:
+                scores.append(mg.headroom())
+            return min(scores) if scores else 1.0
 
     def snapshot(self, provider_name: str, key: str, model: str) -> dict:
         """Read-only view for /v1/status. Does not create bucket groups."""

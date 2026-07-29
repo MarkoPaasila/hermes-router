@@ -88,14 +88,28 @@ def test_restore_clamps():
     assert b.tokens == 10.0
 
 def test_inactive_after_quiet_period():
-    b = make_bucket(cap=100.0, tokens=100.0)
-    b.check_inactive(requests_this_period=2)   # < max(10, 100*0.1)=10
+    # Day-window bucket can go inactive when quiet; minute windows cannot.
+    b = TokenBucket(window_seconds=86400.0, cap=100.0, tokens=100.0)
+    b.check_inactive(activity=2)   # < max(10, 100*0.1)=10
     assert b.active is False
 
 def test_stays_active_when_busy():
-    b = make_bucket(cap=100.0, tokens=50.0)
-    b.check_inactive(requests_this_period=20)
+    b = TokenBucket(window_seconds=86400.0, cap=100.0, tokens=50.0)
+    b.check_inactive(activity=20)
     assert b.active is True
+
+def test_minute_bucket_never_auto_inactive():
+    b = TokenBucket(window_seconds=60.0, cap=100.0, tokens=100.0)
+    b.check_inactive(activity=0)
+    assert b.active is True
+
+
+def test_headroom_does_not_create_groups(tmp_path):
+    rl = make_limiter(tmp_path)
+    assert rl._groups == {}
+    h = rl.headroom("groq", "key-abc12345", "llama")
+    assert h == 1.0
+    assert rl._groups == {}
 
 def test_to_dict_roundtrip():
     b = make_bucket(cap=30.0, tokens=15.0)
@@ -282,8 +296,9 @@ def test_run_all_inactive_checks_marks_quiet_buckets_inactive(tmp_path):
         b._period_consumed = 0.0
     g._requests_this_period = 0
     rl.run_all_inactive_checks()
-    # At least one bucket should be inactive (quiet groq group)
+    # Day-window buckets go inactive when quiet; minute buckets stay active.
     assert any(not b.active for b in g.buckets.values())
+    assert all(b.active for b in g.buckets.values() if b.window_seconds <= 60)
 
 def test_clear_group_removes_and_flushes(tmp_path):
     rl = make_limiter(tmp_path)
