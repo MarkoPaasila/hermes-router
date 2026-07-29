@@ -4816,7 +4816,9 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 # Codex backend always streams SSE. Stream it through, or
                 # aggregate it into one response for non-streaming clients.
                 if streaming:
-                    return ("stream", _with_cleanup(resp, _codex_streaming_generator(resp)), name)
+                    gen = _with_cleanup(resp, _codex_streaming_generator(resp))
+                    wrapped = _streaming_with_usage(gen, name, model, key=key)
+                    return ("stream", wrapped, name)
                 events = []
                 for raw in resp.iter_lines():
                     if not raw:
