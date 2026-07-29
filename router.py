@@ -22,6 +22,7 @@ Quick start:
   python router.py
 """
 
+import atexit
 import json, os, time, threading, logging, hashlib, hmac, itertools, re, sqlite3, subprocess, secrets
 from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
@@ -448,20 +449,6 @@ def _int_env(env_var: str, default: int = 0) -> int:
         return default
 
 
-def _excluded_models(provider_name: str) -> set[str]:
-    """Case-insensitive exact model IDs listed in {PROVIDER}_EXCLUDE_MODELS."""
-    raw = os.environ.get(f"{provider_name.upper()}_EXCLUDE_MODELS", "")
-    return {m.strip().lower() for m in raw.split(",") if m.strip()}
-
-
-def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
-    """Drop models blocked by {PROVIDER}_EXCLUDE_MODELS (exact, case-insensitive)."""
-    excl = _excluded_models(provider_name)
-    if not excl:
-        return models
-    return [m for m in models if m.lower() not in excl]
-
-
 def _parse_retry_after(value, default: int = 60) -> int:
     """Parse a Retry-After header value. RFC 9110 allows either delay-seconds
     or an HTTP date; some providers also send fractional seconds. Anything we
@@ -689,12 +676,8 @@ def _build_providers() -> list[dict]:
     for p in providers:
         models = [m.strip() for m in str(p.get("model", "")).split(",") if m.strip()]
         models = models or [p.get("model", "")]
-        filtered = _filter_excluded(p["name"], models)
-        if models and not filtered:
-            log.warning(f"{p['name']}: all models excluded via "
-                        f"{p['name'].upper()}_EXCLUDE_MODELS — provider has no usable models")
-        p["models"] = filtered
-        p["model"]  = filtered[0] if filtered else (models[0] if models else "")
+        p["models"] = models
+        p["model"]  = models[0] if models else ""
 
     # Per-provider "skip when the request is too big" ceiling. Some free tiers
     # reject large payloads outright, so trying them with a big prompt just wastes
@@ -1169,7 +1152,7 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
         log.info(f"[ratings]   {name}: model discovery skipped by default")
         return
     free_only = name in _FREE_ONLY_DISCOVERY
-    discovered = _filter_excluded(name, _discover_models(provider, key, free_only=free_only))
+    discovered = _discover_models(provider, key, free_only=free_only)
     if not discovered:
         return
 
@@ -1177,11 +1160,11 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     discovered_set = set(discovered)
     # Prune only when doing so still leaves a configured model; otherwise the
     # existing invalid-model repair path can try to recover a primary model.
-    kept = _filter_excluded(name, [m for m in configured if m in discovered_set])
+    kept = [m for m in configured if m in discovered_set]
     if not kept:
         kept = discovered[:1]
     # Never drop valid configured models; only bound appended discoveries.
-    refreshed = _filter_excluded(name, list(dict.fromkeys(kept + discovered)))
+    refreshed = list(dict.fromkeys(kept + discovered))
     if len(kept) < AUTO_DISCOVER_MODEL_LIMIT:
         refreshed = refreshed[:AUTO_DISCOVER_MODEL_LIMIT]
     if not refreshed or refreshed == configured:
@@ -1679,6 +1662,14 @@ pool = CredentialPool(PROVIDERS)
 rate_limiter = AdaptiveRateLimiter(state_file=RATE_STATE_FILE, auth_file=AUTH_FILE)
 rate_limiter.load()
 rate_limiter.start_flush_thread()
+
+def _shutdown_flush():
+    try:
+        rate_limiter.flush()
+    except Exception:
+        pass
+
+atexit.register(_shutdown_flush)
 
 # Background: validate providers, fix models, assign ratings
 threading.Thread(target=_initialize_ratings, args=(PROVIDERS, pool), daemon=True).start()
