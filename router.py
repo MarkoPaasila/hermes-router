@@ -3375,6 +3375,12 @@ tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(108,140,255,.04)}
 tr.rl-selected td{background:rgba(108,140,255,.10)}
 tr.rl-row{cursor:pointer}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--text)}
+th.sortable.sorted-asc::after,th.sortable.sorted-desc::after{
+  content:'';margin-left:4px;font-size:10px;opacity:.85}
+th.sortable.sorted-asc::after{content:'↑'}
+th.sortable.sorted-desc::after{content:'↓'}
 
 /* ── status dots ── */
 .dot-ok{display:inline-block;width:8px;height:8px;border-radius:50%;
@@ -3614,8 +3620,12 @@ tr.rl-row{cursor:pointer}
           <div class="panel-body">
             <table>
               <thead><tr>
-                <th>Provider</th><th>Key</th><th>Scope</th>
-                <th>Binding</th><th>Headroom</th><th class="right">Buckets</th>
+                <th class="sortable" data-sort="provider" onclick="sortRateLimits('provider')">Provider</th>
+                <th class="sortable" data-sort="key_hint" onclick="sortRateLimits('key_hint')">Key</th>
+                <th class="sortable" data-sort="scope" onclick="sortRateLimits('scope')">Scope</th>
+                <th class="sortable" data-sort="binding" onclick="sortRateLimits('binding')">Binding</th>
+                <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('headroom')">Headroom</th>
+                <th class="sortable right" data-sort="buckets" onclick="sortRateLimits('buckets')">Buckets</th>
               </tr></thead>
               <tbody id="rl-tbody"></tbody>
             </table>
@@ -3840,6 +3850,8 @@ let apiKey = localStorage.getItem('hermes_dash_key') || '';
 let statusData = null, usageData = null, logsData = [], accessKeysData = [];
 let rateLimitsData = [];
 let selectedRateGroupId = null;
+let rlSortKey = 'headroom';
+let rlSortDir = 1; // 1 = asc, -1 = desc
 let editingKeyTail = null;
 let INTERVAL = 5000;
 let timer = null;
@@ -4648,16 +4660,47 @@ async function refreshRateLimits() {
   } catch (e) { /* page still usable */ }
 }
 
+function sortRateLimits(key) {
+  if (rlSortKey === key) rlSortDir = -rlSortDir;
+  else { rlSortKey = key; rlSortDir = 1; }
+  renderRateLimits();
+}
+
+function _rlSortValue(g, key) {
+  if (key === 'provider') return g.provider || '';
+  if (key === 'key_hint') return g.key_hint || '';
+  if (key === 'scope') return g.scope === 'model' ? (g.model || '') : 'provider-wide';
+  if (key === 'binding') return g.binding || null;
+  if (key === 'headroom') return g.headroom == null ? null : g.headroom;
+  if (key === 'buckets') return Object.keys(g.buckets || {}).length;
+  return null;
+}
+
+function _rlCompare(a, b) {
+  const va = _rlSortValue(a, rlSortKey);
+  const vb = _rlSortValue(b, rlSortKey);
+  if (va == null && vb == null) return 0;
+  if (va == null) return 1;
+  if (vb == null) return -1;
+  let cmp;
+  if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+  else cmp = String(va).localeCompare(String(vb));
+  return cmp * rlSortDir;
+}
+
+function _rlSyncSortHeaders() {
+  document.querySelectorAll('#page-rate-limits thead th.sortable').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.dataset.sort === rlSortKey)
+      th.classList.add(rlSortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+  });
+}
+
 function renderRateLimits() {
   const tbody = document.getElementById('rl-tbody');
   if (!tbody) return;
-  const rows = (rateLimitsData || []).slice().sort((a, b) => {
-    const ha = a.headroom, hb = b.headroom;
-    if (ha == null && hb == null) return 0;
-    if (ha == null) return 1;
-    if (hb == null) return -1;
-    return ha - hb;
-  });
+  _rlSyncSortHeaders();
+  const rows = (rateLimitsData || []).slice().sort(_rlCompare);
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No rate data yet</td></tr>';
     document.getElementById('rl-detail-panel').style.display = 'none';
