@@ -29,6 +29,7 @@ from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
 from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD
+from token_caps import TokenCapTracker
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -146,6 +147,12 @@ if ROTATION_MODE not in ("round-robin", "sequential"):
     ROTATION_MODE = "round-robin"   # unknown value → safe default
 STATE_FILE        = Path(os.environ.get("ROUTER_STATE_FILE", "./router_state.json"))
 RATE_STATE_FILE   = Path(os.environ.get("RATE_STATE_FILE", "./rate_limits_state.json"))
+TOKEN_CAPS_ENABLED = os.environ.get("TOKEN_CAPS", "1").strip().lower() not in (
+    "0", "", "false", "no", "off",
+)
+TOKEN_CAPS_STATE_FILE = Path(
+    os.environ.get("TOKEN_CAPS_STATE_FILE", "./token_caps_state.json")
+)
 STATE_TTL_HOURS   = int(os.environ.get("ROUTER_STATE_TTL_HOURS", 24))  # 0 = re-probe every start
 AUTH_FILE         = Path(os.environ.get("ROUTER_AUTH_FILE", "./auth.json"))  # router's own key store
 # In-memory request log: last N requests kept in a ring buffer. Pure RAM, no disk
@@ -1701,6 +1708,10 @@ def _initialize_ratings(providers: list, pool_ref):
         rate_limiter.flush()
     except Exception as e:
         log.warning(f"[rate_limiter] Could not flush state: {e}")
+    try:
+        token_caps.flush()
+    except Exception as e:
+        log.warning(f"[token_caps] Could not flush state: {e}")
 
 
 class CredentialPool:
@@ -1807,9 +1818,44 @@ rate_limiter = AdaptiveRateLimiter(state_file=RATE_STATE_FILE, auth_file=AUTH_FI
 rate_limiter.load()
 rate_limiter.start_flush_thread()
 
+token_caps = TokenCapTracker(
+    state_file=TOKEN_CAPS_STATE_FILE, enabled=TOKEN_CAPS_ENABLED
+)
+token_caps.load()
+
+
+def _effective_input_cap_for(provider: dict, model: str) -> int | None:
+    return token_caps.effective_input_cap(
+        provider["name"], model, int(provider.get("skip_if_tokens_over") or 0)
+    )
+
+
+def _effective_output_cap_for(provider: dict, model: str) -> int | None:
+    return token_caps.effective_output_cap(
+        provider["name"], model, int(provider.get("max_output_tokens") or 0)
+    )
+
+
+def _apply_output_token_cap(body: dict, provider: dict, model: str) -> None:
+    out_cap = _effective_output_cap_for(provider, model)
+    if not out_cap:
+        return
+    for field in ("max_tokens", "max_completion_tokens"):
+        if isinstance(body.get(field), int) and body[field] > out_cap:
+            log.info(
+                f"  clamping {field} {body[field]}→{out_cap} "
+                f"for {provider['name']}/{model}"
+            )
+            body[field] = out_cap
+
+
 def _shutdown_flush():
     try:
         rate_limiter.flush()
+    except Exception:
+        pass
+    try:
+        token_caps.flush()
     except Exception:
         pass
 
@@ -3318,12 +3364,7 @@ def forward(provider: dict, key: str, payload: dict, streaming: bool,
     # a 400 when max_tokens exceeds their limit — so a client default like
     # max_tokens=65536 would fail every call. Capping it lets the request through;
     # the model still produces up to its real maximum.
-    out_cap = provider.get("max_output_tokens", 0)
-    if out_cap:
-        for field in ("max_tokens", "max_completion_tokens"):
-            if isinstance(body.get(field), int) and body[field] > out_cap:
-                log.info(f"  clamping {field} {body[field]}→{out_cap} for {provider['name']}")
-                body[field] = out_cap
+    _apply_output_token_cap(body, provider, body["model"])
 
     # Ask the provider to include usage in the final SSE chunk so _streaming_with_usage
     # can record actual tokens. Non-destructive: merges with any stream_options the
@@ -5215,12 +5256,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             skip_providers.add(name)
             continue
 
-        # Skip providers whose payload ceiling this request would exceed
-        # (e.g. Groq's free TPM) — avoids a guaranteed 413 round-trip. Provider-wide.
-        cap = provider.get("skip_if_tokens_over", 0)
-        if cap and est_tokens > cap:
-            log.info(f"⤳ skipping {name} (~{est_tokens} tok > {cap} cap)")
-            skip_providers.add(name)
+        # Skip candidates whose payload ceiling this request would exceed
+        # (e.g. Groq's free TPM) — avoids a guaranteed 413 round-trip. Per-model.
+        cap = _effective_input_cap_for(provider, model)
+        if cap and est_tokens >= cap:
+            log.info(f"⤳ skipping {name}/{model} (~{est_tokens} tok >= {cap} cap)")
             continue
 
         # Tool request → skip candidates whose MODEL can't do function calling
@@ -6140,6 +6180,13 @@ def status():
         if p.get("max_output_tokens"):
             entry["max_output_tokens"] = p["max_output_tokens"]
         _models = p.get("models") or [p.get("model", "")]
+        _tc = {}
+        for _m in _models:
+            _snap = token_caps.snapshot(p["name"], _m)
+            if _snap:
+                _tc[_m] = _snap
+        if _tc:
+            entry["token_caps"] = _tc
         _rl = {}
         for _m in _models:
             _k = pool.get_key(p["name"], _m)
