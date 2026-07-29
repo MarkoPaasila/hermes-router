@@ -339,6 +339,28 @@ def test_list_groups_headroom_null_when_no_active(tmp_path):
     assert row["binding"] is None
 
 
+def test_list_groups_hides_dormant_by_default(tmp_path):
+    rl = make_limiter(tmp_path)
+    g = rl.get_group("groq", "key-abc12345", None)
+    for b in g.buckets.values():
+        b.active = False
+    pw = AdaptiveRateLimiter._group_key("groq", "key-abc12345", None)
+    hidden = rl.list_groups(include_orphans=False, configured_ids={pw})
+    assert all(r["id"] != pw for r in hidden)
+    shown = rl.list_groups(include_orphans=True, configured_ids={pw})
+    assert any(r["id"] == pw for r in shown)
+
+
+def test_snapshot_does_not_create_groups(tmp_path):
+    rl = make_limiter(tmp_path)
+    assert rl._groups == {}
+    snap = rl.snapshot("groq", "key-abc12345", "llama")
+    assert snap["provider_wide"] == {}
+    assert snap["model"] == {}
+    assert snap["blocked_until"] is None
+    assert rl._groups == {}
+
+
 def test_on_429_with_retry_after_blocks_consume(tmp_path, monkeypatch):
     rl = make_limiter(tmp_path)
     now = 1_000_000.0

@@ -493,12 +493,16 @@ class AdaptiveRateLimiter:
             return min(pw.headroom(), mg.headroom())
 
     def snapshot(self, provider_name: str, key: str, model: str) -> dict:
-        """Returns a dict suitable for inclusion in /v1/status."""
+        """Read-only view for /v1/status. Does not create bucket groups."""
         with self._lock:
-            pw = self._get_group_unlocked(provider_name, key, None)
-            mg = self._get_group_unlocked(provider_name, key, model)
+            pw_key = self._group_key(provider_name, key, None)
+            mg_key = self._group_key(provider_name, key, model)
+            pw = self._groups.get(pw_key)
+            mg = self._groups.get(mg_key)
 
-            def _buckets_to_status(g: BucketGroup) -> dict:
+            def _buckets_to_status(g: BucketGroup | None) -> dict:
+                if g is None:
+                    return {}
                 out = {}
                 for name, b in g.buckets.items():
                     if not b.active:
@@ -511,11 +515,15 @@ class AdaptiveRateLimiter:
                     }
                 return out
 
-            blocked = max(pw.blocked_until, mg.blocked_until)
+            blocked_until = 0.0
+            if pw:
+                blocked_until = max(blocked_until, pw.blocked_until)
+            if mg:
+                blocked_until = max(blocked_until, mg.blocked_until)
             return {
                 "provider_wide": _buckets_to_status(pw),
                 "model":         _buckets_to_status(mg),
-                "blocked_until": blocked if blocked > time.time() else None,
+                "blocked_until": blocked_until if blocked_until > time.time() else None,
             }
 
     def list_groups(self, include_orphans: bool = False,
@@ -543,6 +551,11 @@ class AdaptiveRateLimiter:
                         "active": b.active,
                     }
                 active = [(n, d) for n, d in buckets.items() if d["active"]]
+                # Default view hides dormant groups (no active buckets); the
+                # dashboard "Show dormant / orphan groups" toggle maps to
+                # include_orphans=True and shows them with null binding/headroom.
+                if not active and not include_orphans:
+                    continue
                 if active:
                     binding, bd = min(active, key=lambda x: x[1]["headroom"])
                     headroom = bd["headroom"]
