@@ -36,6 +36,14 @@ RATE_LEARN_SOFT_CUT_FACTOR          = _float_env("RATE_LEARN_SOFT_CUT_FACTOR", 0
 RATE_LEARN_SUCCESS_STREAK_PROVIDER  = _int_env("RATE_LEARN_SUCCESS_STREAK_PROVIDER", 10)
 RATE_LEARN_NUDGE_PCT_PROVIDER       = _float_env("RATE_LEARN_NUDGE_PCT_PROVIDER", 8.0)
 RATE_PROVIDER_CAP_MULTIPLIER      = _float_env("RATE_PROVIDER_CAP_MULTIPLIER", 10.0)
+# Soft 429 cuts must not sink a bucket below this fraction of unmultiplied defaults.
+RATE_LEARN_SOFT_FLOOR_FRAC        = _float_env("RATE_LEARN_SOFT_FLOOR_FRAC", 0.5)
+# When lifting for an oversized single request, size the cap to this multiple of
+# the debit so one success does not leave ~0% headroom and soft-lock the next turn.
+RATE_REQUEST_BURST_FACTOR         = _float_env("RATE_REQUEST_BURST_FACTOR", 2.0)
+# Before returning 503, wait up to this many seconds for the best rate-limited
+# candidate to refill (agent turns often arrive before the minute window resets).
+RATE_EXHAUSTED_WAIT_S             = _float_env("RATE_EXHAUSTED_WAIT_S", 60.0)
 RATE_STATE_FLUSH_INTERVAL = _int_env("RATE_STATE_FLUSH_INTERVAL", 60)
 
 # ── Window definitions ────────────────────────────────────────────────────────
@@ -67,6 +75,8 @@ class TokenBucket:
         self.window_seconds        = window_seconds
         self.cap                   = float(cap)
         self._initial_cap          = float(cap)
+        # Soft-cut / migration floor (unmultiplied defaults for PW groups).
+        self._floor_cap            = float(cap)
         self.tokens                = float(cap if tokens is None else tokens)
         self.last_refill           = last_refill if last_refill is not None else time.time()
         self.active                = True
@@ -124,11 +134,38 @@ class TokenBucket:
         else:
             frac = RATE_LEARN_SOFT_CUT_FACTOR if soft else 0.5
             new_cap = max(1.0, self.cap * frac)
+        if soft:
+            # Floor against unmultiplied defaults so soft learning cannot death-spiral
+            # into caps that permanently refuse normal (or large) requests.
+            floor = max(1.0, getattr(self, "_floor_cap", self._initial_cap)
+                        * RATE_LEARN_SOFT_FLOOR_FRAC)
+            if new_cap < floor:
+                log.info(f"[rate] soft cut floored {new_cap:.1f} → {floor:.1f}")
+                new_cap = floor
         log.info(f"[rate] 429 {'soft ' if soft else ''}cut cap {self.cap:.1f} → {new_cap:.1f}")
         self.cap = new_cap
         self.tokens = 0.0
         self._consecutive_successes = 0
         self._period_consumed = 0.0
+
+    def ensure_fits(self, amount: float) -> None:
+        """Raise cap when a single debit exceeds the guessed ceiling.
+
+        TPM/RPM guesses are throughput estimates, not hard per-request limits.
+        Refusing forever (need > cap) soft-locks the router into 503s for large
+        agent contexts. Lift to amount × RATE_REQUEST_BURST_FACTOR so one
+        success leaves headroom for the next agent turn in the same window.
+        """
+        burst = max(1.0, RATE_REQUEST_BURST_FACTOR)
+        target = float(amount) * burst
+        if target <= self.cap:
+            return
+        old = self.cap
+        self.cap = target
+        self.tokens = max(self.tokens, self.cap)
+        self._floor_cap = max(getattr(self, "_floor_cap", old), float(amount))
+        log.info(f"[rate] lifted cap {old:.1f} → {self.cap:.1f} "
+                 f"(request {amount:.0f} × burst {burst:g})")
 
     def set_from_header(self, cap: float, remaining: float) -> None:
         self.cap    = float(cap)
@@ -256,6 +293,7 @@ class BucketGroup:
             if amount <= 0:
                 continue
             b.refill(now)
+            b.ensure_fits(amount)
             if b.tokens < amount:
                 max_wait = max(max_wait, b.time_to_refill(amount))
             else:
@@ -457,6 +495,11 @@ class AdaptiveRateLimiter:
                 provider_name=provider_name,
                 caps=self._caps_for(provider_name, provider_wide=(model is None)),
             )
+            # Soft-cut floor uses unmultiplied defaults even for ×10 PW groups.
+            base = self._caps_for(provider_name, provider_wide=False)
+            for name, b in self._groups[gk].buckets.items():
+                if name in base:
+                    b._floor_cap = float(base[name])
         return self._groups[gk]
 
     def get_group(self, provider_name: str, key: str, model: str | None) -> BucketGroup:
@@ -674,21 +717,43 @@ class AdaptiveRateLimiter:
                 log.warning("[rate] state file version mismatch, skipping")
                 return
             cleared_pw_holds = 0
+            lifted_floors = 0
             with self._lock:
                 for gk, bdict in (doc.get("groups") or {}).items():
                     pname = gk.split("|")[0].removeprefix("provider:")
                     g = BucketGroup.from_dict(bdict, provider_name=pname)
+                    is_pw = "|model:" not in gk
                     # Migrate: Retry-After holds belong on (key, model) groups only.
                     # Drop leftover provider-wide blocked_until so one model's 429
                     # no longer blocks sibling models after restart.
-                    if "|model:" not in gk and g.blocked_until:
+                    if is_pw and g.blocked_until:
                         g.blocked_until = 0.0
                         cleared_pw_holds += 1
+                    # Restore floor from unmultiplied defaults; lift only severe
+                    # death-spirals (below soft-floor of the model default).
+                    base_caps = self._caps_for(pname, provider_wide=False)
+                    full_caps = self._caps_for(pname, provider_wide=is_pw)
+                    for name, b in g.buckets.items():
+                        floor = base_caps.get(name)
+                        if floor is None:
+                            continue
+                        b._floor_cap = float(floor)
+                        min_ok = float(floor) * RATE_LEARN_SOFT_FLOOR_FRAC
+                        if b.cap + 1e-9 < min_ok:
+                            target = float(full_caps.get(name, floor))
+                            log.info(
+                                f"[rate] migrate {gk} {name} cap "
+                                f"{b.cap:.1f} → {target:.1f} (below floor)")
+                            b.cap = target
+                            b.tokens = target
+                            lifted_floors += 1
                     self._groups[gk] = g
                 n = len(self._groups)
             log.info(f"[rate] loaded {n} bucket groups from {self.state_file}")
             if cleared_pw_holds:
                 log.info(f"[rate] cleared {cleared_pw_holds} provider-wide Retry-After hold(s)")
+            if lifted_floors:
+                log.info(f"[rate] lifted {lifted_floors} bucket(s) back to default floor")
         except Exception as e:
             log.warning(f"[rate] could not load state file: {e}")
 

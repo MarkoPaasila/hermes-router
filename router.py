@@ -28,7 +28,7 @@ from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
-from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD
+from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD, RATE_EXHAUSTED_WAIT_S
 from token_caps import (
     TokenCapTracker,
     classify_token_limit_error,
@@ -5299,7 +5299,8 @@ def models():
     return jsonify({"object": "list", "data": data})
 
 
-def _route_completion(payload: dict, streaming: bool, ns: str = ""):
+def _route_completion(payload: dict, streaming: bool, ns: str = "",
+                      *, _rate_retry: bool = False):
     """Core routing + failover pipeline, shared by /v1/chat/completions and the
     Anthropic-compatible /v1/messages. Takes an OpenAI-format payload and returns
     one of:
@@ -5403,6 +5404,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
     work: list = [("main", c) for c in ordered]
     wi = 0
     appended_last_resort = False
+    _best_rl_wait: float | None = None
 
     def _queue_tool_last_resort() -> None:
         nonlocal appended_last_resort, work
@@ -5474,11 +5476,12 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             _est_tokens = float(est_tokens) if est_tokens else max(
                 1.0, sum(len(str(m.get("content", ""))) for m in
                          payload.get("messages", [])) / 4)
-            # Proactive pacing: gate when headroom is thin even if tokens remain
+            # Thin headroom is a signal, not a hard skip: after burst-sized caps a
+            # prior large debit can sit at ~0–5% while the next debit still fits,
+            # and when it does not we want the wait tracked for exhausted-retry.
             _current_headroom = rate_limiter.headroom(name, key, model)
             if _current_headroom < RATE_HEADROOM_THRESHOLD:
-                log.info(f"  {name}/{model} thin headroom ({_current_headroom:.1%}) — skipping")
-                continue
+                log.debug(f"  {name}/{model} thin headroom ({_current_headroom:.1%}) — attempting")
             _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                 name, key, model, req_count=1.0, token_count=_est_tokens)
             if not _rl_ok:
@@ -5489,6 +5492,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                         name, key, model, req_count=1.0, token_count=_est_tokens)
                 if not _rl_ok:
+                    if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
+                        _best_rl_wait = float(_rl_wait)
                     log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
                     continue
             _req_ctx.attempts += 1
@@ -5703,6 +5708,14 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 return ("json", data)
 
         _queue_tool_last_resort()
+
+    if (not _rate_retry
+            and _best_rl_wait is not None
+            and 0 < _best_rl_wait <= RATE_EXHAUSTED_WAIT_S):
+        log.info(f"⏳ all candidates rate-limited — waiting {_best_rl_wait:.1f}s "
+                 f"then retrying once (cap {RATE_EXHAUSTED_WAIT_S:g}s)")
+        time.sleep(_best_rl_wait)
+        return _route_completion(payload, streaming, ns, _rate_retry=True)
 
     return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
 

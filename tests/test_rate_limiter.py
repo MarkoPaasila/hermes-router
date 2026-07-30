@@ -1,4 +1,4 @@
-import time, pytest
+import json, time, pytest
 import rate_limiter
 from rate_limiter import TokenBucket, BucketGroup, LIMIT_KEYS, PROVIDER_RATE_DEFAULTS
 
@@ -63,8 +63,8 @@ def test_on_429_soft_with_history():
     b = make_bucket(cap=60.0, tokens=30.0)
     b._period_consumed = 10.0
     b.on_429(observed_rate=10.0, soft=True)
-    # Default RATE_LEARN_CUT_FACTOR_PROVIDER = 0.95
-    assert b.cap == pytest.approx(9.5)
+    # Soft cuts floor at RATE_LEARN_SOFT_FLOOR_FRAC * _floor_cap (0.5 * 60 = 30)
+    assert b.cap == pytest.approx(30.0)
     assert b.tokens == 0.0
 
 
@@ -72,8 +72,48 @@ def test_on_429_soft_without_history():
     b = make_bucket(cap=60.0, tokens=30.0)
     b._period_consumed = 1.0
     b.on_429(observed_rate=1.0, soft=True)
-    # Default RATE_LEARN_SOFT_CUT_FACTOR = 0.9
+    # Default RATE_LEARN_SOFT_CUT_FACTOR = 0.9 → 54, above soft floor 30
     assert b.cap == pytest.approx(54.0)
+
+
+def test_bucketgroup_consume_lifts_cap_when_request_exceeds_tpm():
+    """Large agent contexts must not soft-lock when need > guessed TPM."""
+    g = BucketGroup(provider_name="mistral", caps={"RPM": 5.0, "TPM": 16_000.0})
+    ok, wait = g.consume(req_count=1.0, token_count=71_621.0)
+    assert ok is True
+    assert wait == 0.0
+    # Burst ×2 so one debit does not leave ~0% headroom for the next turn
+    assert g.buckets["TPM"].cap == pytest.approx(71_621.0 * 2.0)
+    assert g.buckets["TPM"].tokens == pytest.approx(71_621.0)
+
+
+def test_bucketgroup_second_large_request_fits_after_burst():
+    g = BucketGroup(provider_name="mistral", caps={"RPM": 5.0, "TPM": 16_000.0})
+    assert g.consume(1.0, 71_621.0)[0] is True
+    # After burst×2, ~50% headroom remains for a same-sized follow-up.
+    assert g.buckets["TPM"].headroom() == pytest.approx(0.5, abs=0.01)
+    ok, wait = g.consume(1.0, 71_621.0)
+    assert ok is True
+    assert wait == pytest.approx(0.0, abs=0.1)
+    assert g.buckets["TPM"].tokens == pytest.approx(0.0, abs=1.0)
+
+
+def test_load_migrates_poisoned_provider_wide_caps(tmp_path):
+    state = tmp_path / "rate.json"
+    state.write_text(json.dumps({
+        "version": 1,
+        "groups": {
+            "provider:gemini|key:deadbeef": {
+                "RPM": {"cap": 1.0, "tokens": 1.0, "last_refill": time.time()},
+                "TPM": {"cap": 97.2, "tokens": 97.2, "last_refill": time.time()},
+            }
+        },
+    }))
+    rl = rate_limiter.AdaptiveRateLimiter(state_file=state)
+    rl.load()
+    g = rl.get_group("gemini", "xxdeadbeef", None)
+    assert g.buckets["RPM"].cap == pytest.approx(150.0)
+    assert g.buckets["TPM"].cap == pytest.approx(320_000.0)
 
 
 def test_on_429_hard_unchanged_default():
@@ -651,7 +691,8 @@ def test_on_429_asymmetric_cuts(tmp_path):
         g.buckets["RPM"]._period_consumed = 10.0
     rl.on_429("groq", "key-abc12345", "llama", {})
     assert mg.buckets["RPM"].cap == pytest.approx(8.0)    # 10 * 0.8
-    assert pw.buckets["RPM"].cap == pytest.approx(9.5)    # 10 * 0.95
+    # Soft PW cut floors at 0.5 × unmultiplied default RPM (30→15)
+    assert pw.buckets["RPM"].cap == pytest.approx(15.0)
     assert pw.blocked_until <= time.time()
 
 
