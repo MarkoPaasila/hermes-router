@@ -33,6 +33,7 @@ env/
 docs/superpowers/
 
 # IDE
+.cursor/
 .vscode/
 .idea/
 *.swp
