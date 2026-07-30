@@ -5,7 +5,6 @@
 # Usage:
 #   hr model list                    Show all providers and their active model(s)
 #   hr model set <provider> <model>  Override a provider's model(s)
-#   hr model reset <provider>        Revert a provider to its default model
 #   hr model help                    Show this help
 #
 # A provider can use MULTIPLE models — pass a comma-separated list. Rate limits
@@ -16,7 +15,10 @@
 #   hr model set anthropic claude-sonnet-4-6
 #   hr model set openai gpt-4o
 #   hr model set gemini gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.0-flash
-#   hr model reset anthropic
+#
+# To clear an override, remove the corresponding <PROVIDER>_MODEL line from .env
+# (or set it empty). There is no built-in default table in the CLI — catalog
+# defaults come from the router when no override is set.
 #
 # Overrides are written to .env and take effect after: hr restart
 #
@@ -84,31 +86,6 @@ env_var_for() {
   esac
 }
 
-# Returns the built-in default model for a provider.
-default_for() {
-  case "$1" in
-    gemini)        echo "gemini-2.5-flash-lite" ;;
-    openrouter)    echo "nvidia/nemotron-3-super-120b-a12b:free" ;;
-    sambanova)     echo "DeepSeek-V3.2" ;;
-    github_models) echo "gpt-4o" ;;
-    cerebras)      echo "gpt-oss-120b" ;;
-    groq)          echo "llama-3.3-70b-versatile" ;;
-    mistral)       echo "mistral-medium-latest" ;;
-    cohere)        echo "command-a-03-2025" ;;
-    zai)           echo "glm-4.5-flash" ;;
-    naga)          echo "nemotron-3-super-120b-a12b:free" ;;
-    nvidia)        echo "deepseek-ai/deepseek-v4-flash" ;;
-    huggingface)   echo "openai/gpt-oss-120b:cheapest" ;;
-    kimi)          echo "kimi-for-coding" ;;
-    opencode)      echo "deepseek-v4-flash-free,minimax-m3-free,qwen3.6-plus-free" ;;
-    opencode_go)   echo "deepseek-v4-flash,minimax-m3" ;;
-    openai)        echo "gpt-4o-mini" ;;
-    anthropic)     echo "claude-haiku-4-5-20251001" ;;
-    codex)         echo "gpt-5.5" ;;
-    local)         echo "llama3.1" ;;
-  esac
-}
-
 # Read a single key from .env (last occurrence wins).
 read_env() {
   local key="$1"
@@ -148,18 +125,18 @@ cmd_list() {
 
   for provider in $PROVIDERS_LIST; do
     env_var=$(env_var_for "$provider")
-    default=$(default_for "$provider")
     override=$(read_env "$env_var")
 
     if [ -n "$override" ]; then
       printf '  %-16s  \033[1;33m%-42s\033[0m  \033[1;33moverride\033[0m\n' "$provider" "$override"
     else
-      printf '  %-16s  %-42s  default\n' "$provider" "$default"
+      printf '  %-16s  %-42s  catalog default\n' "$provider" "(see router / dashboard)"
     fi
   done
 
   echo ""
   log "Overrides are stored in: $ENV_FILE"
+  log "Clear an override by removing its <PROVIDER>_MODEL line from .env"
   log "Run 'hr restart' to apply any changes."
 }
 
@@ -183,11 +160,9 @@ cmd_set() {
     exit 1
   fi
 
-  local env_var default current
+  local env_var current
   env_var=$(env_var_for "$provider")
-  default=$(default_for "$provider")
   current=$(read_env "$env_var")
-  current="${current:-$default}"
 
   if [ "$current" = "$model" ]; then
     warn "$provider is already set to: $model"
@@ -195,40 +170,11 @@ cmd_set() {
   fi
 
   write_env "$env_var" "$model"
-  ok "$provider: $current  →  $model"
-  log "Run 'hr restart' to apply."
-}
-
-# ── hr model reset <provider> ─────────────────────────────────────────────────
-
-cmd_reset() {
-  local raw="${1:-}"
-
-  if [ -z "$raw" ]; then
-    err "Usage: hr model reset <provider>"
-    exit 1
+  if [ -n "$current" ]; then
+    ok "$provider: $current  →  $model"
+  else
+    ok "$provider: (catalog default)  →  $model"
   fi
-
-  local provider
-  provider=$(canonical_provider "$raw")
-  if [ -z "$provider" ]; then
-    err "Unknown provider: '$raw'"
-    err "Supported: $PROVIDERS_LIST"
-    exit 1
-  fi
-
-  local env_var default current
-  env_var=$(env_var_for "$provider")
-  default=$(default_for "$provider")
-  current=$(read_env "$env_var")
-
-  if [ -z "$current" ]; then
-    warn "$provider is already on the default: $default"
-    exit 0
-  fi
-
-  write_env "$env_var" ""
-  ok "$provider reset to default: $default  (was: $current)"
   log "Run 'hr restart' to apply."
 }
 
@@ -240,11 +186,15 @@ shift 2>/dev/null || true
 case "$subcmd" in
   list)           cmd_list ;;
   set)            cmd_set "$@" ;;
-  reset)          cmd_reset "$@" ;;
+  reset)
+    err "'hr model reset' was removed — no built-in default table in the CLI."
+    err "To clear an override, remove the <PROVIDER>_MODEL line from $ENV_FILE"
+    exit 1
+    ;;
   help|-h|--help) awk 'NR>1 && /^#/ {sub(/^#[[:space:]]?/,""); print; next} NR>1 {exit}' "$0" ;;
   *)
     err "unknown subcommand: '$subcmd'"
-    err "Usage: hr model list | set <provider> <model> | reset <provider>"
+    err "Usage: hr model list | set <provider> <model>"
     exit 1
     ;;
 esac

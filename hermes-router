@@ -9,9 +9,7 @@
 #   hr auth list                      Show all providers and how many keys are configured
 #   hr model list                     Show all providers and their active model
 #   hr model set <provider> <model>   Override a provider's model
-#   hr model reset <provider>         Revert a provider to its default model
-#   hr mode                           Show how keys are rotated within a provider
-#   hr mode <round-robin|sequential>  Set the key rotation mode
+#   hr mode                           Key selection info (sticky-until-fail; rotation removed)
 #   hr limit list                     Show per-proxy-key rate/budget limits
 #   hr limit set <key> [opts]         Set a key's rpm / req-per-day / tokens-per-day
 #   hr limit clear <key>              Remove a key's limits

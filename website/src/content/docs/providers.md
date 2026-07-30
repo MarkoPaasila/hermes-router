@@ -60,8 +60,8 @@ hr restart
 The router stores the account under `codex_accounts` in `auth.json`, **refreshes the access
 token automatically** before it expires, and translates your OpenAI-format requests to the
 Codex **Responses API** transparently. Add several accounts (run `hr auth import-codex` after
-logging into each) and pair with `hr mode sequential` to drain one account's quota before the
-next. Override the model with `CODEX_MODEL` (default `gpt-5.5`).
+logging into each); the router uses sticky-until-fail key selection per account until that
+account errors or is rate-limited. Override the model with `CODEX_MODEL` (default `gpt-5.5`).
 
 > ⚠️ **Terms of service:** routing ChatGPT *subscription* quota through a proxy is a gray
 > area in OpenAI's terms and could risk your account. Use your own accounts, at your own
