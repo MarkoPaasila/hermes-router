@@ -129,7 +129,7 @@ RATE_REQUEST_BURST_FACTOR         = _float_env("RATE_REQUEST_BURST_FACTOR", 2.0)
 # Before returning 503, wait up to this many seconds for the best rate-limited
 # candidate to refill (agent turns often arrive before the minute window resets).
 RATE_EXHAUSTED_WAIT_S             = _float_env("RATE_EXHAUSTED_WAIT_S", 60.0)
-RATE_STATE_FLUSH_INTERVAL = _int_env("RATE_STATE_FLUSH_INTERVAL", 600)
+RATE_STATE_FLUSH_S = _int_env("RATE_STATE_FLUSH_S", 600)
 # Fraction of cap for new buckets when tokens is omitted (conservative prior).
 RATE_BUCKET_INITIAL_FILL          = _float_env("RATE_BUCKET_INITIAL_FILL", 0.5)
 
@@ -1111,7 +1111,7 @@ class AdaptiveRateLimiter:
         def _loop():
             sweep_counter = 0
             while True:
-                time.sleep(RATE_STATE_FLUSH_INTERVAL)
+                time.sleep(RATE_STATE_FLUSH_S)
                 self.flush()
                 sweep_counter += 1
                 if sweep_counter >= 10:
@@ -1122,4 +1122,4 @@ class AdaptiveRateLimiter:
                     sweep_counter = 0
         t = threading.Thread(target=_loop, daemon=True, name="rate-flush")
         t.start()
-        log.info(f"[rate] flush thread started (interval={RATE_STATE_FLUSH_INTERVAL}s)")
+        log.info(f"[rate] flush thread started (interval={RATE_STATE_FLUSH_S}s)")
