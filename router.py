@@ -3743,6 +3743,9 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
 #rl-detail-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;
   align-items:center;justify-content:center;z-index:90;padding:16px}
 #rl-detail-modal.hidden{display:none}
+#cascade-detail-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;
+  align-items:center;justify-content:center;z-index:90;padding:16px}
+#cascade-detail-modal.hidden{display:none}
 .rl-detail-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;
   width:min(720px,92vw);max-height:min(80vh,640px);display:flex;flex-direction:column;overflow:hidden}
 .rl-detail-box .panel-header{flex:0 0 auto}
@@ -4267,7 +4270,7 @@ th.sortable.sorted-desc::after{content:'↓'}
               <thead><tr>
                 <th>Time</th><th>Endpoint</th><th>Provider</th><th>Model</th>
                 <th class="right">Latency</th><th class="right">Complexity</th>
-                <th class="right">Cascades</th><th class="right">Prompt tok</th>
+                <th class="right">Fail / Skip</th><th class="right">Prompt tok</th>
                 <th class="right">Compl tok</th><th>Status</th>
               </tr></thead>
               <tbody id="log-tbody"></tbody>
@@ -4316,6 +4319,11 @@ function showPage(name) {
   document.getElementById('key-input').addEventListener('keydown', e => { if (e.key==='Enter') submitKey(); });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    const cascadeModal = document.getElementById('cascade-detail-modal');
+    if (cascadeModal && !cascadeModal.classList.contains('hidden')) {
+      closeCascadeDetail();
+      return;
+    }
     const modal = document.getElementById('rl-detail-modal');
     if (modal && !modal.classList.contains('hidden')) closeRateDetail();
   });
@@ -4636,6 +4644,54 @@ function renderProviders() {
 }
 
 // ── live log ──────────────────────────────────────────────────────────────────
+const CASCADE_REASON_LABELS = {
+  rate_headroom: 'Rate headroom exhausted',
+  token_cap: 'Input over token cap',
+  no_tools: 'No tool support',
+  no_vision: 'No vision support',
+  circuit_open: 'Circuit breaker open',
+  access_scope: 'Outside access-key provider scope',
+  keys_cooling: 'All keys cooling',
+  network: 'Network / timeout',
+  empty_response: 'Empty / unusable response',
+  http_429: 'HTTP 429',
+  http_401: 'HTTP 401',
+  http_403: 'HTTP 403',
+  http_400: 'HTTP 400',
+  http_404: 'HTTP 404',
+  http_413: 'HTTP 413',
+  http_5xx: 'HTTP 5xx',
+};
+function cascadeReasonLabel(code) {
+  if (code == null || code === '') return '—';
+  return CASCADE_REASON_LABELS[code] || code;
+}
+
+function openCascadeDetail(idx) {
+  const e = logsData[idx];
+  if (!e || !Array.isArray(e.cascade) || !e.cascade.length) return;
+  document.getElementById('cascade-detail-title').textContent =
+    `Cascade · ${e.endpoint || '—'} · ${e.status || '—'}`;
+  document.getElementById('cascade-detail-meta').textContent =
+    `${fmt.time(e.ts)} · fail ${e.failed||0} / skip ${e.skipped||0}`;
+  const outcomePill = (o) => {
+    const cls = o === 'success' ? 'pill-ok' : o === 'failed' ? 'pill-err' : 'pill-warn';
+    return `<span class="pill ${cls}">${o}</span>`;
+  };
+  document.getElementById('cascade-detail-tbody').innerHTML = e.cascade.map((s, i) => `
+    <tr>
+      <td class="muted">${i+1}</td>
+      <td><strong>${s.provider||'—'}</strong></td>
+      <td class="mono muted">${s.model||'—'}</td>
+      <td>${outcomePill(s.outcome)}</td>
+      <td class="muted">${s.outcome==='success'?'—':cascadeReasonLabel(s.reason)}</td>
+    </tr>`).join('');
+  document.getElementById('cascade-detail-modal').classList.remove('hidden');
+}
+function closeCascadeDetail() {
+  document.getElementById('cascade-detail-modal').classList.add('hidden');
+}
+
 function renderLogs() {
   const tbody = document.getElementById('log-tbody');
   if (!logsData.length) {
@@ -4643,13 +4699,24 @@ function renderLogs() {
     return;
   }
   tbody.innerHTML = '';
-  logsData.forEach(e => {
+  logsData.forEach((e, idx) => {
     const tr = document.createElement('tr');
     tr.className = 'log-row-' + (e.status||'');
     const sp = e.status === 'success' ? 'pill-ok' : e.status === 'error' ? 'pill-err' : 'pill-cache';
-    const cascBadge = e.cascades > 0
-      ? `<span class="pill pill-warn">${e.cascades}</span>`
-      : '<span class="muted">0</span>';
+    const hasTrail = Array.isArray(e.cascade) && e.cascade.length > 0;
+    const failed = e.failed != null ? e.failed : null;
+    const skipped = e.skipped != null ? e.skipped : null;
+    let cascCell;
+    if (failed != null && skipped != null) {
+      const nums = `<span class="${(failed+skipped)>0?'':'muted'}">${failed} / ${skipped}</span>`;
+      cascCell = hasTrail
+        ? `<span style="cursor:pointer;text-decoration:underline dotted" title="Show cascade path">${nums}</span>`
+        : nums;
+    } else {
+      cascCell = e.cascades > 0
+        ? `<span class="pill pill-warn">${e.cascades}</span>`
+        : '<span class="muted">0</span>';
+    }
     const cmpx = e.complexity;
     const cmpxColor = !cmpx ? 'var(--muted)' : cmpx<=2?'var(--red)':cmpx>=5?'var(--green)':'var(--yellow)';
     tr.innerHTML = `
@@ -4659,11 +4726,14 @@ function renderLogs() {
       <td class="muted mono" style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${e.model||''}">${e.model||'—'}</td>
       <td class="right">${fmt.ms(e.latency_ms)}</td>
       <td class="right" style="color:${cmpxColor}">${cmpx||'—'}</td>
-      <td class="right">${cascBadge}</td>
+      <td class="right" ${hasTrail ? `style="cursor:pointer" data-cascade-idx="${idx}"` : ''}>${cascCell}</td>
       <td class="right muted">${e.prompt_tokens!=null?fmt.num(e.prompt_tokens):'—'}</td>
       <td class="right muted">${e.completion_tokens!=null?fmt.num(e.completion_tokens):'—'}</td>
       <td><span class="pill ${sp}">${e.status||'—'}</span></td>
     `;
+    if (hasTrail) {
+      tr.querySelector('[data-cascade-idx]').addEventListener('click', () => openCascadeDetail(idx));
+    }
     tbody.appendChild(tr);
   });
 }
