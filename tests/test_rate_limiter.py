@@ -720,3 +720,17 @@ def test_load_does_not_remultiply_provider_caps(tmp_path):
     rl2.load()
     pw2 = rl2.get_group("openrouter", "key-abc12345", None)
     assert pw2.buckets["TPM"].cap == pytest.approx(12345.0)
+
+
+def test_model_and_provider_caps_grow_via_success_nudges(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("openrouter", "key-abc12345", "m", 1.0, 1.0)
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    mg = rl.get_group("openrouter", "key-abc12345", "m")
+    pw_cap0 = pw.buckets["TPM"].cap
+    mg_cap0 = mg.buckets["TPM"].cap
+    # Provider streak default 10; model streak default 20
+    for _ in range(20):
+        rl.on_success("openrouter", "key-abc12345", "m", 1.0)
+    assert pw.buckets["TPM"].cap > pw_cap0
+    assert mg.buckets["TPM"].cap > mg_cap0
