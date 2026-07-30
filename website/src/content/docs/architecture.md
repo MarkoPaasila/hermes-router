@@ -69,7 +69,7 @@ list. Because free-tier rate limits are per-**model**, TBF buckets are tracked p
 model)** (plus a provider-wide group): when one model is rate-limited, the router fails over to
 the next model on the same key before cascading to the next provider.
 
-> Provider-wide buckets are a shared-ceiling **estimate** (no header sync; softer cuts; faster recovery). Model buckets remain authoritative for that model’s upstream limits.
+> Provider-wide buckets are a shared-ceiling **estimate** (no header sync; softer cuts; faster recovery), initialized at **×10** the model/base default caps so shared-ceiling headroom % does not mirror the model bar. Model buckets remain authoritative for that model’s upstream limits.
 
 This multiplies free
 capacity along a third axis — **keys × models × providers** — with no extra signups. Each listed
