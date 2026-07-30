@@ -4746,6 +4746,7 @@ const CASCADE_REASON_LABELS = {
   circuit_open: 'Circuit breaker open',
   access_scope: 'Outside access-key provider scope',
   keys_cooling: 'All keys cooling',
+  unsuitable_cooling: 'Unsuitable model cooldown',
   network: 'Network / timeout',
   empty_response: 'Empty / unusable response',
   http_429: 'HTTP 429',
