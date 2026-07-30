@@ -218,7 +218,7 @@ Your app always speaks one format; the router adapts to whatever the chosen prov
 `hr status` renders a live dashboard (provider health, latency, key cooldowns, cache) from
 `/v1/status`. `/metrics` exposes Prometheus counters and gauges for Grafana — counts
 and timings only, never request content. TBF state appears on the dashboard **Providers**
-(provider-wide buckets) and **Models** (per-model buckets) pages. See [Monitoring](/monitoring/).
+(provider-wide buckets) and **Models** (combined capabilities + per-model headroom) pages. See [Monitoring](/monitoring/).
 
 ## Ways to run and connect
 

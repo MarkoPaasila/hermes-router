@@ -3728,6 +3728,7 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
 #key-gate{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;
   align-items:center;justify-content:center;z-index:100}
 #key-gate.hidden{display:none}
+.hidden{display:none !important}
 .gate-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;
   padding:28px 32px;min-width:320px;text-align:center}
 .gate-box h2{margin-bottom:6px;font-size:15px}
@@ -3745,7 +3746,23 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
   width:min(720px,92vw);max-height:min(80vh,640px);display:flex;flex-direction:column;overflow:hidden}
 .rl-detail-box .panel-header{flex:0 0 auto}
 .rl-detail-actions{display:flex;gap:8px;align-items:center}
-.rl-detail-box .panel-body{overflow:auto;flex:1;min-height:0}
+.rl-detail-box .panel-body{overflow:auto;flex:1;min-height:0;padding:0}
+.rl-key-section{padding:12px 14px;border-bottom:1px solid var(--border)}
+.rl-key-section:last-child{border-bottom:none}
+.rl-key-section-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.rl-key-section-label{display:flex;align-items:center;gap:6px;font-size:12px}
+.rl-dim-sep{height:1px;background:var(--border);margin:10px 0 8px;opacity:.85}
+.rl-bar-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:11px}
+.rl-bar-row.muted{opacity:.45}
+.rl-bar-name{flex:0 0 42px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.rl-bar-track{flex:1;min-width:0;height:16px;background:var(--bg);border:1px solid var(--border);
+  border-radius:4px;position:relative;overflow:hidden}
+.rl-bar-fill{height:100%;background:var(--accent);border-radius:3px;display:flex;align-items:center;
+  justify-content:flex-end;padding:0 4px;box-sizing:border-box;min-width:0;max-width:100%;
+  color:#fff;font-size:10px;font-weight:600;white-space:nowrap}
+.rl-bar-used-out{flex:0 0 auto;font-size:10px;color:var(--muted);min-width:2.5em}
+.rl-bar-cap{flex:0 0 auto;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;
+  min-width:3.5em;text-align:right}
 
 /* ── stat cards ── */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -3930,20 +3947,13 @@ th.sortable.sorted-desc::after{content:'↓'}
     <div class="panel-header">
       <span class="panel-title" id="rl-detail-title">Detail</span>
       <div class="rl-detail-actions">
-        <button class="btn" onclick="clearRateGroup()">Clear learned state</button>
+        <button class="btn" id="rl-detail-clear-top" type="button">Clear learned state</button>
         <button class="btn" onclick="closeRateDetail()">Close</button>
       </div>
     </div>
     <div class="panel-body">
       <div id="rl-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
-      <table>
-        <thead><tr>
-          <th>Bucket</th><th>Active</th>
-          <th class="right">Cap</th><th class="right">Used</th>
-          <th class="right">Left</th><th class="right">Headroom</th>
-        </tr></thead>
-        <tbody id="rl-detail-tbody"></tbody>
-      </table>
+      <div id="rl-detail-body"></div>
     </div>
   </div>
 </div>
@@ -4186,56 +4196,27 @@ th.sortable.sorted-desc::after{content:'↓'}
 
       <!-- ── Models ───────────────────────────────────────────────────────── -->
       <section class="page" id="page-models">
-        <div class="panel">
-          <div class="panel-header"><span class="panel-title">Provider Model</span></div>
-          <div class="page-intro" style="padding:12px 14px 0">Override which model a provider uses — comma-separate several models for per-model failover.</div>
-          <div class="config-grid narrow">
-            <div class="config-form">
-              <div class="row">
-                <select id="cfg-model-provider" onchange="onModelProviderChange()"></select>
-              </div>
-              <input id="cfg-model-value" type="text" placeholder="model or model1,model2,...">
-              <div class="row">
-                <button class="btn" onclick="setModel()">Save model</button>
-              </div>
-              <div class="config-msg" id="cfg-model-msg"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-header"><span class="panel-title">Model Capabilities</span></div>
-          <div class="panel-body">
-            <table>
-              <thead><tr>
-                <th>Provider</th><th>Model</th><th>Rating</th><th>Tools</th><th>Reasoning</th>
-              </tr></thead>
-              <tbody id="model-caps-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-
         <div class="panel" id="rl-panel-model">
           <div class="panel-header">
-            <span class="panel-title">Model token buckets</span>
+            <span class="panel-title">Models</span>
             <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0">
               <input type="checkbox" id="rl-orphans-model" onchange="refreshRateLimits()">
               Show dormant / orphan groups
             </label>
           </div>
           <div class="page-intro" style="padding:12px 14px 0">
-            Authoritative model buckets (headers + hard 429). Click a row for per-bucket detail.
-            Clear drops learned caps for that scope.
+            Per-model capabilities and authoritative rate headroom. Click a row for all key buckets.
           </div>
           <div class="panel-body">
             <table>
               <thead><tr>
+                <th class="sortable" data-sort="model" onclick="sortRateLimits('model','model')">Model</th>
                 <th class="sortable" data-sort="provider" onclick="sortRateLimits('model','provider')">Provider</th>
-                <th class="sortable" data-sort="key_hint" onclick="sortRateLimits('model','key_hint')">Key</th>
-                <th class="sortable" data-sort="scope" onclick="sortRateLimits('model','scope')">Model</th>
-                <th class="sortable" data-sort="binding" onclick="sortRateLimits('model','binding')">Binding</th>
+                <th>Key</th>
+                <th class="sortable" data-sort="rating" onclick="sortRateLimits('model','rating')">Rating</th>
+                <th>Tools</th><th>Reasoning</th>
+                <th class="sortable" data-sort="binding" onclick="sortRateLimits('model','binding')">Limiting factor</th>
                 <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('model','headroom')">Headroom</th>
-                <th class="sortable right" data-sort="buckets" onclick="sortRateLimits('model','buckets')">Buckets</th>
               </tr></thead>
               <tbody id="rl-tbody-model"></tbody>
             </table>
@@ -4303,7 +4284,8 @@ th.sortable.sorted-desc::after{content:'↓'}
 let apiKey = localStorage.getItem('hermes_dash_key') || '';
 let statusData = null, usageData = null, logsData = [], accessKeysData = [];
 let rateLimitsData = [];
-let selectedRateGroupId = null;
+let selectedRateGroupId = null;   // provider-wide detail
+let selectedModelRow = null;      // {provider, model} for combined Models modal
 let rlSortPw = {key: 'headroom', dir: 1};
 let rlSortModel = {key: 'headroom', dir: 1};
 let editingKeyTail = null;
@@ -4473,7 +4455,7 @@ function renderAll() {
   renderAddons();
   renderKeys();
   renderAccessKeys();
-  renderModelCaps();
+  renderCombinedModels();
 }
 
 function renderNavHealth() {
@@ -4760,9 +4742,6 @@ async function loadConfigProviders() {
     configProviders = await r.json();
     const keySel = document.getElementById('cfg-key-provider');
     keySel.innerHTML = configProviders.key_settable.map(p => `<option value="${p}">${p}</option>`).join('');
-    const modelSel = document.getElementById('cfg-model-provider');
-    modelSel.innerHTML = configProviders.model_settable.map(p => `<option value="${p}">${p}</option>`).join('');
-    onModelProviderChange();
     renderProviderScopePicker();
     renderAccessKeys();   // re-render now that provider names/counts are known
   } catch(e) { /* dashboard still usable without this */ }
@@ -4782,14 +4761,6 @@ function renderProviderScopePicker() {
   const grid = document.getElementById('ak-provider-scope');
   if (!grid) return;
   grid.innerHTML = renderScopeCheckboxes([]);
-}
-
-function onModelProviderChange() {
-  if (!configProviders) return;
-  const p = document.getElementById('cfg-model-provider').value;
-  const current = statusData?.providers?.[p]?.model || '';
-  document.getElementById('cfg-model-value').value = current;
-  document.getElementById('cfg-model-value').placeholder = 'model or model1,model2,...';
 }
 
 function setMsg(id, text, ok) {
@@ -4815,23 +4786,6 @@ async function addKey() {
     setMsg('cfg-key-msg', `Saved — ${provider} now has ${d.total_keys} key(s).`, true);
     showRestartBanner();
   } catch(e) { setMsg('cfg-key-msg', 'Network error: ' + e.message, false); }
-}
-
-async function setModel() {
-  const provider = document.getElementById('cfg-model-provider').value;
-  const model = document.getElementById('cfg-model-value').value.trim();
-  if (!model) { setMsg('cfg-model-msg', 'Enter a model first.', false); return; }
-  try {
-    const r = await fetch('/v1/config/model/' + provider, {
-      method: 'POST',
-      headers: {'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json'},
-      body: JSON.stringify({model}),
-    });
-    const d = await r.json();
-    if (!r.ok) { setMsg('cfg-model-msg', d.error?.message || 'Failed.', false); return; }
-    setMsg('cfg-model-msg', `Set ${provider} → ${model}`, true);
-    showRestartBanner();
-  } catch(e) { setMsg('cfg-model-msg', 'Network error: ' + e.message, false); }
 }
 
 // ── restart ───────────────────────────────────────────────────────────────────
@@ -5035,34 +4989,164 @@ function dismissNewKey() {
   document.getElementById('new-key-value').value = '';
 }
 
-// ── model capabilities (per-provider, per-model rating/tools/reasoning) ──────
-function renderModelCaps() {
-  const tbody = document.getElementById('model-caps-tbody');
-  if (!tbody || !statusData) return;
-  const prov = statusData.providers || {};
-  const rows = [];
+// ── combined Models table (capabilities + rate headroom) ─────────────────────
+const RL_BUCKET_ORDER_R = ['RPM','RPH','RPD','RPW','RPMo'];
+const RL_BUCKET_ORDER_T = ['TPM','TPH','TPD','TPW','TPMo'];
+
+function _modelRowKey(provider, model) {
+  return (provider || '') + '\0' + (model || '');
+}
+
+function _statusKeysForProvider(provider) {
+  return (statusData?.providers?.[provider]?.keys) || [];
+}
+
+function _matchStatusKey(keys, hint) {
+  if (!hint) return null;
+  return keys.find(k => {
+    const tail = k.key_tail || '';
+    return hint === tail || hint.endsWith(tail) || (tail && hint.includes(tail));
+  }) || null;
+}
+
+function _modelKeyDots(provider, groups) {
+  const keys = _statusKeysForProvider(provider);
+  const hints = [...new Set((groups || []).map(g => g.key_hint).filter(Boolean))];
+  if (!hints.length) return '<span class="muted">—</span>';
+  return hints.map(hint => {
+    const k = _matchStatusKey(keys, hint);
+    if (k) {
+      const cls = k.status === 'cooling' ? 'dot-warn' : 'dot-ok';
+      const req = k.requests != null ? `${k.requests} req` : '';
+      const title = (k.status === 'cooling' ? `cooling (${k.ready_in}s)` : 'ready')
+        + (req ? ` · ${req}` : '') + ` · …${hint}`;
+      return `<span class="${cls}" title="${esc(title)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:2px"></span>`;
+    }
+    return `<span class="dot-grey" title="…${esc(hint)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:2px;background:var(--muted);opacity:.5"></span>`;
+  }).join('');
+}
+
+function _aggregateModelGroups(groups) {
+  let headroom = null, binding = null;
+  for (const g of groups || []) {
+    if (g.headroom == null) continue;
+    if (headroom == null || g.headroom < headroom) {
+      headroom = g.headroom;
+      binding = g.binding || null;
+    }
+  }
+  return {headroom, binding};
+}
+
+function _collectCombinedModelRows(showOrphans) {
+  const byKey = new Map();
+  const prov = statusData?.providers || {};
+
   Object.entries(prov).forEach(([name, p]) => {
     const caps = p.model_caps;
-    if (caps && caps.length) {
-      caps.forEach(mc => rows.push({provider: name, model: mc.model, rating: mc.rating,
-        tools: mc.supports_tools, reasoning: mc.reasoning}));
-    } else if (p.model) {
-      rows.push({provider: name, model: p.model, rating: p.rating,
-        tools: p.supports_tools, reasoning: p.reasoning});
+    const entries = (caps && caps.length)
+      ? caps.map(mc => ({model: mc.model, rating: mc.rating, tools: mc.supports_tools, reasoning: mc.reasoning}))
+      : (p.model ? [{model: p.model, rating: p.rating, tools: p.supports_tools, reasoning: p.reasoning}] : []);
+    entries.forEach(e => {
+      if (!e.model) return;
+      const k = _modelRowKey(name, e.model);
+      byKey.set(k, {
+        provider: name, model: e.model, rating: e.rating,
+        tools: e.tools, reasoning: e.reasoning, orphan: false, groups: [],
+      });
+    });
+  });
+
+  const modelGroups = (rateLimitsData || []).filter(g => g.scope === 'model');
+  for (const g of modelGroups) {
+    if (!showOrphans && g.configured === false) continue;
+    const k = _modelRowKey(g.provider, g.model);
+    let row = byKey.get(k);
+    if (!row) {
+      if (!showOrphans) continue;
+      row = {
+        provider: g.provider, model: g.model || '', rating: null,
+        tools: null, reasoning: null, orphan: true, groups: [],
+      };
+      byKey.set(k, row);
     }
+    row.groups.push(g);
+  }
+
+  return [...byKey.values()].map(row => {
+    const agg = _aggregateModelGroups(row.groups);
+    return {...row, headroom: agg.headroom, binding: agg.binding};
+  });
+}
+
+function _modelSortValue(row, key) {
+  if (key === 'model') return row.model || '';
+  if (key === 'provider') return row.provider || '';
+  if (key === 'rating') return row.rating == null ? null : row.rating;
+  if (key === 'binding') return row.binding || null;
+  if (key === 'headroom') return row.headroom == null ? null : row.headroom;
+  return null;
+}
+
+function renderCombinedModels() {
+  const tbody = document.getElementById('rl-tbody-model');
+  if (!tbody) return;
+  _rlSyncSortHeaders('rl-panel-model', rlSortModel.key, rlSortModel.dir);
+  const showOrphans = document.getElementById('rl-orphans-model')?.checked;
+  const rows = _collectCombinedModelRows(showOrphans).slice().sort((a, b) => {
+    const va = _modelSortValue(a, rlSortModel.key);
+    const vb = _modelSortValue(b, rlSortModel.key);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    let cmp;
+    if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+    else cmp = String(va).localeCompare(String(vb));
+    return cmp * rlSortModel.dir;
   });
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:18px">No providers configured</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No models configured</td></tr>';
     return;
   }
-  rows.sort((a,b) => a.provider.localeCompare(b.provider) || (a.rating||9) - (b.rating||9));
-  tbody.innerHTML = rows.map(r => `<tr>
-    <td>${esc(r.provider)}</td>
-    <td class="mono muted">${esc(r.model||'—')}</td>
-    <td>${ratingPips(r.rating)}</td>
-    <td>${r.tools ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'}</td>
-    <td>${r.reasoning ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'}</td>
-  </tr>`).join('');
+  tbody.innerHTML = '';
+  rows.forEach(row => {
+    const selected = selectedModelRow
+      && selectedModelRow.provider === row.provider
+      && selectedModelRow.model === row.model;
+    const tr = document.createElement('tr');
+    tr.className = 'rl-row' + (selected ? ' rl-selected' : '');
+    tr.onclick = () => selectModelRow(row.provider, row.model);
+    const hPct = row.headroom == null ? null : Math.round(row.headroom * 100);
+    const hColor = hPct == null ? '' : hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
+    const bar = hPct == null
+      ? '<span class="muted">—</span>'
+      : `<div style="display:inline-block;vertical-align:middle">
+           <div class="prog-track" style="width:64px;display:inline-block">
+             <div class="prog-fill ${hColor}" style="width:${hPct}%"></div>
+           </div>
+           <span class="muted" style="font-size:10px;margin-left:4px">${hPct}%</span>
+         </div>`;
+    const tools = row.tools == null ? '<span class="muted">—</span>'
+      : (row.tools ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>');
+    const reasoning = row.reasoning == null ? '<span class="muted">—</span>'
+      : (row.reasoning ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>');
+    tr.innerHTML = `
+      <td><strong class="mono">${esc(row.model || '—')}</strong></td>
+      <td class="muted">${esc(row.provider)}</td>
+      <td>${_modelKeyDots(row.provider, row.groups)}</td>
+      <td>${row.rating != null ? ratingPips(row.rating) : '<span class="muted">—</span>'}</td>
+      <td>${tools}</td>
+      <td>${reasoning}</td>
+      <td>${row.binding || '<span class="muted">—</span>'}</td>
+      <td>${bar}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function selectModelRow(provider, model) {
+  selectedRateGroupId = null;
+  selectedModelRow = {provider, model};
+  renderRateLimitsTables();
 }
 
 // ── rate limits (token bucket filters) ───────────────────────────────────────
@@ -5085,10 +5169,20 @@ async function refreshRateLimits() {
 
 function renderRateLimitsTables() {
   renderProviderWideRateLimits();
-  renderModelRateLimits();
-  if (selectedRateGroupId) {
+  renderCombinedModels();
+  if (selectedModelRow) {
+    const groups = (rateLimitsData || []).filter(g =>
+      g.scope === 'model'
+      && g.provider === selectedModelRow.provider
+      && g.model === selectedModelRow.model);
+    if (groups.length) renderRateDetail(groups);
+    else if (selectedModelRow) {
+      // Still open title for a model with no rate groups yet
+      renderRateDetail([]);
+    }
+  } else if (selectedRateGroupId) {
     const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
-    if (g) renderRateDetail(g);
+    if (g) renderRateDetail([g]);
     else closeRateDetail();
   }
 }
@@ -5098,10 +5192,19 @@ function sortRateLimits(scope, key) {
   if (st.key === key) st.dir = -st.dir;
   else { st.key = key; st.dir = 1; }
   if (scope === 'provider_wide') renderProviderWideRateLimits();
-  else renderModelRateLimits();
-  if (selectedRateGroupId) {
-    const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
-    if (g) renderRateDetail(g);
+  else renderCombinedModels();
+  if (selectedModelRow || selectedRateGroupId) {
+    // re-apply open modal after sort re-render
+    if (selectedModelRow) {
+      const groups = (rateLimitsData || []).filter(g =>
+        g.scope === 'model'
+        && g.provider === selectedModelRow.provider
+        && g.model === selectedModelRow.model);
+      if (groups.length) renderRateDetail(groups);
+    } else if (selectedRateGroupId) {
+      const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
+      if (g) renderRateDetail([g]);
+    }
   }
 }
 
@@ -5147,10 +5250,6 @@ function _rlRenderRow(g) {
   const tr = document.createElement('tr');
   tr.className = 'rl-row' + (g.id === selectedRateGroupId ? ' rl-selected' : '');
   tr.onclick = () => selectRateGroup(g.id);
-  const scopeLabel = g.scope === 'model' ? (g.model || '—') : 'provider-wide';
-  const role = g.role === 'estimate'
-    ? ' <span class="pill pill-grey">estimate</span>'
-    : (g.role === 'authoritative' ? ' <span class="pill pill-ok">authoritative</span>' : '');
   const hPct = g.headroom == null ? null : Math.round(g.headroom * 100);
   const hColor = hPct == null ? '' : hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
   const bar = hPct == null
@@ -5162,13 +5261,9 @@ function _rlRenderRow(g) {
          <span class="muted" style="font-size:10px;margin-left:4px">${hPct}%</span>
        </div>`;
   const nBuckets = Object.keys(g.buckets || {}).length;
-  const scopeCell = g.scope === 'model'
-    ? `<td class="mono muted">${scopeLabel}${role}</td>`
-    : '';
   tr.innerHTML = `
     <td><strong>${g.provider}</strong></td>
     <td class="mono muted">…${g.key_hint || ''}</td>
-    ${scopeCell}
     <td>${g.binding || '<span class="muted">—</span>'}</td>
     <td>${bar}</td>
     <td class="right muted">${nBuckets}</td>`;
@@ -5194,70 +5289,159 @@ function renderProviderWideRateLimits() {
   _rlRenderTable('provider_wide', 'rl-tbody-pw', 'rl-panel-pw', rlSortPw, showOrphans, 5);
 }
 
-function renderModelRateLimits() {
-  const showOrphans = document.getElementById('rl-orphans-model')?.checked;
-  _rlRenderTable('model', 'rl-tbody-model', 'rl-panel-model', rlSortModel, showOrphans, 6);
-}
-
 function selectRateGroup(id) {
+  selectedModelRow = null;
   selectedRateGroupId = id;
   renderRateLimitsTables();
 }
 
 function closeRateDetail() {
   selectedRateGroupId = null;
+  selectedModelRow = null;
   const modal = document.getElementById('rl-detail-modal');
   if (modal) modal.classList.add('hidden');
   document.querySelectorAll('#rl-tbody-pw tr.rl-selected, #rl-tbody-model tr.rl-selected').forEach(tr => tr.classList.remove('rl-selected'));
 }
 
-function renderRateDetail(g) {
-  const modal = document.getElementById('rl-detail-modal');
-  if (modal) modal.classList.remove('hidden');
-  document.getElementById('rl-detail-title').textContent =
-    g.provider + ' · …' + (g.key_hint || '');
-  const cfg = g.configured
-    ? '<span class="pill pill-ok">configured</span>'
-    : '<span class="pill pill-warn">orphan</span>';
-  const roleNote = g.role === 'estimate'
-    ? ' · shared-ceiling estimate — no header sync'
-    : (g.role === 'authoritative' ? ' · authoritative' : '');
-  document.getElementById('rl-detail-meta').innerHTML =
-    `${cfg} · ${g.scope === 'model' ? 'model ' + (g.model || '') : 'provider-wide'}${roleNote} · <span class="mono">${g.id}</span>`;
-  const tb = document.getElementById('rl-detail-tbody');
-  const entries = Object.entries(g.buckets || {}).sort((a, b) => a[0].localeCompare(b[0]));
-  if (!entries.length) {
-    tb.innerHTML = '<tr><td colspan="6" class="muted">No buckets</td></tr>';
-    return;
-  }
-  tb.innerHTML = entries.map(([name, b]) => {
-    const muted = b.active ? '' : 'muted';
-    const hPct = Math.round((b.headroom || 0) * 100);
-    return `<tr class="${muted}">
-      <td class="mono">${name}</td>
-      <td>${b.active ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'}</td>
-      <td class="right">${fmt.num(b.cap)}</td>
-      <td class="right">${fmt.num(b.used)}</td>
-      <td class="right">${fmt.num(b.tokens)}</td>
-      <td class="right">${hPct}%</td>
-    </tr>`;
-  }).join('');
+function _rlFmtAmt(n) {
+  if (n == null || !isFinite(n)) return '—';
+  if (Math.abs(n) >= 1000) return fmt.num(Math.round(n));
+  if (Math.abs(n) >= 10) return String(Math.round(n * 10) / 10);
+  return String(Math.round(n * 100) / 100);
 }
 
-async function clearRateGroup() {
-  if (!selectedRateGroupId) return;
+function _rlBucketBarRow(name, b) {
+  const cap = Number(b.cap) || 0;
+  const used = Number(b.used) || 0;
+  const pct = cap > 0 ? Math.max(0, Math.min(100, (used / cap) * 100)) : 0;
+  const usedInside = pct >= 15;
+  const muted = b.active ? '' : ' muted';
+  const usedLabel = _rlFmtAmt(used);
+  const capLabel = _rlFmtAmt(cap);
+  const fillInner = usedInside ? esc(usedLabel) : '';
+  const usedOut = usedInside
+    ? ''
+    : `<span class="rl-bar-used-out">${esc(usedLabel)}</span>`;
+  return `<div class="rl-bar-row${muted}">
+    <span class="rl-bar-name">${esc(name)}</span>
+    <div class="rl-bar-track">
+      <div class="rl-bar-fill" style="width:${pct}%">${fillInner}</div>
+    </div>
+    ${usedOut}
+    <span class="rl-bar-cap">${esc(capLabel)}</span>
+  </div>`;
+}
+
+function _rlRenderBucketBars(buckets) {
+  const bmap = buckets || {};
+  const rRows = RL_BUCKET_ORDER_R.filter(n => n in bmap).map(n => _rlBucketBarRow(n, bmap[n])).join('');
+  const tRows = RL_BUCKET_ORDER_T.filter(n => n in bmap).map(n => _rlBucketBarRow(n, bmap[n])).join('');
+  // Also include any unexpected bucket names after known order
+  const known = new Set([...RL_BUCKET_ORDER_R, ...RL_BUCKET_ORDER_T]);
+  const extra = Object.keys(bmap).filter(n => !known.has(n)).sort()
+    .map(n => _rlBucketBarRow(n, bmap[n])).join('');
+  if (!rRows && !tRows && !extra)
+    return '<div class="muted" style="padding:4px 0">No buckets</div>';
+  let html = '';
+  if (rRows) html += rRows;
+  if (rRows && tRows) html += '<div class="rl-dim-sep" role="separator"></div>';
+  if (tRows) html += tRows;
+  if (extra) {
+    if (html) html += '<div class="rl-dim-sep" role="separator"></div>';
+    html += extra;
+  }
+  return html;
+}
+
+function _rlKeyDotForGroup(g) {
+  const keys = _statusKeysForProvider(g.provider);
+  const k = _matchStatusKey(keys, g.key_hint);
+  if (k) {
+    const cls = k.status === 'cooling' ? 'dot-warn' : 'dot-ok';
+    return `<span class="${cls}" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span>`;
+  }
+  return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);opacity:.5"></span>`;
+}
+
+function renderRateDetail(groups) {
+  const list = Array.isArray(groups) ? groups.slice() : (groups ? [groups] : []);
+  const modal = document.getElementById('rl-detail-modal');
+  if (modal) modal.classList.remove('hidden');
+
+  const clearTop = document.getElementById('rl-detail-clear-top');
+  if (clearTop) {
+    if (list.length === 1) {
+      clearTop.classList.remove('hidden');
+      clearTop.onclick = () => clearRateGroup(list[0].id);
+    } else {
+      clearTop.classList.add('hidden');
+      clearTop.onclick = null;
+    }
+  }
+
+  if (selectedModelRow) {
+    document.getElementById('rl-detail-title').textContent =
+      (selectedModelRow.model || '—') + ' · ' + selectedModelRow.provider;
+    document.getElementById('rl-detail-meta').innerHTML =
+      list.length
+        ? `${list.length} key group${list.length === 1 ? '' : 's'} · authoritative model buckets`
+        : '<span class="muted">No rate-limit groups yet for this model</span>';
+  } else if (list.length) {
+    const g = list[0];
+    document.getElementById('rl-detail-title').textContent =
+      g.provider + ' · …' + (g.key_hint || '');
+    const cfg = g.configured
+      ? '<span class="pill pill-ok">configured</span>'
+      : '<span class="pill pill-warn">orphan</span>';
+    const roleNote = g.role === 'estimate'
+      ? ' · shared-ceiling estimate — no header sync'
+      : (g.role === 'authoritative' ? ' · authoritative' : '');
+    document.getElementById('rl-detail-meta').innerHTML =
+      `${cfg} · ${g.scope === 'model' ? 'model ' + (g.model || '') : 'provider-wide'}${roleNote} · <span class="mono">${esc(g.id)}</span>`;
+  } else {
+    document.getElementById('rl-detail-title').textContent = 'Detail';
+    document.getElementById('rl-detail-meta').textContent = '';
+  }
+
+  const body = document.getElementById('rl-detail-body');
+  if (!list.length) {
+    body.innerHTML = '<div class="muted" style="padding:16px">No bucket data</div>';
+    return;
+  }
+  const sorted = list.slice().sort((a, b) => String(a.key_hint || '').localeCompare(String(b.key_hint || '')));
+  body.innerHTML = sorted.map(g => {
+    const clearBtn = list.length > 1
+      ? `<button class="btn" type="button" data-rl-clear="${attr(g.id)}">Clear learned state</button>`
+      : '';
+    return `<div class="rl-key-section">
+      <div class="rl-key-section-hdr">
+        <div class="rl-key-section-label">${_rlKeyDotForGroup(g)}<span class="mono muted">…${esc(g.key_hint || '')}</span></div>
+        ${clearBtn}
+      </div>
+      ${_rlRenderBucketBars(g.buckets)}
+    </div>`;
+  }).join('');
+  body.querySelectorAll('[data-rl-clear]').forEach(btn => {
+    btn.addEventListener('click', () => clearRateGroup(btn.getAttribute('data-rl-clear')));
+  });
+}
+
+async function clearRateGroup(id) {
+  const gid = id || selectedRateGroupId;
+  if (!gid) return;
   if (!confirm('Clear learned rate-limit state for this group? Caps will relearn from traffic.')) return;
   try {
     const r = await fetch('/v1/rate-limits/clear', {
       method: 'POST',
       headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
-      body: JSON.stringify({id: selectedRateGroupId}),
+      body: JSON.stringify({id: gid}),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       alert(err.error || ('Clear failed: HTTP ' + r.status));
     }
-    closeRateDetail();
+    // Keep model row selection so modal refreshes for remaining keys
+    if (!selectedModelRow) closeRateDetail();
     await refreshRateLimits();
   } catch (e) {
     alert('Clear failed: ' + e);

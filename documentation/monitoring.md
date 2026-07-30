@@ -26,14 +26,13 @@ splits it into pages, refreshed every 5 seconds:
 - **Access Keys** — mint new `PROXY_API_KEYS` for teammates/other apps, with optional rate/
   budget limits, and revoke them — see
   [below](#proxy-api-keys--the-dashboard-key)
-- **Models** — save a model override per provider, a capability table (rating, tool support,
-  reasoning) for every configured model, and a **model token buckets** panel for per-model TBF
-  state
+- **Models** — one row per configured model (capabilities, key status dots, limiting factor,
+  headroom); click a row for stacked per-key TBF bucket bars
 - **Add-ons** — toggle optional features on/off, plus live cache stats
 - **Request Log** — the last requests (endpoint, provider, model, latency, complexity score,
   cascade count, tokens, status), filterable by status and endpoint
 
-Every write (add a key, change a model, toggle an add-on, mint/revoke an access key) shows a
+Every write (add a key, toggle an add-on, mint/revoke an access key) shows a
 "Restart Required" banner — click it to restart the router in place; the page reconnects
 automatically once it's back.
 

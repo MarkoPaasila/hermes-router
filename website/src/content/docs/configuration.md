@@ -161,7 +161,8 @@ restarts in `rate_limits_state.json`.
 | `RATE_BUCKET_CSV` | `./rate_bucket_events.csv` | Path for that append-only event log (Calc/Excel-friendly) |
 
 The rate limit state is visible on the dashboard **Providers** page (provider-wide token
-buckets + Rate headroom column) and **Models** page (per-model token buckets), and in
+buckets + Rate headroom column) and **Models** page (combined capabilities + per-model headroom /
+limiting factor; click a row for bucket bars), and in
 `/v1/status` under each provider's `rate_limits` key. For local development,
 enable `RATE_BUCKET_CSV_ENABLED` to append each cap change (nudge/cut/header
 pin/lift) with headroom into a CSV you can open in LibreOffice Calc or Excel;
@@ -254,8 +255,7 @@ hr restart                                 # apply changes
 ```
 
 Overrides are stored as plain variables in `.env` (e.g. `ANTHROPIC_MODEL=claude-sonnet-4-6`)
-and shown in `hr model list`. The dashboard **Models** page also lets you save a model override
-per provider.
+and shown in `hr model list`. Use `hr model set` (not the dashboard) to change overrides.
 
 ### Multiple models per provider
 
