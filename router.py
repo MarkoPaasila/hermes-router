@@ -35,6 +35,7 @@ from token_caps import (
     extract_caps_from_model_item,
 )
 from session_sticky import SessionStickyStore, resolve_session_id
+from cascade_trail import CascadeTrail, http_reason
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -5510,9 +5511,19 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     _req_ctx.provider  = None
     _req_ctx.model     = None
     _req_ctx.cache_hit = False
-    _req_ctx.attempts  = 0   # total forward() calls made (cascades = attempts-1)
+    _req_ctx.attempts  = 0   # total forward() calls made
     _req_ctx.last_tried_provider = None
     _req_ctx.last_tried_model = None
+    if not _rate_retry:
+        _req_ctx.cascade = CascadeTrail()
+    trail = getattr(_req_ctx, "cascade", None) or CascadeTrail()
+    _req_ctx.cascade = trail
+
+    def _crec(method, *a, **k):
+        try:
+            getattr(trail, method)(*a, **k)
+        except Exception as e:
+            log.debug(f"cascade trail record failed: {e}")
 
     # Routing profile: `hermes-router:fast` (or header X-Hermes-Profile: fast)
     # prefers a local model for short/casual turns, with cloud as fallback. We
@@ -5634,6 +5645,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
 
         # Caller's access key is scoped to specific providers — skip anything else.
         if caller_providers is not None and name not in caller_providers:
+            _crec("skip", name, model, "access_scope")
             skip_providers.add(name)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
@@ -5642,6 +5654,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         # Breaker open → skip the whole provider (unless all are open, then probe).
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} (circuit open)")
+            _crec("skip", name, model, "circuit_open")
             skip_providers.add(name)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
@@ -5652,6 +5665,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         cap = _effective_input_cap_for(provider, model)
         if cap and est_tokens >= cap:
             log.info(f"⤳ skipping {name}/{model} (~{est_tokens} tok >= {cap} cap)")
+            _crec("skip", name, model, "token_cap")
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
@@ -5662,6 +5676,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         if (enforce_tool and phase == "main"
                 and not _model_supports_tools(name, model)):
             log.info(f"⚒ skipping {name}/{model} (no tool support)")
+            _crec("skip", name, model, "no_tools")
             tool_deferred.append(cand)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
@@ -5670,6 +5685,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         # Vision request → skip candidates whose MODEL isn't known to accept images.
         if enforce_vision and not _model_supports_vision(provider, model):
             log.info(f"🖼 skipping {name}/{model} (no vision support)")
+            _crec("skip", name, model, "no_vision")
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
@@ -5681,6 +5697,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                          else None)
             key = pool.get_key(name, model, preferred=preferred)
             if not key:
+                _crec("note", name, model, "skipped", "keys_cooling")
                 break   # all keys for this (provider, model) are cooling → next candidate
 
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
@@ -5710,6 +5727,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
                         _best_rl_wait = float(_rl_wait)
                     log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
+                    _crec("note", name, model, "skipped", "rate_headroom")
                     continue
             _rl_t0 = time.time()
             _req_ctx.attempts += 1
@@ -5726,6 +5744,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # network/timeout = provider health failure
                 pool.mark_key_down(name, key, retry_after=30)
+                _crec("note", name, model, "failed", "network")
                 continue
 
             if resp.status_code == 429:
@@ -5738,12 +5757,14 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     observed_at=_rl_t0,
                 )
                 log.warning(f"  {name}/{model} 429 — TBF hold, trying next")
+                _crec("note", name, model, "failed", "http_429")
                 continue
 
             if resp.status_code in (401, 403):
                 _rl_release()
                 stats.record_error(name)
                 btxt = (resp.text or "")[:300]
+                _crec("note", name, model, "failed", http_reason(resp.status_code))
                 # Some gateways (e.g. OpenCode) return a MODEL-level rejection as a
                 # 401 — an ended free promo, an unsupported/paywalled model. That's
                 # not a credential problem, so skip just this model and try the
@@ -5785,6 +5806,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 # model-specific (e.g. bad model name) — just skip this candidate.
                 log.warning(f"  {name}/{model} {resp.status_code} — skipping this model: {resp.text[:150]}")
+                _crec("note", name, model, "failed", http_reason(resp.status_code))
                 break
 
             if resp.status_code == 413:
@@ -5792,6 +5814,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 # payload-specific — bigger model won't help; cascade providers.
                 log.warning(f"  {name} 413 — payload too large, cascading")
+                _crec("note", name, model, "failed", "http_413")
                 skip_providers.add(name)
                 break
 
@@ -5800,6 +5823,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # 5xx = provider health failure
                 pool.mark_key_down(name, key, retry_after=15)
+                _crec("note", name, model, "failed", "http_5xx")
                 continue
 
             if not (200 <= resp.status_code < 300):
@@ -5807,6 +5831,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # unexpected non-2xx = health failure
                 log.warning(f"  {name} unexpected {resp.status_code} — skipping provider")
+                _crec("note", name, model, "failed", http_reason(resp.status_code))
                 skip_providers.add(name)
                 break
 
@@ -5828,6 +5853,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                         provider=provider, est_tokens=_est_tokens,
                     )
                     _remember_success(name, model, key)
+                    _crec("success", name, model)
                     return ("stream", wrapped, name)
                 events = []
                 for raw in resp.iter_lines():
@@ -5844,6 +5870,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
+                    _crec("note", name, model, "failed", "empty_response")
                     break
                 _add_provider_tokens(name, data, model)
                 _usage = data.get("usage") or {}
@@ -5866,6 +5893,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 if _response_has_tool_calls(data):
                     _promote_tools_support(name, model)
                 _remember_success(name, model, key)
+                _crec("success", name, model)
                 return ("json", data)
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
@@ -5876,6 +5904,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     est_tokens=_est_tokens, observed_at=_rl_t0,
                 )
                 _remember_success(name, model, key)
+                _crec("success", name, model)
                 return ("stream", wrapped, name)
             else:
                 try:
@@ -5912,12 +5941,15 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                             model_headroom_before=_current_headroom,
                             observed_at=_rl_t0,
                         )
+                    _crec("note", name, model, "failed",
+                          "http_429" if _transient else "empty_response")
                     break
                 if not _completion_has_output(data):
                     _rl_release()
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
+                    _crec("note", name, model, "failed", "empty_response")
                     break
                 if not is_anthropic:
                     _strip_response(data)
@@ -5942,8 +5974,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 if _response_has_tool_calls(data):
                     _promote_tools_support(name, model)
                 _remember_success(name, model, key)
+                _crec("success", name, model)
                 return ("json", data)
 
+        _crec("flush")
         _leave_sticky_model(name, model)
         _queue_tool_last_resort()
 
@@ -5957,8 +5991,6 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                                  _session_id=_session_id, _sticky=_sticky)
 
     return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
-
-
 def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, elapsed: float) -> dict | None:
     """Append one entry to the request ring buffer. Returns the entry (for later
     stream-token patching) or None if logging is disabled / failed. Never raises."""
@@ -5998,6 +6030,13 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             if _pm not in ("", ROUTER_MODEL, "auto") and not _pm.endswith(":fast"):
                 _logged_model = _payload_model
 
+        _cascade = getattr(_req_ctx, "cascade", None)
+        if isinstance(_cascade, CascadeTrail):
+            _fields = _cascade.as_log_fields()
+        else:
+            _failed = max(0, attempts - 1)
+            _fields = {"cascade": [], "failed": _failed, "skipped": 0, "cascades": _failed}
+
         entry = {
             "ts":               time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "endpoint":         endpoint,
@@ -6008,7 +6047,10 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             "provider":         _logged_provider,
             "model":            _logged_model,
             "latency_ms":       round(elapsed * 1000),
-            "cascades":         max(0, attempts - 1),
+            "cascades":         _fields["cascades"],
+            "failed":           _fields["failed"],
+            "skipped":          _fields["skipped"],
+            "cascade":          _fields["cascade"],
             "status":           status,
             "prompt_tokens":    ptok,
             "completion_tokens": ctok,
