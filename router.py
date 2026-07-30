@@ -35,6 +35,7 @@ from token_caps import (
     extract_caps_from_model_item,
 )
 from session_sticky import SessionStickyStore, resolve_session_id
+from cascade_trail import CascadeTrail, http_reason
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -3836,6 +3837,9 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
 #rl-detail-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;
   align-items:center;justify-content:center;z-index:90;padding:16px}
 #rl-detail-modal.hidden{display:none}
+#cascade-detail-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;
+  align-items:center;justify-content:center;z-index:90;padding:16px}
+#cascade-detail-modal.hidden{display:none}
 .rl-detail-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;
   width:min(720px,92vw);max-height:min(80vh,640px);display:flex;flex-direction:column;overflow:hidden}
 .rl-detail-box .panel-header{flex:0 0 auto}
@@ -4360,7 +4364,7 @@ th.sortable.sorted-desc::after{content:'↓'}
               <thead><tr>
                 <th>Time</th><th>Endpoint</th><th>Provider</th><th>Model</th>
                 <th class="right">Latency</th><th class="right">Complexity</th>
-                <th class="right">Cascades</th><th class="right">Prompt tok</th>
+                <th class="right">Fail / Skip</th><th class="right">Prompt tok</th>
                 <th class="right">Compl tok</th><th>Status</th>
               </tr></thead>
               <tbody id="log-tbody"></tbody>
@@ -4409,6 +4413,11 @@ function showPage(name) {
   document.getElementById('key-input').addEventListener('keydown', e => { if (e.key==='Enter') submitKey(); });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    const cascadeModal = document.getElementById('cascade-detail-modal');
+    if (cascadeModal && !cascadeModal.classList.contains('hidden')) {
+      closeCascadeDetail();
+      return;
+    }
     const modal = document.getElementById('rl-detail-modal');
     if (modal && !modal.classList.contains('hidden')) closeRateDetail();
   });
@@ -4729,6 +4738,54 @@ function renderProviders() {
 }
 
 // ── live log ──────────────────────────────────────────────────────────────────
+const CASCADE_REASON_LABELS = {
+  rate_headroom: 'Rate headroom exhausted',
+  token_cap: 'Input over token cap',
+  no_tools: 'No tool support',
+  no_vision: 'No vision support',
+  circuit_open: 'Circuit breaker open',
+  access_scope: 'Outside access-key provider scope',
+  keys_cooling: 'All keys cooling',
+  network: 'Network / timeout',
+  empty_response: 'Empty / unusable response',
+  http_429: 'HTTP 429',
+  http_401: 'HTTP 401',
+  http_403: 'HTTP 403',
+  http_400: 'HTTP 400',
+  http_404: 'HTTP 404',
+  http_413: 'HTTP 413',
+  http_5xx: 'HTTP 5xx',
+};
+function cascadeReasonLabel(code) {
+  if (code == null || code === '') return '—';
+  return CASCADE_REASON_LABELS[code] || code;
+}
+
+function openCascadeDetail(idx) {
+  const e = logsData[idx];
+  if (!e || !Array.isArray(e.cascade) || !e.cascade.length) return;
+  document.getElementById('cascade-detail-title').textContent =
+    `Cascade · ${e.endpoint || '—'} · ${e.status || '—'}`;
+  document.getElementById('cascade-detail-meta').textContent =
+    `${fmt.time(e.ts)} · fail ${e.failed||0} / skip ${e.skipped||0}`;
+  const outcomePill = (o) => {
+    const cls = o === 'success' ? 'pill-ok' : o === 'failed' ? 'pill-err' : 'pill-warn';
+    return `<span class="pill ${cls}">${o}</span>`;
+  };
+  document.getElementById('cascade-detail-tbody').innerHTML = e.cascade.map((s, i) => `
+    <tr>
+      <td class="muted">${i+1}</td>
+      <td><strong>${s.provider||'—'}</strong></td>
+      <td class="mono muted">${s.model||'—'}</td>
+      <td>${outcomePill(s.outcome)}</td>
+      <td class="muted">${s.outcome==='success'?'—':cascadeReasonLabel(s.reason)}</td>
+    </tr>`).join('');
+  document.getElementById('cascade-detail-modal').classList.remove('hidden');
+}
+function closeCascadeDetail() {
+  document.getElementById('cascade-detail-modal').classList.add('hidden');
+}
+
 function renderLogs() {
   const tbody = document.getElementById('log-tbody');
   if (!logsData.length) {
@@ -4736,13 +4793,24 @@ function renderLogs() {
     return;
   }
   tbody.innerHTML = '';
-  logsData.forEach(e => {
+  logsData.forEach((e, idx) => {
     const tr = document.createElement('tr');
     tr.className = 'log-row-' + (e.status||'');
     const sp = e.status === 'success' ? 'pill-ok' : e.status === 'error' ? 'pill-err' : 'pill-cache';
-    const cascBadge = e.cascades > 0
-      ? `<span class="pill pill-warn">${e.cascades}</span>`
-      : '<span class="muted">0</span>';
+    const hasTrail = Array.isArray(e.cascade) && e.cascade.length > 0;
+    const failed = e.failed != null ? e.failed : null;
+    const skipped = e.skipped != null ? e.skipped : null;
+    let cascCell;
+    if (failed != null && skipped != null) {
+      const nums = `<span class="${(failed+skipped)>0?'':'muted'}">${failed} / ${skipped}</span>`;
+      cascCell = hasTrail
+        ? `<span style="cursor:pointer;text-decoration:underline dotted" title="Show cascade path">${nums}</span>`
+        : nums;
+    } else {
+      cascCell = e.cascades > 0
+        ? `<span class="pill pill-warn">${e.cascades}</span>`
+        : '<span class="muted">0</span>';
+    }
     const cmpx = e.complexity;
     const cmpxColor = !cmpx ? 'var(--muted)' : cmpx<=2?'var(--red)':cmpx>=5?'var(--green)':'var(--yellow)';
     tr.innerHTML = `
@@ -4752,11 +4820,14 @@ function renderLogs() {
       <td class="muted mono" style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${e.model||''}">${e.model||'—'}</td>
       <td class="right">${fmt.ms(e.latency_ms)}</td>
       <td class="right" style="color:${cmpxColor}">${cmpx||'—'}</td>
-      <td class="right">${cascBadge}</td>
+      <td class="right" ${hasTrail ? `style="cursor:pointer" data-cascade-idx="${idx}"` : ''}>${cascCell}</td>
       <td class="right muted">${e.prompt_tokens!=null?fmt.num(e.prompt_tokens):'—'}</td>
       <td class="right muted">${e.completion_tokens!=null?fmt.num(e.completion_tokens):'—'}</td>
       <td><span class="pill ${sp}">${e.status||'—'}</span></td>
     `;
+    if (hasTrail) {
+      tr.querySelector('[data-cascade-idx]').addEventListener('click', () => openCascadeDetail(idx));
+    }
     tbody.appendChild(tr);
   });
 }
@@ -5604,9 +5675,19 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     _req_ctx.provider  = None
     _req_ctx.model     = None
     _req_ctx.cache_hit = False
-    _req_ctx.attempts  = 0   # total forward() calls made (cascades = attempts-1)
+    _req_ctx.attempts  = 0   # total forward() calls made
     _req_ctx.last_tried_provider = None
     _req_ctx.last_tried_model = None
+    if not _rate_retry:
+        _req_ctx.cascade = CascadeTrail()
+    trail = getattr(_req_ctx, "cascade", None) or CascadeTrail()
+    _req_ctx.cascade = trail
+
+    def _crec(method, *a, **k):
+        try:
+            getattr(trail, method)(*a, **k)
+        except Exception as e:
+            log.debug(f"cascade trail record failed: {e}")
 
     # Routing profile: `hermes-router:fast` (or header X-Hermes-Profile: fast)
     # prefers a local model for short/casual turns, with cloud as fallback. We
@@ -5728,6 +5809,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
 
         # Caller's access key is scoped to specific providers — skip anything else.
         if caller_providers is not None and name not in caller_providers:
+            _crec("skip", name, model, "access_scope")
             skip_providers.add(name)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
@@ -5736,6 +5818,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         # Breaker open → skip the whole provider (unless all are open, then probe).
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} (circuit open)")
+            _crec("skip", name, model, "circuit_open")
             skip_providers.add(name)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
@@ -5746,6 +5829,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         cap = _effective_input_cap_for(provider, model)
         if cap and est_tokens >= cap:
             log.info(f"⤳ skipping {name}/{model} (~{est_tokens} tok >= {cap} cap)")
+            _crec("skip", name, model, "token_cap")
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
@@ -5756,6 +5840,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         if (enforce_tool and phase == "main"
                 and not _model_supports_tools(name, model)):
             log.info(f"⚒ skipping {name}/{model} (no tool support)")
+            _crec("skip", name, model, "no_tools")
             tool_deferred.append(cand)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
@@ -5764,6 +5849,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         # Vision request → skip candidates whose MODEL isn't known to accept images.
         if enforce_vision and not _model_supports_vision(provider, model):
             log.info(f"🖼 skipping {name}/{model} (no vision support)")
+            _crec("skip", name, model, "no_vision")
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
@@ -5775,6 +5861,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _fails = unsuitable_models.failures(name, model)
             log.info(f"⏭ skipping {name}/{model} (unsuitable, "
                      f"failures={_fails}, ready in {_ready:.0f}s)")
+            _crec("skip", name, model, "unsuitable_cooling")
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
@@ -5786,6 +5873,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                          else None)
             key = pool.get_key(name, model, preferred=preferred)
             if not key:
+                _crec("note", name, model, "skipped", "keys_cooling")
                 break   # all keys for this (provider, model) are cooling → next candidate
 
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
@@ -5815,6 +5903,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
                         _best_rl_wait = float(_rl_wait)
                     log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
+                    _crec("note", name, model, "skipped", "rate_headroom")
                     continue
             _rl_t0 = time.time()
             _req_ctx.attempts += 1
@@ -5831,6 +5920,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # network/timeout = provider health failure
                 pool.mark_key_down(name, key, retry_after=30)
+                _crec("note", name, model, "failed", "network")
                 continue
 
             if resp.status_code == 429:
@@ -5843,12 +5933,14 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     observed_at=_rl_t0,
                 )
                 log.warning(f"  {name}/{model} 429 — TBF hold, trying next")
+                _crec("note", name, model, "failed", "http_429")
                 continue
 
             if resp.status_code in (401, 403):
                 _rl_release()
                 stats.record_error(name)
                 btxt = (resp.text or "")[:300]
+                _crec("note", name, model, "failed", http_reason(resp.status_code))
                 # Some gateways (e.g. OpenCode) return a MODEL-level rejection as a
                 # 401 — an ended free promo, an unsupported/paywalled model. That's
                 # not a credential problem, so skip just this model and try the
@@ -5906,6 +5998,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     log.warning(
                         f"  {name}/{model} {resp.status_code} — skipping this model: "
                         f"{_err_body[:150]}")
+                _crec("note", name, model, "failed", http_reason(resp.status_code))
                 break
 
             if resp.status_code == 413:
@@ -5913,6 +6006,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 # payload-specific — bigger model won't help; cascade providers.
                 log.warning(f"  {name} 413 — payload too large, cascading")
+                _crec("note", name, model, "failed", "http_413")
                 skip_providers.add(name)
                 break
 
@@ -5921,6 +6015,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # 5xx = provider health failure
                 pool.mark_key_down(name, key, retry_after=15)
+                _crec("note", name, model, "failed", "http_5xx")
                 continue
 
             if not (200 <= resp.status_code < 300):
@@ -5928,6 +6023,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # unexpected non-2xx = health failure
                 log.warning(f"  {name} unexpected {resp.status_code} — skipping provider")
+                _crec("note", name, model, "failed", http_reason(resp.status_code))
                 skip_providers.add(name)
                 break
 
@@ -5950,6 +6046,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                         provider=provider, est_tokens=_est_tokens,
                     )
                     _remember_success(name, model, key)
+                    _crec("success", name, model)
                     return ("stream", wrapped, name)
                 events = []
                 for raw in resp.iter_lines():
@@ -5966,6 +6063,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
+                    _crec("note", name, model, "failed", "empty_response")
                     break
                 _add_provider_tokens(name, data, model)
                 _usage = data.get("usage") or {}
@@ -5988,6 +6086,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 if _response_has_tool_calls(data):
                     _promote_tools_support(name, model)
                 _remember_success(name, model, key)
+                _crec("success", name, model)
                 return ("json", data)
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
@@ -5998,6 +6097,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     est_tokens=_est_tokens, observed_at=_rl_t0,
                 )
                 _remember_success(name, model, key)
+                _crec("success", name, model)
                 return ("stream", wrapped, name)
             else:
                 try:
@@ -6034,12 +6134,15 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                             model_headroom_before=_current_headroom,
                             observed_at=_rl_t0,
                         )
+                    _crec("note", name, model, "failed",
+                          "http_429" if _transient else "empty_response")
                     break
                 if not _completion_has_output(data):
                     _rl_release()
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
+                    _crec("note", name, model, "failed", "empty_response")
                     break
                 if not is_anthropic:
                     _strip_response(data)
@@ -6064,8 +6167,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 if _response_has_tool_calls(data):
                     _promote_tools_support(name, model)
                 _remember_success(name, model, key)
+                _crec("success", name, model)
                 return ("json", data)
 
+        _crec("flush")
         _leave_sticky_model(name, model)
         _queue_tool_last_resort()
 
@@ -6079,8 +6184,6 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                                  _session_id=_session_id, _sticky=_sticky)
 
     return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
-
-
 def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, elapsed: float) -> dict | None:
     """Append one entry to the request ring buffer. Returns the entry (for later
     stream-token patching) or None if logging is disabled / failed. Never raises."""
@@ -6120,6 +6223,13 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             if _pm not in ("", ROUTER_MODEL, "auto") and not _pm.endswith(":fast"):
                 _logged_model = _payload_model
 
+        _cascade = getattr(_req_ctx, "cascade", None)
+        if isinstance(_cascade, CascadeTrail):
+            _fields = _cascade.as_log_fields()
+        else:
+            _failed = max(0, attempts - 1)
+            _fields = {"cascade": [], "failed": _failed, "skipped": 0, "cascades": _failed}
+
         entry = {
             "ts":               time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "endpoint":         endpoint,
@@ -6130,7 +6240,10 @@ def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, ela
             "provider":         _logged_provider,
             "model":            _logged_model,
             "latency_ms":       round(elapsed * 1000),
-            "cascades":         max(0, attempts - 1),
+            "cascades":         _fields["cascades"],
+            "failed":           _fields["failed"],
+            "skipped":          _fields["skipped"],
+            "cascade":          _fields["cascade"],
             "status":           status,
             "prompt_tokens":    ptok,
             "completion_tokens": ctok,
@@ -6252,6 +6365,7 @@ def embeddings():
     # Embeddings are deterministic — identical input is a perfect cache hit.
     ns      = _cache_ns()
     t_start = time.time()
+    trail   = CascadeTrail()
     cached  = cache.get(payload, ns)
     if cached is not None:
         log.info("↩ cache hit (embeddings)")
@@ -6265,10 +6379,10 @@ def embeddings():
             "provider":   "cache",
             "model":      payload.get("model"),
             "latency_ms": round((time.time() - t_start) * 1000),
-            "cascades":   0,
             "status":     "cache_hit",
             "prompt_tokens": None,
             "completion_tokens": None,
+            **trail.as_log_fields(),
         })
         return jsonify(cached)
 
@@ -6278,6 +6392,7 @@ def embeddings():
         name = provider["name"]
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} embeddings (circuit open)")
+            trail.skip(name, provider.get("embed_model") or "", "circuit_open")
             continue
 
         em = provider["embed_model"]
@@ -6286,6 +6401,7 @@ def embeddings():
             key = pool.get_key(name, em)
             if not key:
                 log.warning(f"All {name} keys cooling — skipping provider")
+                trail.note(name, em, "skipped", "keys_cooling")
                 break
 
             log.info(f"→ Trying {name} embeddings ({em}) ...{key[-6:]}")
@@ -6306,6 +6422,7 @@ def embeddings():
                         name, key, em, req_count=1.0, token_count=_est_tokens)
                 if not _rl_ok:
                     log.info(f"  {name}/{em} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
+                    trail.note(name, em, "skipped", "rate_headroom")
                     continue
             _rl_t0 = time.time()
             t0   = _rl_t0
@@ -6319,6 +6436,7 @@ def embeddings():
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=30)
+                trail.note(name, em, "failed", "network")
                 continue
             if resp.status_code == 429:
                 _rl_release()
@@ -6329,21 +6447,25 @@ def embeddings():
                     observed_at=_rl_t0,
                 )
                 log.warning(f"  {name} embeddings 429 — TBF hold, trying next key")
+                trail.note(name, em, "failed", "http_429")
                 continue
             if resp.status_code in (400, 401, 403, 404):
                 _rl_release()
                 stats.record_error(name)   # request/auth/model-specific, not a health failure
                 log.error(f"  {name} embeddings {resp.status_code} — skipping provider: {resp.text[:200]}")
+                trail.note(name, em, "failed", http_reason(resp.status_code))
                 break
             if resp.status_code >= 500:
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=15)
+                trail.note(name, em, "failed", "http_5xx")
                 continue
             if not (200 <= resp.status_code < 300):
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 log.warning(f"  {name} embeddings unexpected {resp.status_code} — skipping provider")
+                trail.note(name, em, "failed", http_reason(resp.status_code))
                 break
 
             stats.record_success(name, elapsed); stats.record_health(name, True)
@@ -6357,6 +6479,7 @@ def embeddings():
             key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)
             _add_provider_tokens(name, data)
             cache.set(payload, data, ns)
+            trail.success(name, em)
             request_log.append({
                 "ts":         time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "endpoint":   "embeddings",
@@ -6367,13 +6490,14 @@ def embeddings():
                 "provider":   name,
                 "model":      em,
                 "latency_ms": round((time.time() - t_start) * 1000),
-                "cascades":   0,
                 "status":     "success",
                 "prompt_tokens": (data.get("usage") or {}).get("total_tokens"),
                 "completion_tokens": None,
+                **trail.as_log_fields(),
             })
             return jsonify(data), 200
 
+        trail.flush()
         log.warning(f"✗ {name} embeddings exhausted — cascading")
 
     request_log.append({
@@ -6386,10 +6510,10 @@ def embeddings():
         "provider":   None,
         "model":      None,
         "latency_ms": round((time.time() - t_start) * 1000),
-        "cascades":   0,
         "status":     "error",
         "prompt_tokens": None,
         "completion_tokens": None,
+        **trail.as_log_fields(),
     })
     return jsonify({"error": {"message": "All embedding providers exhausted", "type": "router_error"}}), 503
 

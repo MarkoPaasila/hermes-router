@@ -32,7 +32,8 @@ splits it into pages, refreshed every 5 seconds:
   headroom); click a row for stacked per-key TBF bucket bars
 - **Add-ons** — toggle optional features on/off, plus live cache stats
 - **Request Log** — the last requests (endpoint, provider, model, latency, complexity score,
-  cascade count, tokens, status), filterable by status and endpoint
+  Fail/Skip cascade counts, tokens, status), filterable by status and endpoint; click Fail/Skip
+  to open the full cascade path (skipped / failed / success) with reasons
 
 Every write (add a key, toggle an add-on, mint/revoke an access key) shows a
 "Restart Required" banner — click it to restart the router in place; the page reconnects
