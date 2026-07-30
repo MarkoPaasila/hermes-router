@@ -2,12 +2,15 @@
 Adaptive multi-window token bucket rate limiter for hermes-router.
 """
 from __future__ import annotations
+import csv
 import os
 import time
 import threading
 import json
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -25,6 +28,82 @@ def _int_env(name: str, default: int) -> int:
         return int(os.environ.get(name, default) or default)
     except (TypeError, ValueError):
         return default
+
+def _truthy_env(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes")
+
+CSV_COLUMNS = [
+    "datetime", "provider", "key_hint", "model", "scope", "bucket",
+    "event", "reason", "cap", "old_cap", "tokens", "used", "headroom",
+]
+
+@dataclass
+class CapChange:
+    old_cap: float
+    event: str
+    reason: str
+
+class BucketEventCsv:
+    def __init__(self, enabled: bool, path: Path):
+        self.enabled = enabled
+        self.path = Path(path)
+        self._lock = threading.Lock()
+        self._header_ready = False
+        self._last_warn_at = 0.0
+
+    @staticmethod
+    def from_env() -> "BucketEventCsv":
+        return BucketEventCsv(
+            enabled=_truthy_env("RATE_BUCKET_CSV_ENABLED"),
+            path=Path(os.environ.get("RATE_BUCKET_CSV") or "./rate_bucket_events.csv"),
+        )
+
+    def record(self, *, provider: str, key_hint: str, model: str, scope: str,
+               bucket: str, event: str, reason: str,
+               cap: float, old_cap: float, tokens: float,
+               used: float, headroom: float) -> None:
+        if not self.enabled:
+            return
+        row = {
+            "datetime": datetime.now().astimezone().isoformat(timespec="milliseconds"),
+            "provider": provider,
+            "key_hint": key_hint,
+            "model": model or "",
+            "scope": scope,
+            "bucket": bucket,
+            "event": event,
+            "reason": reason,
+            "cap": cap,
+            "old_cap": old_cap,
+            "tokens": tokens,
+            "used": used,
+            "headroom": headroom,
+        }
+        with self._lock:
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                new_file = (not self.path.exists()) or self.path.stat().st_size == 0
+                with self.path.open("a", newline="") as f:
+                    w = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+                    if new_file or not self._header_ready:
+                        if new_file:
+                            w.writeheader()
+                        self._header_ready = True
+                    w.writerow(row)
+            except OSError as e:
+                now = time.time()
+                if now - self._last_warn_at >= 60.0:
+                    log.warning(f"[rate] bucket CSV write failed: {e}")
+                    self._last_warn_at = now
+
+def _row_metrics(b: "TokenBucket") -> tuple[float, float, float]:
+    tokens = float(b.tokens)
+    cap = float(b.cap)
+    used = max(0.0, cap - tokens)
+    headroom = b.headroom()
+    return tokens, used, headroom
+
+_bucket_csv = BucketEventCsv.from_env()
 
 RATE_SHORT_WAIT_MS        = _int_env("RATE_SHORT_WAIT_MS", 500)
 RATE_HEADROOM_THRESHOLD   = _float_env("RATE_HEADROOM_THRESHOLD", 0.05)

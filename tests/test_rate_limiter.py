@@ -1,6 +1,10 @@
+import csv
 import json, time, pytest
 import rate_limiter
-from rate_limiter import TokenBucket, BucketGroup, LIMIT_KEYS, PROVIDER_RATE_DEFAULTS
+from rate_limiter import (
+    TokenBucket, BucketGroup, LIMIT_KEYS, PROVIDER_RATE_DEFAULTS,
+    BucketEventCsv, CSV_COLUMNS, _truthy_env,
+)
 
 WINDOW = 60.0  # 1-minute bucket
 
@@ -330,6 +334,52 @@ def test_default_caps_table_has_groq():
 
 def test_default_caps_fallback():
     assert "_default" in PROVIDER_RATE_DEFAULTS
+
+
+def test_truthy_env(monkeypatch):
+    monkeypatch.setenv("RATE_BUCKET_CSV_ENABLED", "YES")
+    assert _truthy_env("RATE_BUCKET_CSV_ENABLED") is True
+    monkeypatch.setenv("RATE_BUCKET_CSV_ENABLED", "0")
+    assert _truthy_env("RATE_BUCKET_CSV_ENABLED") is False
+
+
+def test_csv_disabled_writes_nothing(tmp_path):
+    path = tmp_path / "events.csv"
+    w = BucketEventCsv(enabled=False, path=path)
+    w.record(provider="groq", key_hint="deadbeef", model="llama",
+             scope="model", bucket="RPM", event="nudge", reason="success_streak",
+             cap=31.5, old_cap=30.0, tokens=10.0, used=21.5, headroom=10 / 31.5)
+    assert not path.exists()
+
+
+def test_csv_writes_header_once_then_appends(tmp_path):
+    path = tmp_path / "events.csv"
+    w = BucketEventCsv(enabled=True, path=path)
+    kwargs = dict(provider="groq", key_hint="deadbeef", model="llama",
+                  scope="model", bucket="RPM", event="nudge", reason="success_streak",
+                  cap=31.5, old_cap=30.0, tokens=10.0, used=21.5, headroom=10 / 31.5)
+    w.record(**kwargs)
+    w.record(**{**kwargs, "cap": 33.0, "old_cap": 31.5})
+    text = path.read_text()
+    assert text.count(",".join(CSV_COLUMNS)) == 1
+    rows = list(csv.DictReader(path.open()))
+    assert len(rows) == 2
+    assert list(rows[0].keys()) == CSV_COLUMNS
+    assert rows[0]["datetime"]  # non-empty ISO local
+    assert rows[0]["provider"] == "groq"
+    assert rows[0]["bucket"] == "RPM"
+    assert float(rows[0]["old_cap"]) == 30.0
+    assert float(rows[1]["cap"]) == 33.0
+
+
+def test_csv_soft_fails_on_unwritable(tmp_path):
+    blocker = tmp_path / "blocked"
+    blocker.write_text("not-a-dir")
+    path = blocker / "events.csv"  # parent is a file → mkdir/open fails
+    w = BucketEventCsv(enabled=True, path=path)
+    w.record(provider="groq", key_hint="deadbeef", model="",
+             scope="provider_wide", bucket="TPM", event="cut", reason="soft_429",
+             cap=100.0, old_cap=200.0, tokens=0.0, used=100.0, headroom=0.0)
 
 
 import json
