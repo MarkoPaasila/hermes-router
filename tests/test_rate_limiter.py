@@ -130,7 +130,7 @@ def test_load_migrates_poisoned_provider_wide_caps(tmp_path):
     rl.load()
     g = rl.get_group("gemini", "xxdeadbeef", None)
     assert g.buckets["RPM"].cap == pytest.approx(150.0)
-    assert g.buckets["TPM"].cap == pytest.approx(320_000.0)
+    assert g.buckets["TPM"].cap == pytest.approx(2_500_000.0)
 
 
 def test_on_429_hard_unchanged_default():
@@ -814,8 +814,8 @@ def test_on_429_surprise_throttled_within_60s(tmp_path, monkeypatch):
         b._period_consumed = 0.0
     monkeypatch.setattr(rate_limiter.time, "time", lambda: t0 + 10.0)
     rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=1.0)
-    # Second 429 within 60s: soft once only (no second surprise)
-    assert pw.buckets["RPM"].cap == pytest.approx(cap_after_first * 0.9)
+    # Second 429 within 60s: soft once only (no second surprise); RPx rounded
+    assert pw.buckets["RPM"].cap == pytest.approx(round(cap_after_first * 0.9))
 
 
 def test_on_429_asymmetric_cuts(tmp_path):
@@ -993,3 +993,75 @@ def test_csv_disabled_no_file_on_learn(monkeypatch, tmp_path):
     rl = make_limiter(tmp_path)
     rl.on_429("groq", "sk-testkey99", "llama-3", {})
     assert not path.exists()
+
+
+def test_on_429_skips_high_headroom_tpm_when_rpm_binding():
+    """RPM exhaustion must not poison TPM (Gemini-style headerless 429)."""
+    g = BucketGroup(provider_name="gemini", caps={"RPM": 15.0, "TPM": 250_000.0})
+    rpm, tpm = g.buckets["RPM"], g.buckets["TPM"]
+    rpm.tokens = 0.0
+    rpm._period_consumed = 10.0
+    tpm.tokens = tpm.cap  # ~100% headroom
+    tpm._period_consumed = 40_000.0
+    tpm_before = tpm.cap
+    g.on_429({})
+    assert rpm.cap < 15.0
+    assert tpm.cap == pytest.approx(tpm_before)
+
+
+def test_on_429_cuts_lowest_headroom_when_none_binding():
+    g = BucketGroup(provider_name="mistral", caps={"RPM": 10.0, "TPM": 1000.0})
+    rpm, tpm = g.buckets["RPM"], g.buckets["TPM"]
+    # Both above binding threshold; RPM clearly tighter so TPM is spared
+    rpm.tokens = 4.0   # headroom 0.4
+    tpm.tokens = 600.0  # headroom 0.6
+    rpm._period_consumed = 1.0
+    tpm._period_consumed = 100.0
+    tpm_before = tpm.cap
+    g.on_429({})
+    assert rpm.cap == pytest.approx(5.0)  # hard half with thin history
+    assert tpm.cap == pytest.approx(tpm_before)
+
+
+def test_r_dimension_soft_floor_is_integer():
+    b = TokenBucket(window_seconds=WINDOW, cap=15.0, tokens=15.0, dimension="R")
+    b._floor_cap = 15.0
+    b._period_consumed = 10.0
+    b.on_429(observed_rate=1.0, soft=True)  # 1*0.95 < floor 7.5 → floor
+    assert b.cap == 8
+    assert isinstance(b.cap, (int, float))
+    assert float(b.cap) == int(b.cap)
+
+
+def test_r_dimension_soft_cut_rounds_to_integer():
+    b = TokenBucket(window_seconds=WINDOW, cap=15.0, tokens=15.0, dimension="R")
+    b._period_consumed = 1.0
+    b.on_429(observed_rate=1.0, soft=True)  # 15 * 0.9 = 13.5 → 14
+    assert b.cap == 14
+
+
+def test_gemini_default_tpm_is_250k():
+    assert PROVIDER_RATE_DEFAULTS["gemini"]["TPM"] == 250_000
+
+
+def test_gemini_provider_wide_tpm_starts_at_2_5m(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("gemini", "key-abc12345", None)
+    mg = rl.get_group("gemini", "key-abc12345", "gemini-2.5-flash-lite")
+    assert mg.buckets["TPM"].cap == pytest.approx(250_000.0)
+    assert pw.buckets["TPM"].cap == pytest.approx(2_500_000.0)
+
+
+def test_list_groups_emits_integer_rpx(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("gemini", "key-abc12345", None)
+    pw.buckets["RPM"].cap = 7.5
+    pw.buckets["RPM"].tokens = 7.5
+    gk = rl._group_key("gemini", "key-abc12345", None)
+    rows = rl.list_groups(include_orphans=True, configured_ids={gk})
+    assert len(rows) == 1
+    rpm = rows[0]["buckets"]["RPM"]
+    assert rpm["cap"] == 8
+    assert isinstance(rpm["cap"], int)
+    assert isinstance(rpm["used"], int)
+    assert isinstance(rpm["tokens"], int)

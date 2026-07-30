@@ -117,6 +117,11 @@ RATE_LEARN_NUDGE_PCT_PROVIDER       = _float_env("RATE_LEARN_NUDGE_PCT_PROVIDER"
 RATE_PROVIDER_CAP_MULTIPLIER      = _float_env("RATE_PROVIDER_CAP_MULTIPLIER", 10.0)
 # Soft 429 cuts must not sink a bucket below this fraction of unmultiplied defaults.
 RATE_LEARN_SOFT_FLOOR_FRAC        = _float_env("RATE_LEARN_SOFT_FLOOR_FRAC", 0.5)
+# On headerless 429, only cut buckets at or below this headroom (binding).
+# If none qualify, cut every bucket within RATE_LEARN_HEADROOM_TIE_EPS of the
+# lowest headroom (refill noise otherwise picks an arbitrary sibling window).
+RATE_LEARN_BINDING_HEADROOM       = _float_env("RATE_LEARN_BINDING_HEADROOM", 0.25)
+RATE_LEARN_HEADROOM_TIE_EPS       = _float_env("RATE_LEARN_HEADROOM_TIE_EPS", 0.01)
 # When lifting for an oversized single request, size the cap to this multiple of
 # the debit so one success does not leave ~0% headroom and soft-lock the next turn.
 RATE_REQUEST_BURST_FACTOR         = _float_env("RATE_REQUEST_BURST_FACTOR", 2.0)
@@ -152,14 +157,16 @@ class TokenBucket:
     """One window × one dimension (requests or tokens)."""
 
     def __init__(self, window_seconds: float, cap: float,
-                 tokens: float = None, last_refill: float = None):
+                 tokens: float = None, last_refill: float = None,
+                 dimension: str = "T"):
         self.window_seconds        = window_seconds
-        self.cap                   = float(cap)
-        self._initial_cap          = float(cap)
+        self.dimension             = dimension if dimension in ("R", "T") else "T"
+        self.cap                   = self._coerce_cap(float(cap))
+        self._initial_cap          = self.cap
         # Soft-cut / migration floor (unmultiplied defaults for PW groups).
-        self._floor_cap            = float(cap)
+        self._floor_cap            = self.cap
         fill = max(0.0, min(1.0, RATE_BUCKET_INITIAL_FILL))
-        self.tokens                = float(cap * fill if tokens is None else tokens)
+        self.tokens                = float(self.cap * fill if tokens is None else tokens)
         self.last_refill           = last_refill if last_refill is not None else time.time()
         self.active                = True
         self._hit_zero             = False
@@ -167,6 +174,12 @@ class TokenBucket:
         self._consecutive_successes = 0
         self._header_pinned        = False
         self._header_obs_at        = 0.0
+
+    def _coerce_cap(self, cap: float) -> float:
+        """Request-dimension (RPx) caps are integers; token caps stay continuous."""
+        if self.dimension == "R":
+            return float(max(1, int(round(float(cap)))))
+        return float(cap)
 
     def refill(self, now: float) -> None:
         elapsed = max(0.0, now - self.last_refill)
@@ -211,7 +224,7 @@ class TokenBucket:
         if self._consecutive_successes < need:
             return None
         old = self.cap
-        self.cap = self.cap * (1.0 + pct / 100.0)
+        self.cap = self._coerce_cap(self.cap * (1.0 + pct / 100.0))
         log.info(f"[rate] nudged cap up to {self.cap:.1f}")
         self._consecutive_successes = 0
         return CapChange(old_cap=old, event="nudge", reason="success_streak")
@@ -228,10 +241,12 @@ class TokenBucket:
         if soft:
             floor = max(1.0, getattr(self, "_floor_cap", self._initial_cap)
                         * RATE_LEARN_SOFT_FLOOR_FRAC)
+            floor = self._coerce_cap(floor)
             if new_cap < floor:
                 log.info(f"[rate] soft cut floored {new_cap:.1f} → {floor:.1f}")
                 new_cap = floor
                 reason = "soft_floor"
+        new_cap = self._coerce_cap(new_cap)
         log.info(f"[rate] 429 {'soft ' if soft else ''}cut cap {self.cap:.1f} → {new_cap:.1f}")
         self.cap = new_cap
         self.tokens = 0.0
@@ -251,13 +266,14 @@ class TokenBucket:
         success leaves headroom for the next agent turn in the same window.
         """
         burst = max(1.0, RATE_REQUEST_BURST_FACTOR)
-        target = float(amount) * burst
+        target = self._coerce_cap(float(amount) * burst)
         if target <= self.cap:
             return None
         old = self.cap
         self.cap = target
         self.tokens = max(self.tokens, self.cap)
-        self._floor_cap = max(getattr(self, "_floor_cap", old), float(amount))
+        self._floor_cap = max(getattr(self, "_floor_cap", old),
+                              self._coerce_cap(float(amount)))
         log.info(f"[rate] lifted cap {old:.1f} → {self.cap:.1f} "
                  f"(request {amount:.0f} × burst {burst:g})")
         return CapChange(old_cap=old, event="lift", reason="request_burst")
@@ -269,9 +285,12 @@ class TokenBucket:
         if obs < self._header_obs_at:
             return None
         old = self.cap
-        new_cap = float(cap)
+        new_cap = self._coerce_cap(float(cap))
         self.cap = new_cap
-        self.tokens = float(remaining)
+        rem = float(remaining)
+        if self.dimension == "R":
+            rem = float(max(0, int(round(rem))))
+        self.tokens = rem
         self._header_pinned = True
         self._header_obs_at = obs
         self._consecutive_successes = 0
@@ -301,10 +320,12 @@ class TokenBucket:
         return {"cap": self.cap, "tokens": self.tokens, "last_refill": self.last_refill}
 
     @classmethod
-    def from_dict(cls, d: dict, window_seconds: float, initial_cap: float) -> "TokenBucket":
+    def from_dict(cls, d: dict, window_seconds: float, initial_cap: float,
+                  dimension: str = "T") -> "TokenBucket":
         b = cls(window_seconds=window_seconds, cap=d["cap"],
-                tokens=d.get("tokens"), last_refill=d.get("last_refill"))
-        b._initial_cap = initial_cap
+                tokens=d.get("tokens"), last_refill=d.get("last_refill"),
+                dimension=dimension)
+        b._initial_cap = b._coerce_cap(initial_cap)
         return b
 
 
@@ -314,7 +335,7 @@ class TokenBucket:
 
 PROVIDER_RATE_DEFAULTS: dict[str, dict[str, float]] = {
     "groq":         {"RPM": 30,  "TPM": 6_000,  "RPD": 14_400},
-    "gemini":       {"RPM": 15,  "TPM": 32_000, "RPD": 1_500},
+    "gemini":       {"RPM": 15,  "TPM": 250_000, "RPD": 1_500},
     "openrouter":   {"RPM": 20,  "TPM": 20_000},
     "mistral":      {"RPM": 5,   "TPM": 16_000},
     "cohere":       {"RPM": 20,  "TPM": 10_000},
@@ -357,6 +378,29 @@ def _dim_window_to_limit(dim: str, window: str) -> str:
     return f"{prefix}P{window}"   # e.g. "RPM", "TPD"
 
 
+def _format_bucket_metrics(name: str, b: TokenBucket, *, include_tokens: bool = False) -> dict:
+    """Serialize bucket metrics; RPx caps/used/tokens as ints, TPx as 1-dp floats."""
+    used = max(0.0, b.cap - b.tokens)
+    dim = LIMIT_KEYS.get(name, (getattr(b, "dimension", "T"),))[0]
+    if dim == "R":
+        out = {
+            "cap": int(round(b.cap)),
+            "used": int(round(used)),
+            "headroom": round(b.headroom(), 3),
+        }
+        if include_tokens:
+            out["tokens"] = int(round(b.tokens))
+    else:
+        out = {
+            "cap": round(b.cap, 1),
+            "used": round(used, 1),
+            "headroom": round(b.headroom(), 3),
+        }
+        if include_tokens:
+            out["tokens"] = round(b.tokens, 1)
+    return out
+
+
 def _parse_retry_after(value, default: int | None = None) -> int | None:
     """Parse a Retry-After header. RFC 9110 allows delay-seconds or an HTTP date;
     fractional seconds are accepted. Returns default (or None) when unparsable."""
@@ -379,9 +423,10 @@ class BucketGroup:
         for limit_name, cap in caps.items():
             if limit_name not in LIMIT_KEYS:
                 continue
-            _, window_key = LIMIT_KEYS[limit_name]
+            dim, window_key = LIMIT_KEYS[limit_name]
             self.buckets[limit_name] = TokenBucket(
-                window_seconds=WINDOWS[window_key], cap=float(cap))
+                window_seconds=WINDOWS[window_key], cap=float(cap),
+                dimension=dim)
 
     def _active(self):
         return [b for b in self.buckets.values() if b.active]
@@ -456,12 +501,23 @@ class BucketGroup:
         if apply_headers:
             changes, header_touched = self._apply_headers(
                 headers, on_429=True, observed_at=observed_at)
+        # Snapshot headroom before any cut so RPM exhaustion does not poison TPM.
+        candidates: list[tuple[str, TokenBucket, float]] = []
         for name, b in self.buckets.items():
             if name in header_touched:
                 continue
             if not b.active:
                 b.active = True
                 log.info(f"[rate] bucket {name} re-activated by 429")
+            candidates.append((name, b, b.headroom()))
+        binding = [(n, b, hr) for n, b, hr in candidates
+                   if hr <= RATE_LEARN_BINDING_HEADROOM]
+        if not binding and candidates:
+            min_hr = min(hr for _, _, hr in candidates)
+            # Include near-ties (refill drift across windows is ~1e-6–1e-3).
+            binding = [(n, b, hr) for n, b, hr in candidates
+                       if hr <= min_hr + RATE_LEARN_HEADROOM_TIE_EPS]
+        for name, b, _hr in binding:
             change = b.on_429(observed_rate=b._period_consumed, soft=soft)
             if change is not None:
                 changes.append((name, change))
@@ -514,7 +570,8 @@ class BucketGroup:
             limit_name = _dim_window_to_limit(dim, window_key)
             if limit_name not in self.buckets:
                 _, wk = LIMIT_KEYS[limit_name]
-                b = TokenBucket(window_seconds=WINDOWS[wk], cap=cap_val, tokens=rem_val)
+                b = TokenBucket(window_seconds=WINDOWS[wk], cap=cap_val,
+                                tokens=rem_val, dimension=dim)
                 change = b.set_from_header(cap_val, rem_val, observed_at=obs)
                 if change is None:
                     change = CapChange(old_cap=cap_val, event="header_pin", reason="header")
@@ -822,12 +879,7 @@ class AdaptiveRateLimiter:
                 for name, b in g.buckets.items():
                     if not b.active:
                         continue
-                    used = b.cap - b.tokens
-                    out[name] = {
-                        "cap":      round(b.cap, 1),
-                        "used":     round(max(0.0, used), 1),
-                        "headroom": round(b.headroom(), 3),
-                    }
+                    out[name] = _format_bucket_metrics(name, b)
                 return out
 
             blocked_until = 0.0
@@ -857,14 +909,9 @@ class AdaptiveRateLimiter:
                 buckets = {}
                 for name, b in g.buckets.items():
                     b.refill(now)
-                    used = max(0.0, b.cap - b.tokens)
-                    buckets[name] = {
-                        "cap": round(b.cap, 1),
-                        "used": round(used, 1),
-                        "tokens": round(b.tokens, 1),
-                        "headroom": round(b.headroom(), 3),
-                        "active": b.active,
-                    }
+                    metrics = _format_bucket_metrics(name, b, include_tokens=True)
+                    metrics["active"] = b.active
+                    buckets[name] = metrics
                 active = [(n, d) for n, d in buckets.items() if d["active"]]
                 # Default view hides dormant groups (no active buckets); the
                 # dashboard "Show dormant / orphan groups" toggle maps to
@@ -930,10 +977,10 @@ class AdaptiveRateLimiter:
                         floor = base_caps.get(name)
                         if floor is None:
                             continue
-                        b._floor_cap = float(floor)
-                        min_ok = float(floor) * RATE_LEARN_SOFT_FLOOR_FRAC
+                        b._floor_cap = b._coerce_cap(float(floor))
+                        min_ok = b._coerce_cap(float(floor) * RATE_LEARN_SOFT_FLOOR_FRAC)
                         if b.cap + 1e-9 < min_ok:
-                            target = float(full_caps.get(name, floor))
+                            target = b._coerce_cap(float(full_caps.get(name, floor)))
                             log.info(
                                 f"[rate] migrate {gk} {name} cap "
                                 f"{b.cap:.1f} → {target:.1f} (below floor)")
