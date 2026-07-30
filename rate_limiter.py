@@ -229,6 +229,7 @@ class BucketGroup:
         self.buckets: dict[str, TokenBucket] = {}
         self._requests_this_period = 0
         self.blocked_until = 0.0
+        self._last_surprise_cut_at = 0.0
         caps = caps or _load_caps_for(provider_name)
         for limit_name, cap in caps.items():
             if limit_name not in LIMIT_KEYS:
@@ -533,14 +534,20 @@ class AdaptiveRateLimiter:
                 mg.on_success(token_count)  # model defaults
 
     def on_429(self, provider_name: str, key: str, model: str,
-               headers: dict) -> None:
+               headers: dict, *, model_headroom_before: float | None = None) -> None:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
             if mg is pw:
                 pw.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
-            else:
-                pw.on_429(headers, apply_retry_after=False, apply_headers=False, soft=True)
-                mg.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
+                return
+            pw.on_429(headers, apply_retry_after=False, apply_headers=False, soft=True)
+            mg.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
+            now = time.time()
+            if (model_headroom_before is not None
+                    and model_headroom_before >= 0.9
+                    and (now - pw._last_surprise_cut_at) >= 60.0):
+                pw.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
+                pw._last_surprise_cut_at = now
 
     def update_from_headers(self, provider_name: str, key: str, model: str,
                             headers: dict) -> None:

@@ -1,4 +1,5 @@
 import time, pytest
+import rate_limiter
 from rate_limiter import TokenBucket, BucketGroup, LIMIT_KEYS, PROVIDER_RATE_DEFAULTS
 
 WINDOW = 60.0  # 1-minute bucket
@@ -588,6 +589,56 @@ def test_update_from_headers_model_only(tmp_path):
     assert mg.buckets["RPM"].tokens == pytest.approx(40.0)
     assert pw.buckets["RPM"].cap == pytest.approx(pw_rpm_before)
     assert pw.buckets["RPM"].tokens == pytest.approx(pw_tok_before)
+
+
+def test_on_429_surprise_extra_soft_cut_when_model_headroom_high(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 10.0)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    # Restore PW tokens/caps to a known full state for a clean cut measurement
+    for b in pw.buckets.values():
+        b.cap = 100.0
+        b.tokens = 100.0
+        b._period_consumed = 0.0
+    cap_before = pw.buckets["RPM"].cap
+    # High pre-attempt model headroom → surprise path
+    rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=1.0)
+    # Normal soft (no history) → ×0.9, then surprise soft → ×0.9 again
+    assert pw.buckets["RPM"].cap == pytest.approx(cap_before * 0.9 * 0.9)
+
+
+def test_on_429_no_surprise_when_model_headroom_low(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 10.0)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    for b in pw.buckets.values():
+        b.cap = 100.0
+        b.tokens = 100.0
+        b._period_consumed = 0.0
+    cap_before = pw.buckets["RPM"].cap
+    rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=0.2)
+    assert pw.buckets["RPM"].cap == pytest.approx(cap_before * 0.9)
+
+
+def test_on_429_surprise_throttled_within_60s(tmp_path, monkeypatch):
+    rl = make_limiter(tmp_path)
+    rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 10.0)
+    pw = rl.get_group("groq", "key-abc12345", None)
+    for b in pw.buckets.values():
+        b.cap = 100.0
+        b.tokens = 100.0
+        b._period_consumed = 0.0
+    t0 = 1_000_000.0
+    monkeypatch.setattr(rate_limiter.time, "time", lambda: t0)
+    rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=1.0)
+    cap_after_first = pw.buckets["RPM"].cap
+    for b in pw.buckets.values():
+        b.tokens = b.cap
+        b._period_consumed = 0.0
+    monkeypatch.setattr(rate_limiter.time, "time", lambda: t0 + 10.0)
+    rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=1.0)
+    # Second 429 within 60s: soft once only (no second surprise)
+    assert pw.buckets["RPM"].cap == pytest.approx(cap_after_first * 0.9)
 
 
 def test_on_429_asymmetric_cuts(tmp_path):

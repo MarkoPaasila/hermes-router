@@ -5505,7 +5505,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             if resp.status_code == 429:
                 stats.record_error(name)
                 # 429 is NOT a health failure — TBF learns + Retry-After hold.
-                rate_limiter.on_429(name, key, model, dict(resp.headers))
+                rate_limiter.on_429(
+                    name, key, model, dict(resp.headers),
+                    model_headroom_before=_current_headroom,
+                )
                 log.warning(f"  {name}/{model} 429 — TBF hold, trying next")
                 continue
 
@@ -5666,7 +5669,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     (log.debug if _transient else log.warning)(
                         f"  {name}/{model} 2xx without choices — cascading: {str(emsg)[:140]}")
                     if _transient:
-                        rate_limiter.on_429(name, key, model, dict(resp.headers))
+                        rate_limiter.on_429(
+                            name, key, model, dict(resp.headers),
+                            model_headroom_before=_current_headroom,
+                        )
                     break
                 if not _completion_has_output(data):
                     stats.record_error(name)
@@ -5934,7 +5940,10 @@ def embeddings():
                 continue
             if resp.status_code == 429:
                 stats.record_error(name)
-                rate_limiter.on_429(name, key, em, dict(resp.headers))
+                rate_limiter.on_429(
+                    name, key, em, dict(resp.headers),
+                    model_headroom_before=_current_headroom,
+                )
                 log.warning(f"  {name} embeddings 429 — TBF hold, trying next key")
                 continue
             if resp.status_code in (400, 401, 403, 404):
