@@ -297,10 +297,6 @@ BREAKER_COOLDOWN    = int(os.environ.get("BREAKER_COOLDOWN", 60))       # second
 # Providers known for low-latency inference — promoted for short requests
 _FAST_PROVIDERS = {"groq", "cerebras", "sambanova", "mistral"}
 
-# Per-request counter for round-robin among equally-rated providers.
-# itertools.count().__next__ is atomic in CPython, so it's thread-safe.
-_rr_counter = itertools.count()
-
 # ── Smart routing: capability ratings ─────────────────────────────────────────
 # 1=outstanding  2=best  3=good  4=fair  5=basic  (lower = more capable)
 # Recommended base model: set ROUTER_BASE_MODEL_PROVIDER + ROUTER_BASE_MODEL
@@ -1576,7 +1572,7 @@ def classify_complexity(messages: list) -> int:
 
 
 def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
-                       prefer_local: bool = False) -> list:
+                       prefer_local: bool = False, sticky: dict | None = None) -> list:
     """
     Rank every configured (provider, model) for this complexity: cheapest capable
     model first, then better same-price models, then too-weak as last resort. Never blocks. Returns
@@ -1592,9 +1588,8 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
     providers win ties. With prefer_local (the `:fast` profile), a configured local
     model leads on easy turns (complexity ≥ 3), with cloud as fallback.
 
-    Round-robin: the PROVIDER list is rotated by a per-request counter before
-    flattening, so providers that tie on every criterion spread load; the sort is
-    stable, so equal-keyed candidates keep their (rotated) relative order.
+    When sticky is provided and its (provider, model) is still in the catalog,
+    that candidate is moved to the front after scoring.
     """
     fast_first = FAST_ROUTE_TOKENS > 0 and 0 < est_tokens < FAST_ROUTE_TOKENS
 
@@ -1610,11 +1605,11 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         # Health-aware terms — tier/sort_within stay FIRST so capability matching
         # is never overridden by health (a healthy weak model must not outrank the
         # correct-capability one). When every candidate is healthy these two terms
-        # are constant (0), leaving the existing round-robin/tie order untouched.
+        # are constant (0), leaving the existing tie order untouched.
         breaker_open = 1 if stats.breaker_open(name) else 0  # open breakers sink within tier
         health       = stats.health_bucket(name)             # 0 healthy / 1 degraded / 2 bad
         # Rate headroom: 0.0 = full headroom (best sort position), 1.0 = empty (worst)
-        _peek_key = pool.get_key(name, model)
+        _peek_key = pool.peek_key(name, model)
         _rate_score = 0.0
         if _peek_key:
             _rate_score = 1.0 - rate_limiter.headroom(name, _peek_key, model)
@@ -1632,13 +1627,19 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         return (local_first, tier, price, quality, sort_within, breaker_open, health,
                 _rate_score, 0 if avail else 1, fast, cand["list_index"])
 
-    n = len(providers)
-    offset = next(_rr_counter) % n if n else 0
-    rotated = providers[offset:] + providers[:offset]
     candidates = [{"provider": p, "model": m, "list_index": i}
-                  for p in rotated
+                  for p in providers
                   for i, m in enumerate(p.get("models") or [p["model"]])]
-    return sorted(candidates, key=_key)
+    ordered = sorted(candidates, key=_key)
+    if sticky:
+        sp, sm = sticky.get("provider"), sticky.get("model")
+        if sp and sm:
+            for i, c in enumerate(ordered):
+                if c["provider"]["name"] == sp and c["model"] == sm:
+                    if i > 0:
+                        ordered = [ordered[i]] + ordered[:i] + ordered[i + 1:]
+                    break
+    return ordered
 
 
 def _env_flag(name: str, suffix: str, model: str):
@@ -6471,7 +6472,7 @@ def status():
             entry["token_caps"] = _tc
         _rl = {}
         for _m in _models:
-            _k = pool.get_key(p["name"], _m)
+            _k = pool.peek_key(p["name"], _m)
             if _k:
                 _rl[_m] = rate_limiter.snapshot(p["name"], _k, _m)
         entry["rate_limits"] = _rl
