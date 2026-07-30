@@ -143,12 +143,10 @@ SEMANTIC_THRESHOLD = float(os.environ.get("SEMANTIC_CACHE_THRESHOLD", "0.95"))
 COST_CURRENCY      = os.environ.get("COST_CURRENCY", "USD").strip().upper() or "USD"
 try:    COST_FX_RATE = float(os.environ.get("COST_FX_RATE", 0) or 0)
 except (TypeError, ValueError): COST_FX_RATE = 0.0
-# How keys are picked within a provider:
-#   round-robin — spread requests evenly across all keys (keys deplete together)
-#   sequential  — drain one key until it rate-limits, then move on (keeps reserves fresh)
-ROTATION_MODE     = os.environ.get("ROTATION_MODE", "round-robin").strip().lower()
-if ROTATION_MODE not in ("round-robin", "sequential"):
-    ROTATION_MODE = "round-robin"   # unknown value → safe default
+# Keys are sticky-until-fail (preferred key when ready, else first ready in deque order).
+_raw_rotation = os.environ.get("ROTATION_MODE", "").strip()
+if _raw_rotation:
+    log.warning(f"ROTATION_MODE={_raw_rotation!r} is ignored; keys are sticky-until-fail")
 STATE_FILE        = Path(os.environ.get("ROUTER_STATE_FILE", "./router_state.json"))
 RATE_STATE_FILE   = Path(os.environ.get("RATE_STATE_FILE", "./rate_limits_state.json"))
 TOKEN_CAPS_ENABLED = os.environ.get("TOKEN_CAPS", "1").strip().lower() not in (
@@ -1789,17 +1787,14 @@ def _initialize_ratings(providers: list, pool_ref):
 class CredentialPool:
     """Thread-safe key pool with per-key health cooldown tracking.
 
-    Two selection modes (set once via ROTATION_MODE):
-      round-robin — advance every call so load spreads evenly across keys
-      sequential  — keep returning the same key until it cools, then advance;
-                    this drains one account at a time and keeps the rest fresh
+    Keys are sticky-until-fail: return the preferred key when ready, otherwise
+    the first ready key in stable deque order (no rotation).
 
     Upstream rate limits are handled by AdaptiveRateLimiter (TBF), not this pool.
     cool_until here is only for network/5xx health failures via mark_key_down."""
 
-    def __init__(self, providers: list[dict], mode: str = None):
+    def __init__(self, providers: list[dict]):
         self.lock  = threading.Lock()
-        self.mode  = mode or ROTATION_MODE
         # provider -> { model -> deque({key, cool_until}) }. Each model gets its own
         # key deque so health cooldowns (mark_key_down) are tracked per (key, model).
         # Upstream rate limits go through AdaptiveRateLimiter, not cool_until.
@@ -1818,24 +1813,27 @@ class CredentialPool:
             }
             log.info(f"  {p['name']}: {len(p['keys'])} key(s) × {len(self.pools[p['name']])} model(s) loaded")
 
-    def get_key(self, provider_name: str, model: str) -> str | None:
-        """Return a ready key for (provider, model) per the active mode, or None."""
+    def peek_key(self, provider_name: str, model: str) -> str | None:
+        """Return the first ready key without rotating or bumping key_requests."""
         with self.lock:
             pool = self.pools.get(provider_name, {}).get(model, deque())
             now  = time.time()
-            if self.mode == "sequential":
-                # Stay on the current key until it cools; only advance past cooling ones.
-                for _ in range(len(pool)):
-                    entry = pool[0]
-                    if entry["cool_until"] <= now:
+            for entry in pool:
+                if entry["cool_until"] <= now:
+                    return entry["key"]
+            return None
+
+    def get_key(self, provider_name: str, model: str, preferred: str | None = None) -> str | None:
+        """Return a ready key for (provider, model), or None."""
+        with self.lock:
+            pool = self.pools.get(provider_name, {}).get(model, deque())
+            now  = time.time()
+            if preferred:
+                for entry in pool:
+                    if entry["key"] == preferred and entry["cool_until"] <= now:
                         self.key_requests[(provider_name, entry["key"])] += 1
-                        return entry["key"]      # do NOT rotate — keep draining this key
-                    pool.rotate(-1)
-                return None
-            # round-robin (default): advance every call so load spreads evenly
-            for _ in range(len(pool)):
-                entry = pool[0]
-                pool.rotate(-1)
+                        return entry["key"]
+            for entry in pool:
                 if entry["cool_until"] <= now:
                     self.key_requests[(provider_name, entry["key"])] += 1
                     return entry["key"]
@@ -6212,20 +6210,12 @@ def config_feature(name):
 
 @app.route("/v1/config/rotation", methods=["POST"])
 def config_rotation():
-    """Set key rotation mode from the dashboard. Body: {"mode": "round-robin"|"sequential"}."""
+    """Rotation mode selection was removed; keys are sticky-until-fail."""
     err = _auth_check()
     if err:
         return err
-    body = request.get_json(force=True, silent=True) or {}
-    mode = (body.get("mode") or "").strip().lower()
-    aliases = {"roundrobin": "round-robin", "round_robin": "round-robin", "rr": "round-robin",
-               "seq": "sequential"}
-    mode = aliases.get(mode, mode)
-    if mode not in ("round-robin", "sequential"):
-        return jsonify({"error": {"message": "mode must be 'round-robin' or 'sequential'",
-                                  "type": "invalid_request_error"}}), 400
-    _env_write_line("ROTATION_MODE", mode)
-    return jsonify({"mode": mode, "restart_required": True})
+    return jsonify({"error": {"message": "rotation mode removed",
+                              "type": "invalid_request_error"}}), 400
 
 
 @app.route("/v1/config/restart", methods=["POST"])
@@ -6510,7 +6500,7 @@ def status():
             "fast_providers":  sorted(_FAST_PROVIDERS),
         },
         "rotation": {
-            "mode": ROTATION_MODE,
+            "mode": "sticky-key",
         },
         "limits": {
             "enabled": KEY_LIMITS_ON,
@@ -6695,7 +6685,7 @@ if __name__ == "__main__":
     log.info(f"Cache: {'enabled' if CACHE_TTL > 0 else 'disabled'} (TTL={CACHE_TTL}s, max={CACHE_MAX_SIZE}"
              f"{', persistent' if cache.persistent else ''})")
     log.info(f"Fast routing: {'enabled' if FAST_ROUTE_TOKENS > 0 else 'disabled'} (threshold={FAST_ROUTE_TOKENS} tokens)")
-    log.info(f"Key rotation: {ROTATION_MODE}")
+    log.info("Key selection: sticky-until-fail")
     log.info(f"Dashboard: http://{'localhost' if HOST in ('0.0.0.0','') else HOST}:{PORT}/dashboard")
     _skips = {p["name"]: p["skip_if_tokens_over"] for p in PROVIDERS if p.get("skip_if_tokens_over")}
     if _skips:
