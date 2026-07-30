@@ -135,7 +135,7 @@ It starts from conservative built-in defaults and adjusts caps up or down based 
 `x-ratelimit-*` response headers and 429 signals. Learned limits persist across
 restarts in `rate_limits_state.json`.
 
-> Two scopes are tracked per key: **model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers). When a provider-wide group is first created, its caps start at **10×** the model/base defaults for that provider (`RATE_PROVIDER_CAP_MULTIPLIER`, default `10`). Each request debits the **same absolute amount** from both scopes, so headroom **percentages** diverge because the caps differ. On a 429, if model headroom was ≥ 90% before the attempt, provider-wide gets one extra soft cut (surprise path, at most once per 60 s per provider-wide group). Both scopes can grow caps via success nudges after natural refill — there is no probe traffic. Persisted provider-wide caps are loaded as-is and are **not** re-multiplied on restart.
+> Two scopes are tracked per key: **model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). Header-synced caps stay pinned (no success AIMD nudge until a non-header 429). Header applies use request-start observation time so stale responses cannot overwrite newer state. Failed upstream calls after admit release the R+T reservation on both scopes. New buckets start at `RATE_BUCKET_INITIAL_FILL` of cap (default `0.5`). **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers). When a provider-wide group is first created, its caps start at **10×** the model/base defaults for that provider (`RATE_PROVIDER_CAP_MULTIPLIER`, default `10`). Each request debits the **same absolute amount** from both scopes, so headroom **percentages** diverge because the caps differ. On a 429, if model headroom was ≥ 90% before the attempt, provider-wide gets one extra soft cut (surprise path, at most once per 60 s per provider-wide group). Both scopes can grow caps via success nudges after natural refill — there is no probe traffic. Persisted provider-wide caps are loaded as-is and are **not** re-multiplied on restart.
 
 | Env var | Default | Description |
 |---|---|---|
@@ -143,6 +143,7 @@ restarts in `rate_limits_state.json`.
 | `RATE_SHORT_WAIT_MS` | `500` | Max ms to sleep when a bucket is nearly empty before failing over |
 | `RATE_HEADROOM_THRESHOLD` | `0.05` | Fraction of cap below which a bucket triggers pacing |
 | `RATE_PROVIDER_CAP_MULTIPLIER` | `10` | Multiplier applied to base caps when creating a new provider-wide TBF group |
+| `RATE_BUCKET_INITIAL_FILL` | `0.5` | Fraction of cap for new buckets when tokens are not set explicitly |
 | `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a cap up |
 | `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase cap on a success streak |
 | `RATE_LEARN_CUT_FACTOR` | `0.8` | Multiplier applied to observed rate on 429 |

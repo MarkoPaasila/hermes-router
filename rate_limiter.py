@@ -45,6 +45,8 @@ RATE_REQUEST_BURST_FACTOR         = _float_env("RATE_REQUEST_BURST_FACTOR", 2.0)
 # candidate to refill (agent turns often arrive before the minute window resets).
 RATE_EXHAUSTED_WAIT_S             = _float_env("RATE_EXHAUSTED_WAIT_S", 60.0)
 RATE_STATE_FLUSH_INTERVAL = _int_env("RATE_STATE_FLUSH_INTERVAL", 60)
+# Fraction of cap for new buckets when tokens is omitted (conservative prior).
+RATE_BUCKET_INITIAL_FILL          = _float_env("RATE_BUCKET_INITIAL_FILL", 0.5)
 
 # ── Window definitions ────────────────────────────────────────────────────────
 
@@ -77,12 +79,15 @@ class TokenBucket:
         self._initial_cap          = float(cap)
         # Soft-cut / migration floor (unmultiplied defaults for PW groups).
         self._floor_cap            = float(cap)
-        self.tokens                = float(cap if tokens is None else tokens)
+        fill = max(0.0, min(1.0, RATE_BUCKET_INITIAL_FILL))
+        self.tokens                = float(cap * fill if tokens is None else tokens)
         self.last_refill           = last_refill if last_refill is not None else time.time()
         self.active                = True
         self._hit_zero             = False
         self._period_consumed      = 0.0
         self._consecutive_successes = 0
+        self._header_pinned        = False
+        self._header_obs_at        = 0.0
 
     def refill(self, now: float) -> None:
         elapsed = max(0.0, now - self.last_refill)
@@ -119,6 +124,8 @@ class TokenBucket:
         return (amount - self.tokens) / rate
 
     def on_success(self, streak: int | None = None, nudge_pct: float | None = None) -> None:
+        if self._header_pinned:
+            return
         need = RATE_LEARN_SUCCESS_STREAK if streak is None else streak
         pct = RATE_LEARN_NUDGE_PCT if nudge_pct is None else nudge_pct
         self._consecutive_successes += 1
@@ -147,6 +154,7 @@ class TokenBucket:
         self.tokens = 0.0
         self._consecutive_successes = 0
         self._period_consumed = 0.0
+        self._header_pinned = False
 
     def ensure_fits(self, amount: float) -> None:
         """Raise cap when a single debit exceeds the guessed ceiling.
@@ -167,12 +175,21 @@ class TokenBucket:
         log.info(f"[rate] lifted cap {old:.1f} → {self.cap:.1f} "
                  f"(request {amount:.0f} × burst {burst:g})")
 
-    def set_from_header(self, cap: float, remaining: float) -> None:
+    def set_from_header(self, cap: float, remaining: float,
+                        observed_at: float | None = None) -> bool:
+        """Snap cap/remaining from upstream headers. Returns False if stale."""
+        obs = time.time() if observed_at is None else float(observed_at)
+        if obs < self._header_obs_at:
+            return False
         self.cap    = float(cap)
         self.tokens = float(remaining)
+        self._header_pinned = True
+        self._header_obs_at = obs
+        self._consecutive_successes = 0
         if not self.active:
             self.active = True
             log.info("[rate] bucket re-activated by header")
+        return True
 
     def check_inactive(self, activity: float) -> None:
         """Mark this bucket inactive when it is not a binding constraint.
@@ -332,8 +349,10 @@ class BucketGroup:
             b.on_success(streak=streak, nudge_pct=nudge_pct)
 
     def on_429(self, headers: dict, apply_retry_after: bool = True, *,
-               apply_headers: bool = True, soft: bool = False) -> None:
-        updated = self._apply_headers(headers, on_429=True) if apply_headers else set()
+               apply_headers: bool = True, soft: bool = False,
+               observed_at: float | None = None) -> None:
+        updated = (self._apply_headers(headers, on_429=True, observed_at=observed_at)
+                   if apply_headers else set())
         for name, b in self.buckets.items():
             if name in updated:
                 continue
@@ -357,10 +376,12 @@ class BucketGroup:
             self.blocked_until = max(self.blocked_until, until)
             log.info(f"[rate] Retry-After hold until {self.blocked_until:.0f} ({retry}s)")
 
-    def update_from_headers(self, headers: dict) -> None:
-        self._apply_headers(headers, on_429=False)
+    def update_from_headers(self, headers: dict,
+                            observed_at: float | None = None) -> None:
+        self._apply_headers(headers, on_429=False, observed_at=observed_at)
 
-    def _apply_headers(self, headers: dict, on_429: bool) -> set:
+    def _apply_headers(self, headers: dict, on_429: bool,
+                       observed_at: float | None = None) -> set:
         """Parse x-ratelimit-* headers and update matching buckets. Returns
         set of limit names that were updated from headers."""
         updated = set()
@@ -376,6 +397,7 @@ class BucketGroup:
                 suffix = k[len("x-ratelimit-remaining-"):]
                 try: remaining[suffix] = float(val)
                 except (TypeError, ValueError): pass
+        obs = time.time() if observed_at is None else float(observed_at)
         for suffix, cap_val in limits.items():
             rem_val = remaining.get(suffix, cap_val)
             pair = _HEADER_MAP.get(suffix)
@@ -385,12 +407,16 @@ class BucketGroup:
             limit_name = _dim_window_to_limit(dim, window_key)
             if limit_name not in self.buckets:
                 _, wk = LIMIT_KEYS[limit_name]
-                self.buckets[limit_name] = TokenBucket(
+                b = TokenBucket(
                     window_seconds=WINDOWS[wk], cap=cap_val, tokens=rem_val)
-                log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
+                if b.set_from_header(cap_val, rem_val, observed_at=obs):
+                    self.buckets[limit_name] = b
+                    log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
+                    updated.add(limit_name)
             else:
-                self.buckets[limit_name].set_from_header(cap_val, rem_val)
-            updated.add(limit_name)
+                if self.buckets[limit_name].set_from_header(
+                        cap_val, rem_val, observed_at=obs):
+                    updated.add(limit_name)
         return updated
 
     def run_inactive_check(self) -> None:
@@ -423,7 +449,8 @@ class BucketGroup:
         g = cls(provider_name=provider_name, caps=caps)
         for name, bdict in bucket_data.items():
             if name in g.buckets:
-                g.buckets[name].tokens = min(bdict["cap"] * 0.5,
+                fill = max(0.0, min(1.0, RATE_BUCKET_INITIAL_FILL))
+                g.buckets[name].tokens = min(bdict["cap"] * fill,
                                              bdict.get("tokens", bdict["cap"]))
                 g.buckets[name].last_refill = bdict.get("last_refill", time.time())
                 g.buckets[name]._initial_cap = bdict["cap"]
@@ -539,6 +566,19 @@ class AdaptiveRateLimiter:
             if mg is not pw:
                 mg.restore_tokens(token_surplus)
 
+    def release_reservation(self, provider_name: str, key: str, model: str,
+                            req_count: float, token_count: float) -> None:
+        """Undo a successful check_and_consume after a failed upstream call."""
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            for g in (pw,) if mg is pw else (pw, mg):
+                if token_count > 0:
+                    g.restore_tokens(token_count)
+                if req_count > 0:
+                    g.restore_requests(req_count)
+                    g._requests_this_period = max(
+                        0, g._requests_this_period - int(req_count))
+
     def reconcile(self, provider_name: str, key: str, model: str,
                   reserved: float, actual: float) -> None:
         """Align T-buckets with measured usage after a request completes.
@@ -577,14 +617,17 @@ class AdaptiveRateLimiter:
                 mg.on_success(token_count)  # model defaults
 
     def on_429(self, provider_name: str, key: str, model: str,
-               headers: dict, *, model_headroom_before: float | None = None) -> None:
+               headers: dict, *, model_headroom_before: float | None = None,
+               observed_at: float | None = None) -> None:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
             if mg is pw:
-                pw.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
+                pw.on_429(headers, apply_retry_after=True, apply_headers=True,
+                          soft=False, observed_at=observed_at)
                 return
             pw.on_429(headers, apply_retry_after=False, apply_headers=False, soft=True)
-            mg.on_429(headers, apply_retry_after=True, apply_headers=True, soft=False)
+            mg.on_429(headers, apply_retry_after=True, apply_headers=True,
+                      soft=False, observed_at=observed_at)
             now = time.time()
             if (model_headroom_before is not None
                     and model_headroom_before >= 0.9
@@ -593,10 +636,11 @@ class AdaptiveRateLimiter:
                 pw._last_surprise_cut_at = now
 
     def update_from_headers(self, provider_name: str, key: str, model: str,
-                            headers: dict) -> None:
+                            headers: dict, *,
+                            observed_at: float | None = None) -> None:
         with self._lock:
             _pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            mg.update_from_headers(headers)
+            mg.update_from_headers(headers, observed_at=observed_at)
 
     def headroom(self, provider_name: str, key: str, model: str) -> float:
         """Read-only headroom for ranking. Does not create bucket groups."""

@@ -47,7 +47,11 @@ Every request flows through the same pipeline:
 Every provider can hold many keys (from `auth.json` first, then `.env`). Keys are tracked in a
 thread-safe pool. **Upstream rate limits** are enforced by the adaptive token-bucket filter
 (TBF): it learns caps from response headers and 429s, paces or fails over when headroom is
-thin, and honors `Retry-After` as a hold on that (key, model) scope. The credential pool's
+thin, and honors `Retry-After` as a hold on that (key, model) scope. Header snaps are
+authoritative for that model bucket (success AIMD nudges are skipped while pinned). New
+buckets start at half fill; failed upstream attempts after admit release the reservation.
+Header updates carry request-start time so older in-flight responses cannot overwrite newer
+state. The credential pool's
 per-key cool-downs are only for **health** failures (network errors / 5xx via `mark_key_down`),
 not for rate limits.
 

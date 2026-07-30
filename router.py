@@ -2627,7 +2627,7 @@ class _StreamWithUsage:
 
 def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None,
                           resp_headers: dict = None, provider: dict | None = None,
-                          est_tokens: float = 0.0):
+                          est_tokens: float = 0.0, observed_at: float | None = None):
     """Wrap a streaming generator to capture the usage block from the final SSE
     chunk (present when stream_options.include_usage=true is sent upstream) and
     record tokens + cost in _provider_tokens/_provider_cost. Yields every chunk
@@ -2679,7 +2679,8 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
             if key:
                 _actual = float(usage.get("total_tokens") or 0)
                 rate_limiter.reconcile(name, key, model, float(est_tokens or 0), _actual)
-                rate_limiter.update_from_headers(name, key, model, resp_headers or {})
+                rate_limiter.update_from_headers(
+                    name, key, model, resp_headers or {}, observed_at=observed_at)
                 rate_limiter.on_success(name, key, model, _actual)
 
     return _StreamWithUsage(_inner(), captured)
@@ -5496,28 +5497,37 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                         _best_rl_wait = float(_rl_wait)
                     log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
                     continue
+            _rl_t0 = time.time()
             _req_ctx.attempts += 1
-            t0   = time.time()
+            t0   = _rl_t0
             resp = forward(provider, key, payload, streaming, model)
             elapsed = time.time() - t0
 
+            def _rl_release():
+                rate_limiter.release_reservation(
+                    name, key, model, 1.0, _est_tokens)
+
             if resp is None:
+                _rl_release()
                 stats.record_error(name)
                 stats.record_health(name, False)   # network/timeout = provider health failure
                 pool.mark_key_down(name, key, retry_after=30)
                 continue
 
             if resp.status_code == 429:
+                _rl_release()
                 stats.record_error(name)
                 # 429 is NOT a health failure — TBF learns + Retry-After hold.
                 rate_limiter.on_429(
                     name, key, model, dict(resp.headers),
                     model_headroom_before=_current_headroom,
+                    observed_at=_rl_t0,
                 )
                 log.warning(f"  {name}/{model} 429 — TBF hold, trying next")
                 continue
 
             if resp.status_code in (401, 403):
+                _rl_release()
                 stats.record_error(name)
                 btxt = (resp.text or "")[:300]
                 # Some gateways (e.g. OpenCode) return a MODEL-level rejection as a
@@ -5557,12 +5567,14 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 )
 
             if resp.status_code in (400, 404):
+                _rl_release()
                 stats.record_error(name)
                 # model-specific (e.g. bad model name) — just skip this candidate.
                 log.warning(f"  {name}/{model} {resp.status_code} — skipping this model: {resp.text[:150]}")
                 break
 
             if resp.status_code == 413:
+                _rl_release()
                 stats.record_error(name)
                 # payload-specific — bigger model won't help; cascade providers.
                 log.warning(f"  {name} 413 — payload too large, cascading")
@@ -5570,12 +5582,14 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 break
 
             if resp.status_code >= 500:
+                _rl_release()
                 stats.record_error(name)
                 stats.record_health(name, False)   # 5xx = provider health failure
                 pool.mark_key_down(name, key, retry_after=15)
                 continue
 
             if not (200 <= resp.status_code < 300):
+                _rl_release()
                 stats.record_error(name)
                 stats.record_health(name, False)   # unexpected non-2xx = health failure
                 log.warning(f"  {name} unexpected {resp.status_code} — skipping provider")
@@ -5630,7 +5644,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     )
                 _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
                 rate_limiter.reconcile(name, key, model, _est_tokens, _actual_tokens)
-                rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
+                rate_limiter.update_from_headers(
+                    name, key, model, dict(resp.headers), observed_at=_rl_t0)
                 rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
                 if _response_has_tool_calls(data):
@@ -5642,7 +5657,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 wrapped = _streaming_with_usage(
                     _with_cleanup(resp, gen), name, model, key=key,
                     resp_headers=dict(resp.headers), provider=provider,
-                    est_tokens=_est_tokens,
+                    est_tokens=_est_tokens, observed_at=_rl_t0,
                 )
                 return ("stream", wrapped, name)
             else:
@@ -5658,6 +5673,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 # non-JSON body. Don't surface that to the caller as the answer —
                 # treat it as a provider failure and cascade.
                 if not isinstance(data, dict) or not data.get("choices"):
+                    _rl_release()
                     stats.record_error(name)
                     stats.record_health(name, False)
                     err = data.get("error") if isinstance(data, dict) else None
@@ -5677,9 +5693,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                         rate_limiter.on_429(
                             name, key, model, dict(resp.headers),
                             model_headroom_before=_current_headroom,
+                            observed_at=_rl_t0,
                         )
                     break
                 if not _completion_has_output(data):
+                    _rl_release()
                     stats.record_error(name)
                     stats.record_health(name, False)
                     log.warning(f"  {name}/{model} empty completion — cascading")
@@ -5700,7 +5718,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     )
                 _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
                 rate_limiter.reconcile(name, key, model, _est_tokens, _actual_tokens)
-                rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
+                rate_limiter.update_from_headers(
+                    name, key, model, dict(resp.headers), observed_at=_rl_t0)
                 rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
                 if _response_has_tool_calls(data):
@@ -5943,31 +5962,41 @@ def embeddings():
                 if not _rl_ok:
                     log.info(f"  {name}/{em} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
                     continue
-            t0   = time.time()
+            _rl_t0 = time.time()
+            t0   = _rl_t0
             resp = forward_embeddings(provider, key, payload)
             elapsed = time.time() - t0
 
+            def _rl_release():
+                rate_limiter.release_reservation(name, key, em, 1.0, _est_tokens)
+
             if resp is None:
+                _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=30)
                 continue
             if resp.status_code == 429:
+                _rl_release()
                 stats.record_error(name)
                 rate_limiter.on_429(
                     name, key, em, dict(resp.headers),
                     model_headroom_before=_current_headroom,
+                    observed_at=_rl_t0,
                 )
                 log.warning(f"  {name} embeddings 429 — TBF hold, trying next key")
                 continue
             if resp.status_code in (400, 401, 403, 404):
+                _rl_release()
                 stats.record_error(name)   # request/auth/model-specific, not a health failure
                 log.error(f"  {name} embeddings {resp.status_code} — skipping provider: {resp.text[:200]}")
                 break
             if resp.status_code >= 500:
+                _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=15)
                 continue
             if not (200 <= resp.status_code < 300):
+                _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 log.warning(f"  {name} embeddings unexpected {resp.status_code} — skipping provider")
                 break
@@ -5977,7 +6006,8 @@ def embeddings():
             data = resp.json()
             _actual = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
             rate_limiter.reconcile(name, key, em, _est_tokens, _actual)
-            rate_limiter.update_from_headers(name, key, em, dict(resp.headers))
+            rate_limiter.update_from_headers(
+                name, key, em, dict(resp.headers), observed_at=_rl_t0)
             rate_limiter.on_success(name, key, em, _actual)
             key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)
             _add_provider_tokens(name, data)

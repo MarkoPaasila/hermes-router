@@ -8,6 +8,19 @@ def make_bucket(cap=10.0, tokens=None):
     return TokenBucket(window_seconds=WINDOW, cap=cap,
                        tokens=cap if tokens is None else tokens)
 
+def test_new_bucket_starts_at_half_fill():
+    b = TokenBucket(window_seconds=WINDOW, cap=100.0)
+    assert b.tokens == pytest.approx(50.0)
+
+def test_explicit_tokens_unchanged():
+    b = TokenBucket(window_seconds=WINDOW, cap=100.0, tokens=100.0)
+    assert b.tokens == pytest.approx(100.0)
+
+def test_bucketgroup_defaults_half_fill():
+    g = BucketGroup(provider_name="mistral", caps={"RPM": 10.0, "TPM": 1000.0})
+    assert g.buckets["RPM"].tokens == pytest.approx(5.0)
+    assert g.buckets["TPM"].tokens == pytest.approx(500.0)
+
 def test_consume_success():
     b = make_bucket(cap=10.0, tokens=10.0)
     assert b.consume(1.0) is True
@@ -153,6 +166,52 @@ def test_set_from_header():
     assert b.cap == 100.0
     assert b.tokens == 80.0
 
+def test_header_pin_blocks_on_success_nudge():
+    b = make_bucket(cap=100.0, tokens=100.0)
+    b.set_from_header(cap=100.0, remaining=80.0)
+    assert b._header_pinned is True
+    for _ in range(rate_limiter.RATE_LEARN_SUCCESS_STREAK):
+        b.on_success()
+    assert b.cap == pytest.approx(100.0)
+
+def test_non_header_429_clears_pin_and_cuts():
+    b = make_bucket(cap=100.0, tokens=50.0)
+    b.set_from_header(cap=100.0, remaining=50.0)
+    assert b._header_pinned is True
+    b._period_consumed = 10.0
+    b.on_429(observed_rate=10.0)
+    assert b._header_pinned is False
+    assert b.cap == pytest.approx(8.0)  # 10 * 0.8
+    assert b.tokens == 0.0
+
+def test_older_observed_at_ignored():
+    b = make_bucket(cap=100.0, tokens=50.0)
+    assert b.set_from_header(cap=100.0, remaining=40.0, observed_at=200.0) is True
+    assert b.tokens == pytest.approx(40.0)
+    assert b.set_from_header(cap=100.0, remaining=90.0, observed_at=100.0) is False
+    assert b.tokens == pytest.approx(40.0)
+    assert b._header_obs_at == pytest.approx(200.0)
+
+def test_newer_observed_at_applies():
+    b = make_bucket(cap=100.0, tokens=50.0)
+    assert b.set_from_header(cap=100.0, remaining=40.0, observed_at=100.0) is True
+    assert b.set_from_header(cap=100.0, remaining=20.0, observed_at=150.0) is True
+    assert b.tokens == pytest.approx(20.0)
+    assert b._header_obs_at == pytest.approx(150.0)
+
+def test_bucketgroup_headers_respect_observed_at():
+    g = BucketGroup(provider_name="groq", caps={"RPM": 30.0, "TPM": 6000.0})
+    g.update_from_headers({
+        "x-ratelimit-limit-requests": "30",
+        "x-ratelimit-remaining-requests": "10",
+    }, observed_at=100.0)
+    assert g.buckets["RPM"].tokens == pytest.approx(10.0)
+    g.update_from_headers({
+        "x-ratelimit-limit-requests": "30",
+        "x-ratelimit-remaining-requests": "25",
+    }, observed_at=50.0)
+    assert g.buckets["RPM"].tokens == pytest.approx(10.0)
+
 def test_restore_clamps():
     b = make_bucket(cap=10.0, tokens=9.0)
     b.restore(5.0)
@@ -227,6 +286,8 @@ def test_bucketgroup_consume_atomic_no_partial_debit():
 
 def test_bucketgroup_headroom_all_full():
     g = BucketGroup(provider_name="groq")
+    for b in g.buckets.values():
+        b.tokens = b.cap
     assert g.headroom() == pytest.approx(1.0, abs=0.05)
 
 def test_bucketgroup_restore_tokens():
@@ -293,6 +354,29 @@ def test_reconcile_debits_deficit(tmp_path):
     rl.reconcile("openrouter", "key-abc12345", "m", 4000.0, 12000.0)
     assert rl.headroom("openrouter", "key-abc12345", "m") < h_reserved - 0.2
 
+def test_release_reservation_restores_both_scopes(tmp_path):
+    rl = make_limiter(tmp_path)
+    key, model = "key-abc12345", "llama"
+    pw = rl.get_group("groq", key, None)
+    mg = rl.get_group("groq", key, model)
+    for g in (pw, mg):
+        for b in g.buckets.values():
+            b.tokens = b.cap
+            b.last_refill = time.time()
+    req_count, token_count = 1.0, 500.0
+    pw_rpm_before = pw.buckets["RPM"].tokens
+    pw_tpm_before = pw.buckets["TPM"].tokens
+    mg_rpm_before = mg.buckets["RPM"].tokens
+    mg_tpm_before = mg.buckets["TPM"].tokens
+    assert rl.check_and_consume("groq", key, model, req_count, token_count)[0]
+    assert pw.buckets["RPM"].tokens == pytest.approx(pw_rpm_before - req_count)
+    assert mg.buckets["TPM"].tokens == pytest.approx(mg_tpm_before - token_count)
+    rl.release_reservation("groq", key, model, req_count, token_count)
+    assert pw.buckets["RPM"].tokens == pytest.approx(pw_rpm_before)
+    assert pw.buckets["TPM"].tokens == pytest.approx(pw_tpm_before)
+    assert mg.buckets["RPM"].tokens == pytest.approx(mg_rpm_before)
+    assert mg.buckets["TPM"].tokens == pytest.approx(mg_tpm_before)
+
 def test_check_and_consume_passes(tmp_path):
     rl = make_limiter(tmp_path)
     ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 100.0)
@@ -342,6 +426,9 @@ def test_check_and_consume_rollback_restores_all_pw_r_buckets(tmp_path):
     pw = rl.get_group("groq", "key-abc12345", None)
     mg = rl.get_group("groq", "key-abc12345", "llama")
     req_count, token_count = 1.0, 100.0
+    for b in pw.buckets.values():
+        b.tokens = b.cap
+        b.last_refill = time.time()
     r_before = {
         name: b.tokens
         for name, b in pw.buckets.items()
