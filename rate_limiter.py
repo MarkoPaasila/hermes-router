@@ -112,6 +112,7 @@ RATE_LEARN_NUDGE_PCT      = _float_env("RATE_LEARN_NUDGE_PCT", 5.0)
 RATE_LEARN_CUT_FACTOR     = _float_env("RATE_LEARN_CUT_FACTOR", 0.8)
 RATE_LEARN_CUT_FACTOR_PROVIDER      = _float_env("RATE_LEARN_CUT_FACTOR_PROVIDER", 0.95)
 RATE_LEARN_SOFT_CUT_FACTOR          = _float_env("RATE_LEARN_SOFT_CUT_FACTOR", 0.9)
+RATE_LEARN_PW_TICK_EPS              = _float_env("RATE_LEARN_PW_TICK_EPS", 0.05)
 RATE_LEARN_SUCCESS_STREAK_PROVIDER  = _int_env("RATE_LEARN_SUCCESS_STREAK_PROVIDER", 10)
 RATE_LEARN_NUDGE_PCT_PROVIDER       = _float_env("RATE_LEARN_NUDGE_PCT_PROVIDER", 8.0)
 RATE_PROVIDER_CAP_MULTIPLIER      = _float_env("RATE_PROVIDER_CAP_MULTIPLIER", 10.0)
@@ -282,15 +283,21 @@ class TokenBucket:
         self._consecutive_successes = 0
         return CapChange(old_cap=old, event="nudge", reason="success_streak")
 
-    def on_429(self, observed_rate: float, *, soft: bool = False) -> CapChange | None:
+    def on_429(self, observed_rate: float, *, soft: bool = False,
+               tick_eps: float | None = None) -> CapChange | None:
         old = self.cap
-        if self._period_consumed >= 3:
+        if soft and tick_eps is not None:
+            frac = max(0.0, min(1.0, tick_eps * (60.0 / self.window_seconds)))
+            new_cap = max(1.0, self.cap * (1.0 - frac))
+            reason = "soft_tick"
+        elif self._period_consumed >= 3:
             factor = RATE_LEARN_CUT_FACTOR_PROVIDER if soft else RATE_LEARN_CUT_FACTOR
             new_cap = max(1.0, observed_rate * factor)
+            reason = "soft_429" if soft else "hard_429"
         else:
             frac = RATE_LEARN_SOFT_CUT_FACTOR if soft else 0.5
             new_cap = max(1.0, self.cap * frac)
-        reason = "soft_429" if soft else "hard_429"
+            reason = "soft_429" if soft else "hard_429"
         if soft:
             floor = max(1.0, getattr(self, "_floor_cap", self._initial_cap)
                         * RATE_LEARN_SOFT_FLOOR_FRAC)
@@ -559,26 +566,38 @@ class BucketGroup:
         if apply_headers:
             changes, header_touched = self._apply_headers(
                 headers, on_429=True, observed_at=observed_at)
-        # Snapshot headroom before any cut so RPM exhaustion does not poison TPM.
-        candidates: list[tuple[str, TokenBucket, float]] = []
-        for name, b in self.buckets.items():
-            if name in header_touched:
-                continue
-            if not b.active:
-                b.active = True
-                log.info(f"[rate] bucket {name} re-activated by 429")
-            candidates.append((name, b, b.headroom()))
-        binding = [(n, b, hr) for n, b, hr in candidates
-                   if hr <= RATE_LEARN_BINDING_HEADROOM]
-        if not binding and candidates:
-            min_hr = min(hr for _, _, hr in candidates)
-            # Include near-ties (refill drift across windows is ~1e-6–1e-3).
+        if soft:
+            for name, b in self.buckets.items():
+                if name in header_touched:
+                    continue
+                if not b.active:
+                    b.active = True
+                    log.info(f"[rate] bucket {name} re-activated by 429")
+                change = b.on_429(observed_rate=b._period_consumed, soft=True,
+                                  tick_eps=RATE_LEARN_PW_TICK_EPS)
+                if change is not None:
+                    changes.append((name, change))
+        else:
+            # Snapshot headroom before any cut so RPM exhaustion does not poison TPM.
+            candidates: list[tuple[str, TokenBucket, float]] = []
+            for name, b in self.buckets.items():
+                if name in header_touched:
+                    continue
+                if not b.active:
+                    b.active = True
+                    log.info(f"[rate] bucket {name} re-activated by 429")
+                candidates.append((name, b, b.headroom()))
             binding = [(n, b, hr) for n, b, hr in candidates
-                       if hr <= min_hr + RATE_LEARN_HEADROOM_TIE_EPS]
-        for name, b, _hr in binding:
-            change = b.on_429(observed_rate=b._period_consumed, soft=soft)
-            if change is not None:
-                changes.append((name, change))
+                       if hr <= RATE_LEARN_BINDING_HEADROOM]
+            if not binding and candidates:
+                min_hr = min(hr for _, _, hr in candidates)
+                # Include near-ties (refill drift across windows is ~1e-6–1e-3).
+                binding = [(n, b, hr) for n, b, hr in candidates
+                           if hr <= min_hr + RATE_LEARN_HEADROOM_TIE_EPS]
+            for name, b, _hr in binding:
+                change = b.on_429(observed_rate=b._period_consumed, soft=False)
+                if change is not None:
+                    changes.append((name, change))
         # Retry-After holds are model-scoped (caller passes apply_retry_after=False
         # for the provider-wide group so one model's 429 cannot block siblings).
         if not apply_retry_after:

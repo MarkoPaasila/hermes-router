@@ -780,8 +780,8 @@ def test_on_429_surprise_extra_soft_cut_when_model_headroom_high(tmp_path):
     cap_before = pw.buckets["RPM"].cap
     # High pre-attempt model headroom → surprise path
     rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=1.0)
-    # Normal soft (no history) → ×0.9, then surprise soft → ×0.9 again
-    assert pw.buckets["RPM"].cap == pytest.approx(cap_before * 0.9 * 0.9)
+    # Normal soft tick (M window ×0.95), then surprise soft tick → ×0.95 again
+    assert pw.buckets["RPM"].cap == pytest.approx(round(cap_before * 0.95 * 0.95))
 
 
 def test_on_429_no_surprise_when_model_headroom_low(tmp_path):
@@ -794,7 +794,7 @@ def test_on_429_no_surprise_when_model_headroom_low(tmp_path):
         b._period_consumed = 0.0
     cap_before = pw.buckets["RPM"].cap
     rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=0.2)
-    assert pw.buckets["RPM"].cap == pytest.approx(cap_before * 0.9)
+    assert pw.buckets["RPM"].cap == pytest.approx(cap_before * 0.95)
 
 
 def test_on_429_surprise_throttled_within_60s(tmp_path, monkeypatch):
@@ -815,7 +815,7 @@ def test_on_429_surprise_throttled_within_60s(tmp_path, monkeypatch):
     monkeypatch.setattr(rate_limiter.time, "time", lambda: t0 + 10.0)
     rl.on_429("groq", "key-abc12345", "llama", {}, model_headroom_before=1.0)
     # Second 429 within 60s: soft once only (no second surprise); RPx rounded
-    assert pw.buckets["RPM"].cap == pytest.approx(round(cap_after_first * 0.9))
+    assert pw.buckets["RPM"].cap == pytest.approx(round(cap_after_first * 0.95))
 
 
 def test_on_429_asymmetric_cuts(tmp_path):
@@ -828,8 +828,8 @@ def test_on_429_asymmetric_cuts(tmp_path):
         g.buckets["RPM"]._period_consumed = 10.0
     rl.on_429("groq", "key-abc12345", "llama", {})
     assert mg.buckets["RPM"].cap == pytest.approx(8.0)    # 10 * 0.8
-    # Soft PW cut floors at 0.5 × unmultiplied default RPM (30→15)
-    assert pw.buckets["RPM"].cap == pytest.approx(15.0)
+    # Soft PW tick: 5% cut on M-window RPM (window-scaled tiny tick)
+    assert pw.buckets["RPM"].cap == pytest.approx(95.0)
     assert pw.blocked_until <= time.time()
 
 
@@ -847,9 +847,9 @@ def test_on_429_headers_apply_to_model_not_pw(tmp_path):
     })
     assert mg.buckets["RPM"].cap == pytest.approx(200.0)
     assert mg.buckets["RPM"].tokens == pytest.approx(0.0)
-    # PW must not take header caps; soft-cut instead
+    # PW must not take header caps; soft-tick instead
     assert pw.buckets["RPM"].cap != pytest.approx(200.0)
-    assert pw.buckets["RPM"].cap == pytest.approx(pw_cap * 0.9)
+    assert pw.buckets["RPM"].cap == pytest.approx(pw_cap * 0.95)
 
 
 def test_on_success_pw_nudges_faster(tmp_path):
@@ -1133,3 +1133,39 @@ def test_one_consume_debits_all_ten_and_mo_pct_drops_less(tmp_path):
     tpm_after = mg.buckets["TPM"].tokens / mg.buckets["TPM"].cap
     tpmo_after = mg.buckets["TPMo"].tokens / mg.buckets["TPMo"].cap
     assert (tpm_before - tpm_after) > (tpmo_before - tpmo_after)
+
+
+def test_soft_429_ticks_all_buckets_including_high_headroom():
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    g.buckets["TPM"].tokens = 0.0                     # binding-looking
+    g.buckets["TPMo"].tokens = g.buckets["TPMo"].cap  # full
+    tpm0 = g.buckets["TPM"].cap
+    tpmo0 = g.buckets["TPMo"].cap
+    g.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
+    assert g.buckets["TPM"].cap < tpm0
+    assert g.buckets["TPMo"].cap < tpmo0  # must tick even when not binding
+    assert (tpm0 - g.buckets["TPM"].cap) / tpm0 > (tpmo0 - g.buckets["TPMo"].cap) / tpmo0
+
+
+def test_pw_soft_tick_via_limiter_no_retry_after(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    rl.get_group("openrouter", "key-abc12345", "m")
+    for b in pw.buckets.values():
+        b.tokens = b.cap
+        b._period_consumed = 0.0
+    tpm0, tpmo0 = pw.buckets["TPM"].cap, pw.buckets["TPMo"].cap
+    rl.on_429("openrouter", "key-abc12345", "m", {}, model_headroom_before=0.5)
+    assert pw.buckets["TPM"].cap < tpm0
+    assert (tpm0 - pw.buckets["TPM"].cap) / tpm0 > (tpmo0 - pw.buckets["TPMo"].cap) / tpmo0
+    assert pw.blocked_until <= time.time()
+
+
+def test_many_soft_ticks_eventually_move_mo():
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    before = g.buckets["TPH"].cap
+    for _ in range(200):
+        g.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
+    assert g.buckets["TPH"].cap < before * 0.99
