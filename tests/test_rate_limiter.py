@@ -96,7 +96,7 @@ def test_on_429_soft_without_history():
 def test_bucketgroup_consume_lifts_cap_when_request_exceeds_tpm():
     """Large agent contexts must not soft-lock when need > guessed TPM."""
     g = BucketGroup(provider_name="mistral", caps={"RPM": 5.0, "TPM": 16_000.0})
-    ok, wait = g.consume(req_count=1.0, token_count=71_621.0)
+    ok, wait, _ = g.consume(req_count=1.0, token_count=71_621.0)
     assert ok is True
     assert wait == 0.0
     # Burst ×2 so one debit does not leave ~0% headroom for the next turn
@@ -109,7 +109,7 @@ def test_bucketgroup_second_large_request_fits_after_burst():
     assert g.consume(1.0, 71_621.0)[0] is True
     # After burst×2, ~50% headroom remains for a same-sized follow-up.
     assert g.buckets["TPM"].headroom() == pytest.approx(0.5, abs=0.01)
-    ok, wait = g.consume(1.0, 71_621.0)
+    ok, wait, _ = g.consume(1.0, 71_621.0)
     assert ok is True
     assert wait == pytest.approx(0.0, abs=0.1)
     assert g.buckets["TPM"].tokens == pytest.approx(0.0, abs=1.0)
@@ -190,16 +190,16 @@ def test_non_header_429_clears_pin_and_cuts():
 
 def test_older_observed_at_ignored():
     b = make_bucket(cap=100.0, tokens=50.0)
-    assert b.set_from_header(cap=100.0, remaining=40.0, observed_at=200.0) is True
+    assert b.set_from_header(cap=100.0, remaining=40.0, observed_at=200.0) is None
     assert b.tokens == pytest.approx(40.0)
-    assert b.set_from_header(cap=100.0, remaining=90.0, observed_at=100.0) is False
+    assert b.set_from_header(cap=100.0, remaining=90.0, observed_at=100.0) is None
     assert b.tokens == pytest.approx(40.0)
     assert b._header_obs_at == pytest.approx(200.0)
 
 def test_newer_observed_at_applies():
     b = make_bucket(cap=100.0, tokens=50.0)
-    assert b.set_from_header(cap=100.0, remaining=40.0, observed_at=100.0) is True
-    assert b.set_from_header(cap=100.0, remaining=20.0, observed_at=150.0) is True
+    assert b.set_from_header(cap=100.0, remaining=40.0, observed_at=100.0) is None
+    assert b.set_from_header(cap=100.0, remaining=20.0, observed_at=150.0) is None
     assert b.tokens == pytest.approx(20.0)
     assert b._header_obs_at == pytest.approx(150.0)
 
@@ -256,7 +256,7 @@ def test_to_dict_roundtrip():
 
 def test_bucketgroup_consume_passes():
     g = BucketGroup(provider_name="groq")
-    ok, wait = g.consume(req_count=1.0, token_count=100.0)
+    ok, wait, _ = g.consume(req_count=1.0, token_count=100.0)
     assert ok is True
     assert wait == 0.0
 
@@ -265,7 +265,7 @@ def test_bucketgroup_consume_fails_when_rpm_empty():
     rpm = g.buckets.get("RPM")
     if rpm:
         rpm.tokens = 0.0
-        ok, wait = g.consume(req_count=1.0, token_count=0.0)
+        ok, wait, _ = g.consume(req_count=1.0, token_count=0.0)
         assert ok is False
         assert wait > 0
 
@@ -274,7 +274,7 @@ def test_bucketgroup_consume_returns_max_wait_across_failing_buckets():
     rpm, tpm = g.buckets["RPM"], g.buckets["TPM"]
     rpm.tokens = 0.0   # rate 1 req/s → 1s wait for 1 req
     tpm.tokens = 0.0   # rate 100 tok/s → 10s wait for 1000 tok
-    ok, wait = g.consume(req_count=1.0, token_count=1000.0)
+    ok, wait, _ = g.consume(req_count=1.0, token_count=1000.0)
     assert ok is False
     assert wait == pytest.approx(10.0, abs=0.1)
 
@@ -284,7 +284,7 @@ def test_bucketgroup_consume_atomic_no_partial_debit():
     rpm.tokens = 30.0
     tpm.tokens = 0.0
     rpm_before = rpm.tokens
-    ok, _ = g.consume(req_count=1.0, token_count=100.0)
+    ok, _, _ = g.consume(req_count=1.0, token_count=100.0)
     assert ok is False
     assert rpm.tokens == rpm_before
 
@@ -912,3 +912,83 @@ def test_model_and_provider_caps_grow_via_success_nudges(tmp_path):
         rl.on_success("openrouter", "key-abc12345", "m", 1.0)
     assert pw.buckets["TPM"].cap > pw_cap0
     assert mg.buckets["TPM"].cap > mg_cap0
+
+
+def _enable_csv(monkeypatch, tmp_path):
+    path = tmp_path / "tbf.csv"
+    monkeypatch.setenv("RATE_BUCKET_CSV_ENABLED", "1")
+    monkeypatch.setenv("RATE_BUCKET_CSV", str(path))
+    rate_limiter._bucket_csv = rate_limiter.BucketEventCsv.from_env()
+    return path
+
+
+def test_csv_nudge_emits_row(monkeypatch, tmp_path):
+    path = _enable_csv(monkeypatch, tmp_path)
+    rl = make_limiter(tmp_path)
+    monkeypatch.setattr(rate_limiter, "RATE_LEARN_SUCCESS_STREAK", 2)
+    monkeypatch.setattr(rate_limiter, "RATE_LEARN_SUCCESS_STREAK_PROVIDER", 2)
+    key, model = "sk-testkey99", "llama-3"
+    rl.check_and_consume("groq", key, model, 1.0, 10.0)
+    rl.on_success("groq", key, model, 10.0)
+    rl.on_success("groq", key, model, 10.0)
+    rows = list(csv.DictReader(path.open()))
+    assert any(r["event"] == "nudge" and r["bucket"] in ("RPM", "TPM", "RPD")
+               for r in rows)
+    assert all(r["key_hint"] == key[-8:] for r in rows)
+
+
+def test_csv_hard_429_emits_cut(monkeypatch, tmp_path):
+    path = _enable_csv(monkeypatch, tmp_path)
+    rl = make_limiter(tmp_path)
+    key, model = "sk-testkey99", "llama-3"
+    rl.check_and_consume("groq", key, model, 1.0, 10.0)
+    g = rl.get_group("groq", key, model)
+    for b in g.buckets.values():
+        b._period_consumed = 10.0
+    rl.on_429("groq", key, model, {})
+    rows = list(csv.DictReader(path.open()))
+    assert any(r["event"] == "cut" and r["reason"] == "hard_429" for r in rows)
+
+
+def test_csv_ensure_fits_lift(monkeypatch, tmp_path):
+    path = _enable_csv(monkeypatch, tmp_path)
+    rl = make_limiter(tmp_path)
+    key, model = "sk-testkey99", "llama-3"
+    ok, _ = rl.check_and_consume("mistral", key, model, 1.0, 71_621.0)
+    assert ok is True
+    rows = list(csv.DictReader(path.open()))
+    assert any(r["event"] == "lift" and r["reason"] == "request_burst"
+               and r["bucket"] == "TPM" for r in rows)
+
+
+def test_csv_header_pin_skips_same_cap_refresh(monkeypatch, tmp_path):
+    path = _enable_csv(monkeypatch, tmp_path)
+    rl = make_limiter(tmp_path)
+    key, model = "sk-testkey99", "llama-3"
+    headers = {
+        "x-ratelimit-limit-requests": "30",
+        "x-ratelimit-remaining-requests": "20",
+        "x-ratelimit-limit-tokens": "6000",
+        "x-ratelimit-remaining-tokens": "5000",
+    }
+    rl.update_from_headers("groq", key, model, headers, observed_at=100.0)
+    n1 = len(list(csv.DictReader(path.open()))) if path.exists() else 0
+    headers2 = {
+        "x-ratelimit-limit-requests": "30",
+        "x-ratelimit-remaining-requests": "10",
+        "x-ratelimit-limit-tokens": "6000",
+        "x-ratelimit-remaining-tokens": "1000",
+    }
+    rl.update_from_headers("groq", key, model, headers2, observed_at=200.0)
+    n2 = len(list(csv.DictReader(path.open()))) if path.exists() else 0
+    assert n2 == n1
+
+
+def test_csv_disabled_no_file_on_learn(monkeypatch, tmp_path):
+    path = tmp_path / "should_not_exist.csv"
+    monkeypatch.delenv("RATE_BUCKET_CSV_ENABLED", raising=False)
+    monkeypatch.setenv("RATE_BUCKET_CSV", str(path))
+    rate_limiter._bucket_csv = rate_limiter.BucketEventCsv.from_env()
+    rl = make_limiter(tmp_path)
+    rl.on_429("groq", "sk-testkey99", "llama-3", {})
+    assert not path.exists()

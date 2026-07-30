@@ -100,7 +100,7 @@ def _row_metrics(b: "TokenBucket") -> tuple[float, float, float]:
     tokens = float(b.tokens)
     cap = float(b.cap)
     used = max(0.0, cap - tokens)
-    headroom = b.headroom()
+    headroom = max(0.0, min(1.0, tokens / cap)) if cap > 0 else 1.0
     return tokens, used, headroom
 
 _bucket_csv = BucketEventCsv.from_env()
@@ -202,40 +202,47 @@ class TokenBucket:
             return float("inf")
         return (amount - self.tokens) / rate
 
-    def on_success(self, streak: int | None = None, nudge_pct: float | None = None) -> None:
+    def on_success(self, streak: int | None = None, nudge_pct: float | None = None) -> CapChange | None:
         if self._header_pinned:
-            return
+            return None
         need = RATE_LEARN_SUCCESS_STREAK if streak is None else streak
         pct = RATE_LEARN_NUDGE_PCT if nudge_pct is None else nudge_pct
         self._consecutive_successes += 1
-        if self._consecutive_successes >= need:
-            self.cap = self.cap * (1.0 + pct / 100.0)
-            log.info(f"[rate] nudged cap up to {self.cap:.1f}")
-            self._consecutive_successes = 0
+        if self._consecutive_successes < need:
+            return None
+        old = self.cap
+        self.cap = self.cap * (1.0 + pct / 100.0)
+        log.info(f"[rate] nudged cap up to {self.cap:.1f}")
+        self._consecutive_successes = 0
+        return CapChange(old_cap=old, event="nudge", reason="success_streak")
 
-    def on_429(self, observed_rate: float, *, soft: bool = False) -> None:
+    def on_429(self, observed_rate: float, *, soft: bool = False) -> CapChange | None:
+        old = self.cap
         if self._period_consumed >= 3:
             factor = RATE_LEARN_CUT_FACTOR_PROVIDER if soft else RATE_LEARN_CUT_FACTOR
             new_cap = max(1.0, observed_rate * factor)
         else:
             frac = RATE_LEARN_SOFT_CUT_FACTOR if soft else 0.5
             new_cap = max(1.0, self.cap * frac)
+        reason = "soft_429" if soft else "hard_429"
         if soft:
-            # Floor against unmultiplied defaults so soft learning cannot death-spiral
-            # into caps that permanently refuse normal (or large) requests.
             floor = max(1.0, getattr(self, "_floor_cap", self._initial_cap)
                         * RATE_LEARN_SOFT_FLOOR_FRAC)
             if new_cap < floor:
                 log.info(f"[rate] soft cut floored {new_cap:.1f} → {floor:.1f}")
                 new_cap = floor
+                reason = "soft_floor"
         log.info(f"[rate] 429 {'soft ' if soft else ''}cut cap {self.cap:.1f} → {new_cap:.1f}")
         self.cap = new_cap
         self.tokens = 0.0
         self._consecutive_successes = 0
         self._period_consumed = 0.0
         self._header_pinned = False
+        if new_cap == old:
+            return None
+        return CapChange(old_cap=old, event="cut", reason=reason)
 
-    def ensure_fits(self, amount: float) -> None:
+    def ensure_fits(self, amount: float) -> CapChange | None:
         """Raise cap when a single debit exceeds the guessed ceiling.
 
         TPM/RPM guesses are throughput estimates, not hard per-request limits.
@@ -246,21 +253,24 @@ class TokenBucket:
         burst = max(1.0, RATE_REQUEST_BURST_FACTOR)
         target = float(amount) * burst
         if target <= self.cap:
-            return
+            return None
         old = self.cap
         self.cap = target
         self.tokens = max(self.tokens, self.cap)
         self._floor_cap = max(getattr(self, "_floor_cap", old), float(amount))
         log.info(f"[rate] lifted cap {old:.1f} → {self.cap:.1f} "
                  f"(request {amount:.0f} × burst {burst:g})")
+        return CapChange(old_cap=old, event="lift", reason="request_burst")
 
     def set_from_header(self, cap: float, remaining: float,
-                        observed_at: float | None = None) -> bool:
-        """Snap cap/remaining from upstream headers. Returns False if stale."""
+                        observed_at: float | None = None) -> CapChange | None:
+        """Snap cap/remaining from upstream headers. Returns None if stale or same-cap refresh."""
         obs = time.time() if observed_at is None else float(observed_at)
         if obs < self._header_obs_at:
-            return False
-        self.cap    = float(cap)
+            return None
+        old = self.cap
+        new_cap = float(cap)
+        self.cap = new_cap
         self.tokens = float(remaining)
         self._header_pinned = True
         self._header_obs_at = obs
@@ -268,7 +278,9 @@ class TokenBucket:
         if not self.active:
             self.active = True
             log.info("[rate] bucket re-activated by header")
-        return True
+        if new_cap == old:
+            return None
+        return CapChange(old_cap=old, event="header_pin", reason="header")
 
     def check_inactive(self, activity: float) -> None:
         """Mark this bucket inactive when it is not a binding constraint.
@@ -374,11 +386,12 @@ class BucketGroup:
     def _active(self):
         return [b for b in self.buckets.values() if b.active]
 
-    def consume(self, req_count: float, token_count: float) -> tuple[bool, float]:
+    def consume(self, req_count: float, token_count: float) -> tuple[bool, float, list[tuple[str, CapChange]]]:
         """Check all active buckets. Consume atomically only if all pass."""
         now = time.time()
+        changes: list[tuple[str, CapChange]] = []
         if now < self.blocked_until:
-            return False, self.blocked_until - now
+            return False, self.blocked_until - now, changes
         max_wait = 0.0
         checks: list[tuple[TokenBucket, float]] = []
         for name, b in self.buckets.items():
@@ -389,20 +402,22 @@ class BucketGroup:
             if amount <= 0:
                 continue
             b.refill(now)
-            b.ensure_fits(amount)
+            change = b.ensure_fits(amount)
+            if change is not None:
+                changes.append((name, change))
             if b.tokens < amount:
                 max_wait = max(max_wait, b.time_to_refill(amount))
             else:
                 checks.append((b, amount))
         if max_wait > 0:
-            return False, max_wait
+            return False, max_wait, changes
         for b, amount in checks:
             b.tokens -= amount
             b._period_consumed += amount
             if b.tokens <= 0:
                 b._hit_zero = True
         self._requests_this_period += int(req_count)
-        return True, 0.0
+        return True, 0.0, changes
 
     def restore_tokens(self, token_surplus: float) -> None:
         for name, b in self.buckets.items():
@@ -423,26 +438,35 @@ class BucketGroup:
         return min(b.headroom() for b in active)
 
     def on_success(self, token_count: float,
-                   streak: int | None = None, nudge_pct: float | None = None) -> None:
-        for b in self._active():
-            b.on_success(streak=streak, nudge_pct=nudge_pct)
+                   streak: int | None = None, nudge_pct: float | None = None) -> list[tuple[str, CapChange]]:
+        changes: list[tuple[str, CapChange]] = []
+        for name, b in self.buckets.items():
+            if not b.active:
+                continue
+            change = b.on_success(streak=streak, nudge_pct=nudge_pct)
+            if change is not None:
+                changes.append((name, change))
+        return changes
 
     def on_429(self, headers: dict, apply_retry_after: bool = True, *,
                apply_headers: bool = True, soft: bool = False,
-               observed_at: float | None = None) -> None:
-        updated = (self._apply_headers(headers, on_429=True, observed_at=observed_at)
-                   if apply_headers else set())
+               observed_at: float | None = None) -> list[tuple[str, CapChange]]:
+        changes = (self._apply_headers(headers, on_429=True, observed_at=observed_at)
+                   if apply_headers else [])
+        updated = {name for name, _ in changes}
         for name, b in self.buckets.items():
             if name in updated:
                 continue
             if not b.active:
                 b.active = True
                 log.info(f"[rate] bucket {name} re-activated by 429")
-            b.on_429(observed_rate=b._period_consumed, soft=soft)
+            change = b.on_429(observed_rate=b._period_consumed, soft=soft)
+            if change is not None:
+                changes.append((name, change))
         # Retry-After holds are model-scoped (caller passes apply_retry_after=False
         # for the provider-wide group so one model's 429 cannot block siblings).
         if not apply_retry_after:
-            return
+            return changes
         retry = None
         if headers:
             # Case-insensitive Retry-After lookup
@@ -454,16 +478,16 @@ class BucketGroup:
             until = time.time() + retry
             self.blocked_until = max(self.blocked_until, until)
             log.info(f"[rate] Retry-After hold until {self.blocked_until:.0f} ({retry}s)")
+        return changes
 
     def update_from_headers(self, headers: dict,
-                            observed_at: float | None = None) -> None:
-        self._apply_headers(headers, on_429=False, observed_at=observed_at)
+                            observed_at: float | None = None) -> list[tuple[str, CapChange]]:
+        return self._apply_headers(headers, on_429=False, observed_at=observed_at)
 
     def _apply_headers(self, headers: dict, on_429: bool,
-                       observed_at: float | None = None) -> set:
-        """Parse x-ratelimit-* headers and update matching buckets. Returns
-        set of limit names that were updated from headers."""
-        updated = set()
+                       observed_at: float | None = None) -> list[tuple[str, CapChange]]:
+        """Parse x-ratelimit-* headers and update matching buckets."""
+        changes: list[tuple[str, CapChange]] = []
         limits   = {}
         remaining = {}
         for raw_key, val in headers.items():
@@ -486,17 +510,19 @@ class BucketGroup:
             limit_name = _dim_window_to_limit(dim, window_key)
             if limit_name not in self.buckets:
                 _, wk = LIMIT_KEYS[limit_name]
-                b = TokenBucket(
-                    window_seconds=WINDOWS[wk], cap=cap_val, tokens=rem_val)
-                if b.set_from_header(cap_val, rem_val, observed_at=obs):
-                    self.buckets[limit_name] = b
-                    log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
-                    updated.add(limit_name)
+                b = TokenBucket(window_seconds=WINDOWS[wk], cap=cap_val, tokens=rem_val)
+                change = b.set_from_header(cap_val, rem_val, observed_at=obs)
+                if change is None:
+                    change = CapChange(old_cap=cap_val, event="header_pin", reason="header")
+                self.buckets[limit_name] = b
+                log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
+                changes.append((limit_name, change))
             else:
-                if self.buckets[limit_name].set_from_header(
-                        cap_val, rem_val, observed_at=obs):
-                    updated.add(limit_name)
-        return updated
+                change = self.buckets[limit_name].set_from_header(
+                        cap_val, rem_val, observed_at=obs)
+                if change is not None:
+                    changes.append((limit_name, change))
+        return changes
 
     def run_inactive_check(self) -> None:
         n = self._requests_this_period
@@ -618,21 +644,48 @@ class AdaptiveRateLimiter:
         return (self._get_group_unlocked(provider_name, key, None),
                 self._get_group_unlocked(provider_name, key, model))
 
+    def _emit(self, provider_name: str, key: str, model: str | None,
+              bucket_name: str, b: TokenBucket, change: CapChange | None) -> None:
+        if change is None:
+            return
+        tokens, used, headroom = _row_metrics(b)
+        _bucket_csv.record(
+            provider=provider_name,
+            key_hint=(key or "")[-8:] or "unknown",
+            model=model or "",
+            scope="provider_wide" if model is None else "model",
+            bucket=bucket_name,
+            event=change.event,
+            reason=change.reason,
+            cap=b.cap,
+            old_cap=change.old_cap,
+            tokens=tokens,
+            used=used,
+            headroom=headroom,
+        )
+
+    def _emit_group_changes(self, provider_name: str, key: str, model: str | None,
+                            g: BucketGroup, changes: list[tuple[str, CapChange]]) -> None:
+        for bucket_name, change in changes:
+            self._emit(provider_name, key, model, bucket_name, g.buckets[bucket_name], change)
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def check_and_consume(self, provider_name: str, key: str, model: str,
                           req_count: float, token_count: float) -> tuple[bool, float]:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            pw_ok, pw_wait = pw.consume(req_count, token_count)
+            pw_ok, pw_wait, pw_changes = pw.consume(req_count, token_count)
             if not pw_ok:
                 return False, pw_wait
-            mg_ok, mg_wait = mg.consume(req_count, token_count)
+            mg_ok, mg_wait, mg_changes = mg.consume(req_count, token_count)
             if not mg_ok:
                 pw.restore_tokens(token_count)
                 pw.restore_requests(req_count)
                 pw._requests_this_period -= int(req_count)
                 return False, mg_wait
+            self._emit_group_changes(provider_name, key, None, pw, pw_changes)
+            self._emit_group_changes(provider_name, key, model, mg, mg_changes)
             return True, 0.0
 
     def restore(self, provider_name: str, key: str, model: str,
@@ -687,13 +740,15 @@ class AdaptiveRateLimiter:
                    token_count: float) -> None:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            pw.on_success(
+            pw_changes = pw.on_success(
                 token_count,
                 streak=RATE_LEARN_SUCCESS_STREAK_PROVIDER,
                 nudge_pct=RATE_LEARN_NUDGE_PCT_PROVIDER,
             )
+            self._emit_group_changes(provider_name, key, None, pw, pw_changes)
             if mg is not pw:
-                mg.on_success(token_count)  # model defaults
+                mg_changes = mg.on_success(token_count)
+                self._emit_group_changes(provider_name, key, model, mg, mg_changes)
 
     def on_429(self, provider_name: str, key: str, model: str,
                headers: dict, *, model_headroom_before: float | None = None,
@@ -701,17 +756,21 @@ class AdaptiveRateLimiter:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
             if mg is pw:
-                pw.on_429(headers, apply_retry_after=True, apply_headers=True,
-                          soft=False, observed_at=observed_at)
+                changes = pw.on_429(headers, apply_retry_after=True, apply_headers=True,
+                                    soft=False, observed_at=observed_at)
+                self._emit_group_changes(provider_name, key, None, pw, changes)
                 return
-            pw.on_429(headers, apply_retry_after=False, apply_headers=False, soft=True)
-            mg.on_429(headers, apply_retry_after=True, apply_headers=True,
-                      soft=False, observed_at=observed_at)
+            pw_changes = pw.on_429(headers, apply_retry_after=False, apply_headers=False, soft=True)
+            self._emit_group_changes(provider_name, key, None, pw, pw_changes)
+            mg_changes = mg.on_429(headers, apply_retry_after=True, apply_headers=True,
+                                   soft=False, observed_at=observed_at)
+            self._emit_group_changes(provider_name, key, model, mg, mg_changes)
             now = time.time()
             if (model_headroom_before is not None
                     and model_headroom_before >= 0.9
                     and (now - pw._last_surprise_cut_at) >= 60.0):
-                pw.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
+                surprise = pw.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
+                self._emit_group_changes(provider_name, key, None, pw, surprise)
                 pw._last_surprise_cut_at = now
 
     def update_from_headers(self, provider_name: str, key: str, model: str,
@@ -719,7 +778,8 @@ class AdaptiveRateLimiter:
                             observed_at: float | None = None) -> None:
         with self._lock:
             _pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            mg.update_from_headers(headers, observed_at=observed_at)
+            changes = mg.update_from_headers(headers, observed_at=observed_at)
+            self._emit_group_changes(provider_name, key, model, mg, changes)
 
     def headroom(self, provider_name: str, key: str, model: str) -> float:
         """Read-only headroom for ranking. Does not create bucket groups."""
