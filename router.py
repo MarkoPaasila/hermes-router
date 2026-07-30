@@ -1160,9 +1160,9 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     if not kept:
         kept = discovered[:1]
     # Never drop valid configured models; only bound appended discoveries.
-    refreshed = list(dict.fromkeys(kept + discovered))
-    if len(kept) < AUTO_DISCOVER_MODEL_LIMIT:
-        refreshed = refreshed[:AUTO_DISCOVER_MODEL_LIMIT]
+    extras = [m for m in discovered if m not in kept]
+    append_limit = max(0, AUTO_DISCOVER_MODEL_LIMIT - len(kept))
+    refreshed = list(dict.fromkeys(kept + extras[:append_limit]))
     if refreshed == configured:
         return
 
