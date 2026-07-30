@@ -1,0 +1,59 @@
+from cascade_trail import CascadeTrail, http_reason, reason_label
+
+
+def test_http_reason_mapping():
+    assert http_reason(429) == "http_429"
+    assert http_reason(401) == "http_401"
+    assert http_reason(403) == "http_403"
+    assert http_reason(400) == "http_400"
+    assert http_reason(404) == "http_404"
+    assert http_reason(413) == "http_413"
+    assert http_reason(503) == "http_5xx"
+    assert http_reason(418) == "http_418"
+
+
+def test_reason_label_known_and_unknown():
+    assert "headroom" in reason_label("rate_headroom").lower()
+    assert reason_label("totally_new") == "totally_new"
+    assert reason_label(None) == ""
+
+
+def test_skip_and_success_counts():
+    t = CascadeTrail()
+    t.skip("groq", "llama", "rate_headroom")
+    t.skip("cerebras", "llama", "token_cap")
+    t.success("openrouter", "gpt")
+    fields = t.as_log_fields()
+    assert fields["failed"] == 0
+    assert fields["skipped"] == 2
+    assert fields["cascades"] == 2
+    assert [s["outcome"] for s in fields["cascade"]] == ["skipped", "skipped", "success"]
+    assert fields["cascade"][-1]["reason"] is None
+
+
+def test_note_coalesces_keys_preferring_informative_reason():
+    t = CascadeTrail()
+    t.note("groq", "llama", "skipped", "keys_cooling")
+    t.note("groq", "llama", "skipped", "rate_headroom")
+    t.note("groq", "llama", "failed", "http_429")
+    t.flush()
+    fields = t.as_log_fields()
+    assert fields["failed"] == 1
+    assert fields["skipped"] == 0
+    assert fields["cascade"] == [
+        {"provider": "groq", "model": "llama", "outcome": "failed", "reason": "http_429"}
+    ]
+
+
+def test_note_then_different_model_flushes():
+    t = CascadeTrail()
+    t.note("a", "m1", "failed", "network")
+    t.note("a", "m2", "skipped", "rate_headroom")
+    t.flush()
+    assert len(t.as_log_fields()["cascade"]) == 2
+
+
+def test_empty_trail():
+    assert CascadeTrail().as_log_fields() == {
+        "cascade": [], "failed": 0, "skipped": 0, "cascades": 0
+    }
