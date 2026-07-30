@@ -362,19 +362,8 @@ class TokenBucket:
         return CapChange(old_cap=old, event="header_pin", reason="header")
 
     def check_inactive(self, activity: float) -> None:
-        """Mark this bucket inactive when it is not a binding constraint.
-
-        Minute-window buckets (RPM/TPM) are never auto-deactivated — they are the
-        primary pacing controls and must stay available for headroom + consume.
-        Longer windows use *activity* (requests for R-buckets, tokens consumed for
-        T-buckets) against max(10, 10% of cap).
-        """
-        if self.window_seconds <= 60:
-            return
-        threshold = max(10.0, self.cap * 0.1)
-        if not self._hit_zero and activity < threshold:
-            self.active = False
-            log.info(f"[rate] bucket marked inactive (activity={activity:.1f}, threshold={threshold:.0f})")
+        """No-op: full-grid design keeps all windows binding for debit/rank."""
+        return
 
     def to_dict(self) -> dict:
         return {"cap": self.cap, "tokens": self.tokens, "last_refill": self.last_refill}
@@ -683,7 +672,7 @@ class BucketGroup:
             b._period_consumed = 0.0
 
     def to_dict(self) -> dict:
-        out = {name: b.to_dict() for name, b in self.buckets.items() if b.active}
+        out = {name: b.to_dict() for name, b in self.buckets.items()}
         now = time.time()
         if self.blocked_until > now:
             out["blocked_until"] = self.blocked_until
@@ -1029,6 +1018,19 @@ class AdaptiveRateLimiter:
 
     # ── Persistence ───────────────────────────────────────────────────────────
 
+    def _backfill_group_buckets(self, g: BucketGroup, provider_name: str,
+                                *, provider_wide: bool) -> None:
+        base = self._caps_for(provider_name, provider_wide=False)
+        mult = RATE_PROVIDER_CAP_MULTIPLIER if provider_wide else 1.0
+        for name, cap in base.items():
+            if name in g.buckets:
+                continue
+            dim, wk = LIMIT_KEYS[name]
+            b = TokenBucket(window_seconds=WINDOWS[wk], cap=float(cap) * mult,
+                            dimension=dim)
+            b._floor_cap = float(base[name])
+            g.buckets[name] = b
+
     def load(self) -> None:
         if not self.state_file.exists():
             return
@@ -1068,6 +1070,7 @@ class AdaptiveRateLimiter:
                             b.cap = target
                             b.tokens = target
                             lifted_floors += 1
+                    self._backfill_group_buckets(g, pname, provider_wide=is_pw)
                     self._groups[gk] = g
                 n = len(self._groups)
             log.info(f"[rate] loaded {n} bucket groups from {self.state_file}")

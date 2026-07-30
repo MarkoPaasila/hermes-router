@@ -222,10 +222,16 @@ def test_restore_clamps():
     assert b.tokens == 10.0
 
 def test_inactive_after_quiet_period():
-    # Day-window bucket can go inactive when quiet; minute windows cannot.
+    # Full-grid design: long windows stay active for debit/rank even when quiet.
     b = TokenBucket(window_seconds=86400.0, cap=100.0, tokens=100.0)
     b.check_inactive(activity=2)   # < max(10, 100*0.1)=10
-    assert b.active is False
+    assert b.active is True
+
+
+def test_check_inactive_never_deactivates_long_window():
+    b = TokenBucket(window_seconds=86400.0, cap=100.0, tokens=100.0)
+    b.check_inactive(activity=0)
+    assert b.active is True
 
 def test_stays_active_when_busy():
     b = TokenBucket(window_seconds=86400.0, cap=100.0, tokens=50.0)
@@ -518,9 +524,7 @@ def test_run_all_inactive_checks_marks_quiet_buckets_inactive(tmp_path):
         b._period_consumed = 0.0
     g._requests_this_period = 0
     rl.run_all_inactive_checks()
-    # Day-window buckets go inactive when quiet; minute buckets stay active.
-    assert any(not b.active for b in g.buckets.values())
-    assert all(b.active for b in g.buckets.values() if b.window_seconds <= 60)
+    assert all(b.active for b in g.buckets.values())
 
 def test_clear_group_removes_and_flushes(tmp_path):
     rl = make_limiter(tmp_path)
@@ -1108,6 +1112,32 @@ def test_auth_rpd_override_reclamps_scaled_rph(tmp_path):
     assert caps["RPD"] == pytest.approx(100.0)
     assert caps["RPH"] == pytest.approx(100.0)
     assert caps["RPD"] >= caps["RPH"] >= caps["RPM"]
+
+
+def test_to_dict_persists_all_ten_buckets():
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    d = g.to_dict()
+    assert FULL_LIMIT_KEYS <= set(k for k, v in d.items() if isinstance(v, dict))
+
+
+def test_load_backfills_missing_windows(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    gk = rl._group_key("openrouter", "key-abc12345", None)
+    rl._groups[gk].buckets = {
+        "RPM": pw.buckets["RPM"],
+        "TPM": pw.buckets["TPM"],
+    }
+    learned_tpm = 12345.0
+    rl._groups[gk].buckets["TPM"].cap = learned_tpm
+    rl.flush()
+    rl2 = make_limiter(tmp_path)
+    rl2.load()
+    pw2 = rl2.get_group("openrouter", "key-abc12345", None)
+    assert set(pw2.buckets) == FULL_LIMIT_KEYS
+    assert pw2.buckets["TPM"].cap == pytest.approx(learned_tpm)
+    assert "TPMo" in pw2.buckets
 
 
 def test_new_groups_always_have_ten_buckets(tmp_path):
