@@ -256,8 +256,9 @@ SAMBANOVA_EXCLUDE_MODELS=gemma-4-31B-it
 
 Excluded models are matched case-insensitively (exact ID only, no globs). The
 filter applies both to your configured model list and to any extras appended by
-auto-discovery. If every model for a provider is excluded, the provider stays in
-rotation with no usable models and a warning is logged at startup.
+auto-discovery. If every model for a provider is excluded, the provider is shown
+in status but skipped for routing until at least one usable model is configured,
+and a warning is logged at startup.
 
 ## Key rotation mode
 
