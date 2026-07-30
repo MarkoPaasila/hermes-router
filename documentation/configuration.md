@@ -151,7 +151,7 @@ restarts in `rate_limits_state.json`.
 | `RATE_LEARN_SOFT_CUT_FACTOR` | `0.9` | Provider-wide soft cut vs current cap when history is thin |
 | `RATE_LEARN_SUCCESS_STREAK_PROVIDER` | `10` | Consecutive successes before nudging a provider-wide cap up |
 | `RATE_LEARN_NUDGE_PCT_PROVIDER` | `8` | Percent to increase a provider-wide cap on a success streak |
-| `RATE_STATE_FLUSH_INTERVAL` | `60` | Seconds between background state flushes |
+| `RATE_STATE_FLUSH_INTERVAL` | `600` | Seconds between background state flushes |
 | `RATE_DEFAULT_<PROVIDER>_<WINDOW>` | — | Override built-in default cap (e.g. `RATE_DEFAULT_GROQ_RPM=60`) |
 | `RATE_BUCKET_CSV_ENABLED` | off | When `1`/`true`/`yes`, append TBF cap-change events to a CSV |
 | `RATE_BUCKET_CSV` | `./rate_bucket_events.csv` | Path for that append-only event log (Calc/Excel-friendly) |
