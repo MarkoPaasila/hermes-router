@@ -157,7 +157,7 @@ def test_tool_last_resort_tries_deferred_candidate(monkeypatch):
         def key_count(self, name, model):
             return 1
 
-        def get_key(self, name, model):
+        def get_key(self, name, model, preferred=None):
             return f"sk-{name}"
 
         def mark_key_down(self, *a, **k):
