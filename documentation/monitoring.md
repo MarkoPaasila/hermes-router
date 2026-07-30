@@ -30,7 +30,9 @@ splits it into pages, refreshed every 5 seconds:
   headroom); click a row for stacked per-key TBF bucket bars
 - **Add-ons** — toggle optional features on/off, plus live cache stats
 - **Request Log** — the last requests (endpoint, provider, model, latency, complexity score,
-  cascade count, tokens, status), filterable by status and endpoint
+  Fail/Skip cascade counts, tokens, status), filterable by status and endpoint; click Fail/Skip
+  to open the full cascade path (skipped / failed / success) with reasons
+
 
 Every write (add a key, toggle an add-on, mint/revoke an access key) shows a
 "Restart Required" banner — click it to restart the router in place; the page reconnects
@@ -237,8 +239,11 @@ ones arrive (~250 KB at the default size). Set `REQUEST_LOG_SIZE=0` to disable i
 
 Each entry records: timestamp, endpoint (`chat`/`messages`/`embeddings`), caller (key tail),
 streaming flag, complexity score (1–5), estimated tokens, chosen provider + model, latency,
-cascade count, status (`success`/`error`/`cache_hit`), and prompt/completion token counts.
-Request and response **content is never stored** — only metadata.
+`failed` / `skipped` counts, `cascades` (`failed + skipped`; older builds counted only failed
+forwards), `cascade` (ordered steps with `provider`, `model`, `outcome`, `reason`), status
+(`success`/`error`/`cache_hit`), and prompt/completion token counts.
+Request and response **content is never stored** — only metadata. The dashboard Fail/Skip cell
+opens the full cascade path when a trail is present.
 
 Query parameters (all optional): `limit` (default 100), `provider`, `status`
 (`success`/`error`/`cache_hit`), and `endpoint` (`chat`/`messages`/`embeddings`).
