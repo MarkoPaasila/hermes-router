@@ -5988,8 +5988,7 @@ def embeddings():
                                     else sum(len(str(x)) for x in _inp)) / 4)
             _current_headroom = rate_limiter.headroom(name, key, em)
             if _current_headroom < RATE_HEADROOM_THRESHOLD:
-                log.info(f"  {name}/{em} thin headroom ({_current_headroom:.1%}) — skipping")
-                continue
+                log.debug(f"  {name}/{em} thin headroom ({_current_headroom:.1%}) — attempting")
             _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                 name, key, em, req_count=1.0, token_count=_est_tokens)
             if not _rl_ok:
