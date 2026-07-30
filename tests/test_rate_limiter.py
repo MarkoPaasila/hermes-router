@@ -82,7 +82,8 @@ def test_on_429_soft_with_history():
     b.on_429(observed_rate=10.0, soft=True)
     # Soft cuts floor at RATE_LEARN_SOFT_FLOOR_FRAC * _floor_cap (0.5 * 60 = 30)
     assert b.cap == pytest.approx(30.0)
-    assert b.tokens == 0.0
+    # Soft path keeps tokens (clamped to new cap); hard cuts still zero.
+    assert b.tokens == pytest.approx(30.0)
 
 
 def test_on_429_soft_without_history():
@@ -91,6 +92,7 @@ def test_on_429_soft_without_history():
     b.on_429(observed_rate=1.0, soft=True)
     # Default RATE_LEARN_SOFT_CUT_FACTOR = 0.9 → 54, above soft floor 30
     assert b.cap == pytest.approx(54.0)
+    assert b.tokens == pytest.approx(30.0)
 
 
 def test_bucketgroup_consume_lifts_cap_when_request_exceeds_tpm():
@@ -1176,6 +1178,30 @@ def test_soft_429_ticks_all_buckets_including_high_headroom():
     assert g.buckets["TPM"].cap < tpm0
     assert g.buckets["TPMo"].cap < tpmo0  # must tick even when not binding
     assert (tpm0 - g.buckets["TPM"].cap) / tpm0 > (tpmo0 - g.buckets["TPMo"].cap) / tpmo0
+
+
+def test_soft_tick_keeps_full_long_window_tokens():
+    """One PW soft tick must not empty full long windows / collapse headroom."""
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    for b in g.buckets.values():
+        b.tokens = b.cap
+        b._period_consumed = 0.0
+    tpm0 = g.buckets["TPM"].cap
+    tpmo0 = g.buckets["TPMo"].cap
+    tpmo_tokens0 = g.buckets["TPMo"].tokens
+    hr0 = g.headroom()
+    assert hr0 == pytest.approx(1.0)
+
+    g.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
+
+    assert g.buckets["TPM"].cap < tpm0
+    assert g.buckets["TPMo"].cap < tpmo0
+    # Soft tick clamps tokens to new_cap; does not force tokens=0.
+    assert g.buckets["TPMo"].tokens == pytest.approx(g.buckets["TPMo"].cap)
+    assert g.buckets["TPMo"].tokens / tpmo_tokens0 > 0.99
+    # Group headroom stays near-full; must not collapse solely from the tick.
+    assert g.headroom() > 0.9
 
 
 def test_pw_soft_tick_via_limiter_no_retry_after(tmp_path):

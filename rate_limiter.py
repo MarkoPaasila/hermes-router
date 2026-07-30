@@ -309,7 +309,12 @@ class TokenBucket:
         new_cap = self._coerce_cap(new_cap)
         log.info(f"[rate] 429 {'soft ' if soft else ''}cut cap {self.cap:.1f} → {new_cap:.1f}")
         self.cap = new_cap
-        self.tokens = 0.0
+        if soft:
+            # Soft tick / soft cut: keep fill level, only clamp to new_cap.
+            # Zeroing would empty full long windows on a single PW 429.
+            self.tokens = min(self.tokens, new_cap)
+        else:
+            self.tokens = 0.0
         self._consecutive_successes = 0
         self._period_consumed = 0.0
         self._header_pinned = False
