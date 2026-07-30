@@ -875,22 +875,6 @@ PROVIDER_MODEL_ENV = {
     "codex": "CODEX_MODEL", "local": "LOCAL_MODEL",
 }
 
-# Built-in default model per provider — shown as a placeholder in the dashboard;
-# "reset" just deletes the .env override line, so the code's own default (set in
-# _build_providers via os.environ.get(..., default)) takes over on restart. This
-# table is display-only and must stay in sync with those inline defaults.
-PROVIDER_MODEL_DEFAULT = {
-    "gemini": "gemini-2.5-flash-lite", "openrouter": "nvidia/nemotron-3-super-120b-a12b:free",
-    "sambanova": "DeepSeek-V3.2", "github_models": "gpt-4o", "cerebras": "gpt-oss-120b",
-    "groq": "llama-3.3-70b-versatile", "mistral": "mistral-medium-latest",
-    "cohere": "command-a-03-2025", "zai": "glm-4.5-flash",
-    "naga": "nemotron-3-super-120b-a12b:free", "nvidia": "deepseek-ai/deepseek-v4-flash",
-    "huggingface": "openai/gpt-oss-120b:cheapest", "kimi": "kimi-for-coding",
-    "opencode": "deepseek-v4-flash-free,minimax-m3-free,qwen3.6-plus-free",
-    "opencode_go": "deepseek-v4-flash,minimax-m3", "openai": "gpt-4o-mini",
-    "anthropic": "claude-haiku-4-5-20251001", "codex": "gpt-5.5", "local": "llama3.1",
-}
-
 ENV_FILE_PATH = Path(os.environ.get("HR_ENV_FILE", ".env"))
 
 
@@ -4131,18 +4115,6 @@ th.sortable.sorted-desc::after{content:'↓'}
               <div class="config-msg" id="cfg-key-msg"></div>
             </div>
 
-            <div class="config-form">
-              <label>Key rotation</label>
-              <select id="cfg-rotation-value">
-                <option value="round-robin">Spread requests across keys</option>
-                <option value="sequential">Use one key before the next</option>
-              </select>
-              <div class="row">
-                <button class="btn" onclick="setRotation()">Save rotation mode</button>
-              </div>
-              <div class="default-hint">Round-robin is best for most users because it spreads load across keys.</div>
-              <div class="config-msg" id="cfg-rotation-msg"></div>
-            </div>
           </div>
         </div>
 
@@ -4229,10 +4201,8 @@ th.sortable.sorted-desc::after{content:'↓'}
                 <select id="cfg-model-provider" onchange="onModelProviderChange()"></select>
               </div>
               <input id="cfg-model-value" type="text" placeholder="model or model1,model2,...">
-              <div class="default-hint" id="cfg-model-default"></div>
               <div class="row">
                 <button class="btn" onclick="setModel()">Save model</button>
-                <button class="btn" onclick="resetModel()">Reset</button>
               </div>
               <div class="config-msg" id="cfg-model-msg"></div>
             </div>
@@ -4474,7 +4444,6 @@ function keyDots(keys) {
 function renderAll() {
   renderPlainOverview();
   renderNavHealth();
-  renderRotationForm();
   renderStats();
   renderProviderCards();
   renderProviders();
@@ -4495,11 +4464,6 @@ function renderNavHealth() {
   const totalErr = vals.reduce((a,p) => a + (p.stats?.errors || 0), 0);
   const errRate = totalReq ? totalErr / totalReq * 100 : 0;
   dot.className = 'nav-dot' + (openBreakers ? ' bad' : errRate > 5 ? ' warn' : '');
-}
-
-function renderRotationForm() {
-  const sel = document.getElementById('cfg-rotation-value');
-  if (sel && statusData?.rotation?.mode) sel.value = statusData.rotation.mode;
 }
 
 function renderPlainOverview() {
@@ -4802,11 +4766,9 @@ function renderProviderScopePicker() {
 function onModelProviderChange() {
   if (!configProviders) return;
   const p = document.getElementById('cfg-model-provider').value;
-  const def = configProviders.defaults[p] || '';
-  document.getElementById('cfg-model-default').textContent = 'default: ' + def;
   const current = statusData?.providers?.[p]?.model || '';
-  document.getElementById('cfg-model-value').value = (current && current !== def) ? current : '';
-  document.getElementById('cfg-model-value').placeholder = def;
+  document.getElementById('cfg-model-value').value = current;
+  document.getElementById('cfg-model-value').placeholder = 'model or model1,model2,...';
 }
 
 function setMsg(id, text, ok) {
@@ -4849,36 +4811,6 @@ async function setModel() {
     setMsg('cfg-model-msg', `Set ${provider} → ${model}`, true);
     showRestartBanner();
   } catch(e) { setMsg('cfg-model-msg', 'Network error: ' + e.message, false); }
-}
-
-async function resetModel() {
-  const provider = document.getElementById('cfg-model-provider').value;
-  try {
-    const r = await fetch('/v1/config/model/' + provider, {
-      method: 'DELETE',
-      headers: {'Authorization':'Bearer '+apiKey},
-    });
-    const d = await r.json();
-    if (!r.ok) { setMsg('cfg-model-msg', d.error?.message || 'Failed.', false); return; }
-    document.getElementById('cfg-model-value').value = '';
-    setMsg('cfg-model-msg', `Reset ${provider} to default.`, true);
-    showRestartBanner();
-  } catch(e) { setMsg('cfg-model-msg', 'Network error: ' + e.message, false); }
-}
-
-async function setRotation() {
-  const mode = document.getElementById('cfg-rotation-value').value;
-  try {
-    const r = await fetch('/v1/config/rotation', {
-      method: 'POST',
-      headers: {'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json'},
-      body: JSON.stringify({mode}),
-    });
-    const d = await r.json();
-    if (!r.ok) { setMsg('cfg-rotation-msg', d.error?.message || 'Failed.', false); return; }
-    setMsg('cfg-rotation-msg', 'Saved rotation mode.', true);
-    showRestartBanner();
-  } catch(e) { setMsg('cfg-rotation-msg', 'Network error: ' + e.message, false); }
 }
 
 // ── restart ───────────────────────────────────────────────────────────────────
@@ -6181,7 +6113,6 @@ def config_providers():
     return jsonify({
         "key_settable": KEY_SETTABLE_PROVIDERS,
         "model_settable": list(PROVIDER_MODEL_ENV.keys()),
-        "defaults": PROVIDER_MODEL_DEFAULT,
         # Live key count per currently-configured provider, e.g. {"gemini": 6} —
         # informational context for the Access Keys page's provider picker, not
         # an enforced quota split (see monitoring docs on provider scoping).
@@ -6209,10 +6140,9 @@ def config_add_key(provider):
                     "duplicate": not added, "restart_required": added})
 
 
-@app.route("/v1/config/model/<provider>", methods=["POST", "DELETE"])
+@app.route("/v1/config/model/<provider>", methods=["POST"])
 def config_model(provider):
-    """POST {"model": "m1,m2"} to override a provider's model(s); DELETE to reset
-    to the built-in default (just removes the .env override line)."""
+    """POST {"model": "m1,m2"} to override a provider's model(s)."""
     err = _auth_check()
     if err:
         return err
@@ -6220,10 +6150,6 @@ def config_model(provider):
     if not env_var:
         return jsonify({"error": {"message": f"unknown provider: {provider}",
                                   "type": "invalid_request_error"}}), 400
-
-    if request.method == "DELETE":
-        _env_write_line(env_var, None)
-        return jsonify({"provider": provider, "reset": True, "restart_required": True})
 
     body = request.get_json(force=True, silent=True) or {}
     model = (body.get("model") or "").strip()
@@ -6257,16 +6183,6 @@ def config_feature(name):
     enabled = bool(body.get("enabled"))
     _env_write_line(addon["env"], addon["on"] if enabled else addon["off"])
     return jsonify({"name": name, "enabled": enabled, "restart_required": True})
-
-
-@app.route("/v1/config/rotation", methods=["POST"])
-def config_rotation():
-    """Rotation mode selection was removed; keys are sticky-until-fail."""
-    err = _auth_check()
-    if err:
-        return err
-    return jsonify({"error": {"message": "rotation mode removed",
-                              "type": "invalid_request_error"}}), 400
 
 
 @app.route("/v1/config/restart", methods=["POST"])

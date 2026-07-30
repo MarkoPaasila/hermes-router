@@ -90,6 +90,10 @@ def test_sticky_for_request_loads_store(monkeypatch):
     assert st["key"] == "k1"
 
 
+def test_provider_model_default_removed():
+    assert hasattr(router, "PROVIDER_MODEL_DEFAULT") is False
+
+
 def test_ordered_providers_passes_sticky(monkeypatch):
     captured = {}
 
