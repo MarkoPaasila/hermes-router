@@ -5896,7 +5896,9 @@ def anthropic_messages():
     streaming = bool(body.get("stream", False))
     payload   = _anthropic_request_to_openai(body)
     t_start   = time.time()
-    result    = _route_completion(payload, streaming, _cache_ns())
+    _session_id, _sticky = _sticky_for_request(request.headers, body)
+    result    = _route_completion(payload, streaming, _cache_ns(),
+                                _session_id=_session_id, _sticky=_sticky)
     _record_request_tokens(token, payload, result)
 
     entry = _log_completion(token, "messages", payload, result, time.time() - t_start)

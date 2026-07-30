@@ -117,3 +117,36 @@ def test_ordered_providers_passes_sticky(monkeypatch):
     sticky = {"provider": "groq", "model": "llama", "key": "k1"}
     router._ordered_providers({"messages": []}, sticky=sticky)
     assert captured["sticky"] == sticky
+
+
+def test_anthropic_messages_passes_sticky_kwargs(monkeypatch):
+    store = router.SessionStickyStore(ttl_s=3600, max_entries=100)
+    store.set("sess-msg", provider="groq", model="llama", key="k1")
+    monkeypatch.setattr(router, "sticky_store", store)
+    captured = {}
+
+    def fake_route(payload, streaming, cache_ns, _session_id=None, _sticky=None):
+        captured["session_id"] = _session_id
+        captured["sticky"] = _sticky
+        return ("json", {
+            "choices": [{"message": {"content": "hi"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+        })
+
+    monkeypatch.setattr(router, "_route_completion", fake_route)
+    monkeypatch.setattr(router, "_auth_check", lambda: None)
+    monkeypatch.setattr(router, "_admit_request", lambda token: None)
+    monkeypatch.setattr(router, "_record_request_tokens", lambda *a, **k: None)
+    monkeypatch.setattr(router, "_log_completion", lambda *a, **k: None)
+
+    client = router.app.test_client()
+    resp = client.post(
+        "/v1/messages",
+        json={"messages": [{"role": "user", "content": "hello"}]},
+        headers={"X-Hermes-Session-Id": "sess-msg"},
+    )
+    assert resp.status_code == 200
+    assert captured["session_id"] == "sess-msg"
+    assert captured["sticky"]["provider"] == "groq"
+    assert captured["sticky"]["model"] == "llama"
+    assert captured["sticky"]["key"] == "k1"
