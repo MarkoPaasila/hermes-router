@@ -189,3 +189,95 @@ def test_log_completion_includes_cascade_fields():
     assert entry["skipped"] == 1
     assert entry["cascades"] == 1
     assert len(entry["cascade"]) == 2
+
+
+def test_embeddings_cache_hit_has_empty_cascade_fields(monkeypatch):
+    router.request_log.clear()
+    monkeypatch.setattr(router.cache, "get", lambda *a, **k: {"data": [], "object": "list"})
+    monkeypatch.setattr(router, "_auth_check", lambda: None)
+    monkeypatch.setattr(router, "_admit_request", lambda token: None)
+    monkeypatch.setattr(router, "_caller_token", lambda: "sk-test-xxxxxx")
+    monkeypatch.setattr(router, "_embed_ordered", lambda: [
+        {"name": "gemini", "embed_model": "text-embedding-004", "keys": ["k"]},
+    ])
+    client = router.app.test_client()
+    r = client.post("/v1/embeddings",
+                    json={"input": "hello", "model": "text-embedding-004"},
+                    headers={"Authorization": "Bearer sk-test-xxxxxx"})
+    assert r.status_code == 200
+    entries = router.request_log.snapshot(limit=5)
+    assert entries
+    e = entries[-1]
+    assert e["status"] == "cache_hit"
+    assert e["cascade"] == []
+    assert e["failed"] == 0
+    assert e["skipped"] == 0
+    assert e["cascades"] == 0
+
+
+def test_embeddings_success_after_headroom_skip_counts_skipped(monkeypatch):
+    router.request_log.clear()
+    p_a = {"name": "emb_a", "embed_model": "e1", "keys": ["ka"],
+           "base_url": "https://a.test/v1"}
+    p_b = {"name": "emb_b", "embed_model": "e2", "keys": ["kb"],
+           "base_url": "https://b.test/v1"}
+    monkeypatch.setattr(router, "_auth_check", lambda: None)
+    monkeypatch.setattr(router, "_admit_request", lambda token: None)
+    monkeypatch.setattr(router, "_caller_token", lambda: "sk-test-xxxxxx")
+    monkeypatch.setattr(router, "_embed_ordered", lambda: [p_a, p_b])
+    monkeypatch.setattr(router.cache, "get", lambda *a, **k: None)
+    monkeypatch.setattr(router.cache, "set", lambda *a, **k: None)
+    monkeypatch.setattr(router.stats, "breaker_open", lambda n: False)
+    monkeypatch.setattr(router.stats, "record_success", lambda *a, **k: None)
+    monkeypatch.setattr(router.stats, "record_health", lambda *a, **k: None)
+    monkeypatch.setattr(router.stats, "record_error", lambda *a, **k: None)
+    monkeypatch.setattr(router, "_add_provider_tokens", lambda *a, **k: None)
+    monkeypatch.setattr(router.key_usage, "add_tokens", lambda *a, **k: None)
+
+    def fake_check(name, key, model, req_count=1.0, token_count=1.0):
+        if name == "emb_a":
+            return False, 60.0
+        return True, 0.0
+
+    monkeypatch.setattr(router.rate_limiter, "check_and_consume", fake_check)
+    monkeypatch.setattr(router.rate_limiter, "headroom",
+                        lambda name, key, model: 0.0 if name == "emb_a" else 1.0)
+    monkeypatch.setattr(router.rate_limiter, "release_reservation", lambda *a, **k: None)
+    monkeypatch.setattr(router.rate_limiter, "reconcile", lambda *a, **k: None)
+    monkeypatch.setattr(router.rate_limiter, "update_from_headers", lambda *a, **k: None)
+    monkeypatch.setattr(router.rate_limiter, "on_success", lambda *a, **k: None)
+
+    class _Pool:
+        def key_count(self, name, model):
+            return 1
+        def get_key(self, name, model, preferred=None):
+            return f"sk-{name}"
+        def mark_key_down(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(router, "pool", _Pool())
+
+    def fake_fwd(provider, key, payload):
+        assert provider["name"] == "emb_b"
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        resp.json.return_value = {
+            "data": [{"embedding": [0.1]}],
+            "usage": {"total_tokens": 3},
+        }
+        resp.text = ""
+        return resp
+
+    monkeypatch.setattr(router, "forward_embeddings", fake_fwd)
+    client = router.app.test_client()
+    r = client.post("/v1/embeddings",
+                    json={"input": "hello", "model": "text-embedding-004"},
+                    headers={"Authorization": "Bearer sk-test-xxxxxx"})
+    assert r.status_code == 200
+    e = router.request_log.snapshot(limit=5)[-1]
+    assert e["status"] == "success"
+    assert e["skipped"] >= 1
+    assert any(s["reason"] == "rate_headroom" for s in e["cascade"])
+    assert e["cascade"][-1]["outcome"] == "success"
+    assert e["cascades"] == e["failed"] + e["skipped"]

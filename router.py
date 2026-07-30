@@ -6172,6 +6172,7 @@ def embeddings():
     # Embeddings are deterministic — identical input is a perfect cache hit.
     ns      = _cache_ns()
     t_start = time.time()
+    trail   = CascadeTrail()
     cached  = cache.get(payload, ns)
     if cached is not None:
         log.info("↩ cache hit (embeddings)")
@@ -6185,10 +6186,10 @@ def embeddings():
             "provider":   "cache",
             "model":      payload.get("model"),
             "latency_ms": round((time.time() - t_start) * 1000),
-            "cascades":   0,
             "status":     "cache_hit",
             "prompt_tokens": None,
             "completion_tokens": None,
+            **trail.as_log_fields(),
         })
         return jsonify(cached)
 
@@ -6198,6 +6199,7 @@ def embeddings():
         name = provider["name"]
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} embeddings (circuit open)")
+            trail.skip(name, provider.get("embed_model") or "", "circuit_open")
             continue
 
         em = provider["embed_model"]
@@ -6206,6 +6208,7 @@ def embeddings():
             key = pool.get_key(name, em)
             if not key:
                 log.warning(f"All {name} keys cooling — skipping provider")
+                trail.note(name, em, "skipped", "keys_cooling")
                 break
 
             log.info(f"→ Trying {name} embeddings ({em}) ...{key[-6:]}")
@@ -6226,6 +6229,7 @@ def embeddings():
                         name, key, em, req_count=1.0, token_count=_est_tokens)
                 if not _rl_ok:
                     log.info(f"  {name}/{em} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
+                    trail.note(name, em, "skipped", "rate_headroom")
                     continue
             _rl_t0 = time.time()
             t0   = _rl_t0
@@ -6239,6 +6243,7 @@ def embeddings():
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=30)
+                trail.note(name, em, "failed", "network")
                 continue
             if resp.status_code == 429:
                 _rl_release()
@@ -6249,21 +6254,25 @@ def embeddings():
                     observed_at=_rl_t0,
                 )
                 log.warning(f"  {name} embeddings 429 — TBF hold, trying next key")
+                trail.note(name, em, "failed", "http_429")
                 continue
             if resp.status_code in (400, 401, 403, 404):
                 _rl_release()
                 stats.record_error(name)   # request/auth/model-specific, not a health failure
                 log.error(f"  {name} embeddings {resp.status_code} — skipping provider: {resp.text[:200]}")
+                trail.note(name, em, "failed", http_reason(resp.status_code))
                 break
             if resp.status_code >= 500:
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=15)
+                trail.note(name, em, "failed", "http_5xx")
                 continue
             if not (200 <= resp.status_code < 300):
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 log.warning(f"  {name} embeddings unexpected {resp.status_code} — skipping provider")
+                trail.note(name, em, "failed", http_reason(resp.status_code))
                 break
 
             stats.record_success(name, elapsed); stats.record_health(name, True)
@@ -6277,6 +6286,7 @@ def embeddings():
             key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)
             _add_provider_tokens(name, data)
             cache.set(payload, data, ns)
+            trail.success(name, em)
             request_log.append({
                 "ts":         time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "endpoint":   "embeddings",
@@ -6287,13 +6297,14 @@ def embeddings():
                 "provider":   name,
                 "model":      em,
                 "latency_ms": round((time.time() - t_start) * 1000),
-                "cascades":   0,
                 "status":     "success",
                 "prompt_tokens": (data.get("usage") or {}).get("total_tokens"),
                 "completion_tokens": None,
+                **trail.as_log_fields(),
             })
             return jsonify(data), 200
 
+        trail.flush()
         log.warning(f"✗ {name} embeddings exhausted — cascading")
 
     request_log.append({
@@ -6306,10 +6317,10 @@ def embeddings():
         "provider":   None,
         "model":      None,
         "latency_ms": round((time.time() - t_start) * 1000),
-        "cascades":   0,
         "status":     "error",
         "prompt_tokens": None,
         "completion_tokens": None,
+        **trail.as_log_fields(),
     })
     return jsonify({"error": {"message": "All embedding providers exhausted", "type": "router_error"}}), 503
 
