@@ -19,14 +19,16 @@ splits it into pages, refreshed every 5 seconds:
 - **Overview** — a plain-language status card, the endpoint/model to point your app at, a
   setup checklist, and summary stats (requests, tokens, spend, cache hit-rate, error rate)
 - **Providers** — health cards (worst-first) plus a detailed table (rating, latency, keys,
-  breaker state, cost)
-- **Provider Keys** — add a key for any provider, set the key-rotation mode, and see live
-  per-key request counts and daily budget usage
+  breaker state, cost, rate headroom), and a **provider-wide token buckets** panel for the
+  adaptive upstream rate limiter (TBF)
+- **Provider Keys** — add a key for any provider and see live per-key request counts and daily
+  budget usage
 - **Access Keys** — mint new `PROXY_API_KEYS` for teammates/other apps, with optional rate/
   budget limits, and revoke them — see
   [below](#proxy-api-keys--the-dashboard-key)
-- **Models** — override a provider's model(s), and a capability table (rating, tool support,
-  reasoning) for every configured model
+- **Models** — save a model override per provider, a capability table (rating, tool support,
+  reasoning) for every configured model, and a **model token buckets** panel for per-model TBF
+  state
 - **Add-ons** — toggle optional features on/off, plus live cache stats
 - **Request Log** — the last requests (endpoint, provider, model, latency, complexity score,
   cascade count, tokens, status), filterable by status and endpoint
@@ -220,14 +222,12 @@ circuit-breaker status, plus cache (incl. semantic + a `persistent` flag), routi
 limit/usage config. This is what `hr status` renders.
 
 Each entry in a provider's `keys` array also reports `requests` — how many times that specific
-**provider key** (last 6 chars only) has been handed out since the router started. This is the
-direct evidence that round-robin is actually spreading load evenly: add more keys to a provider
-and each one's `requests` count should climb roughly in step with the others. The built-in web
-dashboard (`/dashboard`) shows this as a tooltip on each key's status dot.
+**provider key** (last 6 chars only) has been used since the router started. The built-in web
+dashboard shows this as a tooltip on each key's status dot.
 
-The `rotation` block reports the active key-rotation mode
-(`{"rotation": {"mode": "round-robin"}}`); the `limits` block reports per-key budgets and live
-usage; `hr status` shows both in the footer. See [configuration.md](configuration.md) for details.
+The `rotation` block reports key selection mode (`{"rotation": {"mode": "sticky-key"}}`);
+the `limits` block reports per-key budgets and live usage; `hr status` shows limits in the footer.
+See [configuration.md](configuration.md) for details.
 
 ## Request log (`/v1/logs`)
 

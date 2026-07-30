@@ -19,8 +19,9 @@ already talks to either works unchanged — just point it at hermes-router inste
   Anthropic SDK)
 ```
 
-**Highlights:** OpenAI **and** Anthropic API compatible · automatic key rotation &
-failover · smart routing (sends each request to the cheapest model that can handle it) ·
+**Highlights:** OpenAI **and** Anthropic API compatible · sticky-until-fail key selection &
+failover · full-catalog smart routing (sends each request to the cheapest model that can handle it,
+session-sticky when clients send a session id) ·
 **local models** (Ollama / LM Studio) with cloud fallback · tool calling · embeddings ·
 response caching (incl. optional **semantic** cache) · **per-key budgets & rate limits** ·
 **built-in web dashboard** (just open `http://localhost:8319/`) · **usage analytics**
@@ -68,8 +69,8 @@ flows through it like this:
        ▲                                   │  1. Auth check (PROXY_API_KEYS)     │
        │                                   │  2. Cache lookup (exact match)      │
        │         OpenAI-format response    │  3. Rate the request (1–5)          │
-       └────────────────────────────────► │  4. Order providers by fit + health │
-                                           │  5. Try providers, rotate keys      │
+       └────────────────────────────────► │  4. Order full catalog by fit       │
+                                           │  5. Try candidates, sticky keys     │
                                            └───────────────┬─────────────────────┘
                                                            │ first one that succeeds
                                            ┌───────────────▼─────────────────────┐
@@ -81,15 +82,16 @@ flows through it like this:
 **The moving parts:**
 
 - **Credential pool** — every provider can hold many keys (from `auth.json`, then `.env`).
-  Keys are rotated round-robin (verified perfectly even under real concurrent load). Upstream
-  rate limits are handled by an adaptive token-bucket filter (learns from headers/429s, paces
-  or fails over on low headroom, honors `Retry-After`); pool cool-downs are only for health
-  failures (network/5xx). Each key's usage count is visible in `/v1/status` and the web
-  dashboard, so you can watch load spread across keys as you add them.
+  Keys use **sticky-until-fail** selection (same key until it errors or is rate-limited, then
+  the next ready key). Upstream rate limits are handled by an adaptive token-bucket filter
+  (learns from headers/429s, paces or fails over on low headroom, honors `Retry-After`); pool
+  cool-downs are only for health failures (network/5xx). Key usage counts are visible in
+  `/v1/status` and the web dashboard.
 - **Smart routing** — each request is scored 1–5 for difficulty (by length and content, no
-  extra API call), and each model is scored 1–5 for capability. The router picks the
-  *cheapest* model that can still handle the request, and rotates among equally-good ones.
-  Tool requests only go to tool-capable providers.
+  extra API call), and each `(provider, model)` catalog entry is scored 1–5 for capability. The
+  router picks the *cheapest* candidate that can still handle the request. With a session id,
+  it reuses the same `(provider, model, key)` until cascade-away. Tool requests only go to
+  tool-capable models.
 - **Failover** — if a provider errors or times out, the router cascades to the next one
   automatically, so a single failure never reaches your app.
 - **Circuit breaker** — a provider that keeps failing is pulled out of rotation for a
@@ -175,11 +177,8 @@ The `./install.sh` step puts `hr` (and the full name `hermes-router`) on your PA
 | `hr auth add <provider>` | Add one or more API keys for a provider (prompts you, input hidden) |
 | `hr auth import-codex` | Import a ChatGPT-subscription login from the Codex CLI (OAuth) |
 | `hr auth list` | Show every provider and how many keys it has |
-| `hr model list` | Show every provider and its active model (default or overridden) |
+| `hr model list` | Show every provider and its active model |
 | `hr model set <provider> <model>` | Override the model used for a specific provider |
-| `hr model reset <provider>` | Revert a provider back to its default model |
-| `hr mode` | Show how keys are rotated within a provider |
-| `hr mode <round-robin\|sequential>` | Set the key rotation mode (see [Configuration](documentation/configuration.md)) |
 | `hr limit set <key> [opts]` | Set a proxy key's rate/budget limits (`--rpm`/`--req-day`/`--tokens-day`/`--cost-day`) |
 | `hr features list` | Show core features + optional add-ons, with on/off state |
 | `hr features enable\|disable <name>` | Turn an add-on on/off (writes `.env`; see [Configuration](documentation/configuration.md)) |

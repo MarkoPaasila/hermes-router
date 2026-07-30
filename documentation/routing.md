@@ -19,16 +19,40 @@ This is the core of the router, used by every request.
   like "what year was X" or "yes or no" pushes it toward "easy."
 - Every configured model has a **capability rating from 1 (strongest) to 5 (weakest)**, based on
   its name (e.g. `gemini-2.5-pro` rates higher than `gemini-2.5-flash-lite`).
-- The router picks the **cheapest model that's still capable enough** for the request. A trivial
-  question never gets sent to your most powerful (and often priciest or slowest) model, and a hard
-  question is never left with a model too weak to handle it.
+- The router builds a **full catalog** of every configured `(provider, model)` pair and picks the
+  **cheapest model that's still capable enough** for the request — across the whole pool, not one
+  provider at a time. A trivial question never gets sent to your most powerful (and often priciest
+  or slowest) model, and a hard question is never left with a model too weak to handle it.
 - If the chosen model is rate-limited, down, or errors — the router **automatically tries the next
   best one**. Your app just gets an answer; it never sees the failed attempt.
 
 This also works *within* a single provider: if you list several models for one provider (e.g.
 `GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.5-pro`), the router treats each one
-as its own candidate — easy requests land on `flash-lite`, hard ones climb to `gemini-2.5-pro` —
-instead of only using the extra models as backups.
+as its own catalog candidate — easy requests land on `flash-lite`, hard ones climb to
+`gemini-2.5-pro` — instead of only using the extra models as backups.
+
+### Session-sticky routing
+
+When your client sends a **session id**, the router remembers the winning
+`(provider, model, key)` for that conversation and reuses it on later turns until it has to
+**cascade away** (rate limit, error, capability skip, etc.). That keeps multi-turn chats on the
+same upstream account and model instead of bouncing around the catalog every message.
+
+**Session id resolution** (first non-empty wins; the router never invents an id):
+
+1. Header `X-Hermes-Session-Id`
+2. Header `X-Chat-ID`
+3. Body field `user` (OpenAI-style)
+4. Body `metadata.session_id` or `metadata.sessionId`
+
+With **no session id**, every request gets a fresh full-catalog pick.
+
+Within a sticky session, **keys are sticky-until-fail**: the same provider key is preferred until
+that key errors or is exhausted, then the router tries the next ready key for that model.
+
+> **Hermes Agent note:** the VS Code Hermes Agent extension does **not** yet forward a session id
+> to custom OpenAI-compatible endpoints, so sticky routing won't activate there until it does.
+> Other clients can set the headers or body fields above explicitly.
 
 ## Tool-calling routing
 

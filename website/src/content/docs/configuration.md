@@ -1,6 +1,6 @@
 ---
 title: "Configuration"
-description: "auth.json, every .env setting, model overrides, key rotation and advanced knobs."
+description: "auth.json, every .env setting, model overrides, sticky key selection and advanced knobs."
 ---
 
 All configuration is via environment variables (in `.env`) and the `auth.json` credential
@@ -11,8 +11,8 @@ it has at least one key.
 
 hermes-router splits its behavior into two groups:
 
-- **Core features** — always on; they *are* the router. Auth, the credential pool + key
-  rotation, failover, the circuit breaker, smart routing, protocol translation
+- **Core features** — always on; they *are* the router. Auth, the credential pool + sticky key
+  selection, failover, the circuit breaker, smart routing, protocol translation
   (OpenAI/Anthropic/Codex), capability probing, token counting, request guardrails, and
   usage/cost tracking. You don't configure these on/off.
 - **Add-ons** — optional behaviors you turn on when you want them. Each is backed by an
@@ -78,7 +78,6 @@ subscription) logins are stored separately under `codex_accounts` (via
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `METRICS_REQUIRE_AUTH` | `0` | Require the proxy key on `/metrics` (`1` to enable) |
 | `REASONING_TOKEN_RESERVE` | `4096` | Extra output budget added for reasoning models so hidden chain-of-thought doesn't eat the answer (`0` disables) |
-| `ROTATION_MODE` | `round-robin` | How keys are picked within a provider (set in the dashboard or via `hr mode`) — `round-robin` or `sequential` |
 
 ### Advanced settings
 
@@ -160,7 +159,8 @@ restarts in `rate_limits_state.json`.
 | `RATE_BUCKET_CSV_ENABLED` | off | When `1`/`true`/`yes`, append TBF cap-change events to a CSV |
 | `RATE_BUCKET_CSV` | `./rate_bucket_events.csv` | Path for that append-only event log (Calc/Excel-friendly) |
 
-The rate limit state is visible in the dashboard (Rate headroom column) and in
+The rate limit state is visible on the dashboard **Providers** page (provider-wide token
+buckets + Rate headroom column) and **Models** page (per-model token buckets), and in
 `/v1/status` under each provider's `rate_limits` key. For local development,
 enable `RATE_BUCKET_CSV_ENABLED` to append each cap change (nudge/cut/header
 pin/lift) with headroom into a CSV you can open in LibreOffice Calc or Excel;
@@ -242,20 +242,19 @@ The router auto-probes each provider at startup, but you can force the result:
 
 ## Model overrides
 
-Each provider has a default model that works out of the box. Switch models without editing
-files:
+Switch models without editing files:
 
 ```bash
 hr model list                              # see all providers and their active model
 hr model set anthropic claude-sonnet-4-6   # upgrade Anthropic to Sonnet
 hr model set openai gpt-4o                 # use full GPT-4o instead of mini
 hr model set gemini gemini-2.5-pro         # switch Gemini to Pro
-hr model reset anthropic                   # revert back to the default
 hr restart                                 # apply changes
 ```
 
 Overrides are stored as plain variables in `.env` (e.g. `ANTHROPIC_MODEL=claude-sonnet-4-6`)
-and active overrides are highlighted in `hr model list`.
+and shown in `hr model list`. The dashboard **Models** page also lets you save a model override
+per provider.
 
 ### Multiple models per provider
 
@@ -321,28 +320,16 @@ filter applies both to your configured model list and to any extras appended by
 auto-discovery. If every model for a provider is excluded, the provider stays in
 rotation with no usable models and a warning is logged at startup.
 
-## Key rotation mode
+## Key selection
 
-When a provider holds several keys (or several accounts), `ROTATION_MODE` decides how the
-router picks among them. Set it in the dashboard's Configuration panel or with:
+When a provider holds several keys (or several accounts), the router uses **sticky-until-fail**
+selection: it keeps using the same key for a `(provider, model)` until that key errors or is
+rate-limited, then tries the next ready key in stable deque order. There is no round-robin or
+sequential rotation mode.
 
-```bash
-hr mode                # show the current mode
-hr mode round-robin    # default — spread requests evenly across all keys
-hr mode sequential     # drain one key fully before moving to the next
-hr restart             # apply the change
-```
-
-- **`round-robin`** (default) — every request goes to the next key in turn, so all keys
-  share the load and deplete together. Best for spreading latency and load.
-- **`sequential`** — one key is used until it hits its rate limit, then the router moves to
-  the next, and so on. Later keys stay **untouched in reserve** — useful when you want to
-  ration accounts after a quota reset instead of burning them all at once. Keys are drained
-  in the order they appear in `auth.json`.
-
-Either way, failover, per-key cooldowns, and the circuit breaker keep working — the mode
-only changes *which ready key is preferred* next. The active mode shows in `hr status` and
-at `/v1/status`.
+The legacy `ROTATION_MODE` env var (and `hr mode`) are **ignored** — if set, the router logs a
+warning at startup. Failover, per-key cooldowns, and the circuit breaker keep working as before.
+Key usage counts show in `hr status`, `/v1/status` (`keys[].requests`), and the web dashboard.
 
 ---
 

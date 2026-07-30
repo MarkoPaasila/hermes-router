@@ -1,7 +1,4 @@
----
-title: "Architecture — How it works"
-description: "The full picture: the request pipeline, credential pool, smart routing, failover, protocol translation (OpenAI/Anthropic/Codex), caching, and observability."
----
+# Architecture — How it works
 
 hermes-router is a single Python file (`router.py`) running a small Flask/Waitress server. It
 accepts OpenAI- or Anthropic-format requests and forwards each one to the best available
@@ -66,12 +63,12 @@ list. Because free-tier rate limits are per-**model**, TBF buckets are tracked p
 model)** (plus a provider-wide group): when one model is rate-limited, the router fails over to
 the next model on the same key before cascading to the next provider.
 
-> Provider-wide buckets are a shared-ceiling **estimate** (no header sync; softer cuts; faster recovery), initialized at **×10** the model/base default caps so shared-ceiling headroom % does not mirror the model bar. Model buckets remain authoritative for that model’s upstream limits.
+> Provider-wide buckets are a shared-ceiling **estimate** (no header sync; softer cuts; faster recovery), initialized at **×10** the model/base default caps so shared-ceiling headroom % does not mirror the model bar. Model buckets remain authoritative for that model's upstream limits.
 
 This multiplies free
 capacity along a third axis — **keys × models × providers** — with no extra signups. Each listed
 model is also a first-class routing candidate (see [Smart routing](#smart-routing) below), not
-just failover. See [Configuration](/configuration/#multiple-models-per-provider).
+just failover. See [Configuration](configuration.md#multiple-models-per-provider).
 
 ### Smart routing
 
@@ -98,7 +95,7 @@ safely share one list. Each model's capability shows in `/v1/status` under `mode
 
 **Local models & conversation mode.** A model running on your own machine (Ollama / LM Studio /
 llama.cpp) can join the pool as the `local` provider — free, private, fast (see
-[Providers](/providers/#local-models-ollama--lm-studio--llamacpp)). Sending the model id
+[Providers](providers.md#local-models-ollama--lm-studio--llamacpp)). Sending the model id
 `hermes-router:fast` (or header `X-Hermes-Profile: fast`) makes the router prefer that local
 model for short/casual turns, with the cloud providers as automatic fallback for heavier
 requests.
@@ -137,12 +134,12 @@ token, **and estimated-cost** budgets (set globally via `PROXY_LIMIT_*` or per k
 with `hr limit`). A caller over its limit gets a `429` with `Retry-After` *before* any provider is
 contacted; live counters appear in `/v1/status`. Unset = unlimited, so single-user setups are
 unaffected. This makes the router safe to share with a team. See
-[Configuration](/configuration/#per-key-budgets--rate-limits).
+[Configuration](configuration.md#per-key-budgets--rate-limits).
 
 **Cost awareness.** Spend is estimated from a built-in per-model price table (free providers and
 subscription plans are `$0`) and surfaced per provider and per key in `/v1/usage`, `/v1/status`,
 and `/metrics` — with an optional second currency (`COST_FX_RATE`). See
-[Configuration](/configuration/#cost--spend-awareness).
+[Configuration](configuration.md#cost--spend-awareness).
 
 ### Accurate token counting
 
@@ -196,7 +193,7 @@ Your app always speaks one format; the router adapts to whatever the chosen prov
   imported with `hr auth import-codex`; the router mints fresh access tokens from the refresh
   token, sends requests to the ChatGPT backend in Responses-API format, and translates the SSE
   stream back to OpenAI chunks. Multiple accounts pool naturally with sticky-until-fail key
-  selection. See [Providers](/providers/#codex-chatgpt-subscription).
+  selection. See [Providers](providers.md#codex-chatgpt-subscription).
 
 ## Endpoints
 
@@ -215,7 +212,7 @@ Your app always speaks one format; the router adapts to whatever the chosen prov
 `hr status` renders a live dashboard (provider health, latency, key cooldowns, cache) from
 `/v1/status`. `/metrics` exposes Prometheus counters and gauges for Grafana — counts
 and timings only, never request content. TBF state appears on the dashboard **Providers**
-(provider-wide buckets) and **Models** (per-model buckets) pages. See [Monitoring](/monitoring/).
+(provider-wide buckets) and **Models** (per-model buckets) pages. See [Monitoring](monitoring.md).
 
 ## Ways to run and connect
 
@@ -224,30 +221,30 @@ The same `router.py` engine runs everywhere; you choose how to launch it and how
 **Run it:**
 
 - **`hr` CLI** *(Linux/macOS/WSL)* — `hr setup`, `hr auth add`, `hr status`, `hr restart`. The
-  friendly day-to-day way to manage a local router. See [Deployment](/deployment/#path-2-linux--macos-the-hr-way).
+  friendly day-to-day way to manage a local router. See [Deployment](deployment.md#path-2-linux--macos-the-hr-way).
 - **Docker image** — the prebuilt multi-arch [`shafiq735/hermes-router`](https://hub.docker.com/r/shafiq735/hermes-router)
-  runs the same on Windows, macOS, and Linux: `docker run -p 8319:8319 …`. See [Deployment](/deployment/#path-1-docker-easiest-any-os).
-- **Hugging Face Space** — host it in the cloud for free. See [Deployment](/deployment/#path-4-hugging-face-space-host-it-online).
+  runs the same on Windows, macOS, and Linux: `docker run -p 8319:8319 …`. See [Deployment](deployment.md#path-1-docker-easiest-any-os).
+- **Hugging Face Space** — host it in the cloud for free. See [Deployment](deployment.md#path-4-hugging-face-space-host-it-online).
 
 **Connect to it:**
 
-- **Any OpenAI or Anthropic SDK** — point `base_url` at the router and you're done. See [Usage](/usage/).
+- **Any OpenAI or Anthropic SDK** — point `base_url` at the router and you're done. See [Usage](usage.md).
 - **VS Code extension** — monitor the provider pool, manage the router, *and* use hermes-router
-  as a model inside Copilot Chat (including agent mode). See [VS Code Extension](/vscode-extension/).
+  as a model inside Copilot Chat (including agent mode). See [VS Code Extension](vscode-extension.md).
 
 ## Design principles
 
 - **Self-contained** — one Python file; keys live in your own `auth.json` (git-ignored, `0600`).
   Nothing is installed system-wide beyond the `hr` symlink.
 - **Configured by environment** — every behavior is an env var with a sensible default; see
-  [Configuration](/configuration/).
+  [Configuration](configuration.md).
 - **Core vs. add-ons** — a small set of **core** features is always on (auth, failover, smart
   routing, the circuit breaker…); everything optional is an **add-on** you toggle with
-  [`hr features`](/configuration/#hr-features--see-and-toggle-add-ons). Add-ons default to off
+  [`hr features`](configuration.md#hr-features--see-and-toggle-add-ons). Add-ons default to off
   (so a fresh install is minimal) and never change core behavior.
 - **Fail soft** — when in doubt the router makes forward progress (e.g. if every provider's
   breaker is open it probes them all) rather than hard-failing while options remain.
 
 ---
 
-**Next:** [VS Code Extension](/vscode-extension/) — monitor and manage the router, and use it as a model inside Copilot Chat.
+**Next:** [VS Code Extension](vscode-extension.md) — monitor and manage the router, and use it as a model inside Copilot Chat.
