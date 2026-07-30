@@ -451,11 +451,13 @@ class BucketGroup:
     def on_429(self, headers: dict, apply_retry_after: bool = True, *,
                apply_headers: bool = True, soft: bool = False,
                observed_at: float | None = None) -> list[tuple[str, CapChange]]:
-        changes = (self._apply_headers(headers, on_429=True, observed_at=observed_at)
-                   if apply_headers else [])
-        updated = {name for name, _ in changes}
+        changes: list[tuple[str, CapChange]] = []
+        header_touched: set[str] = set()
+        if apply_headers:
+            changes, header_touched = self._apply_headers(
+                headers, on_429=True, observed_at=observed_at)
         for name, b in self.buckets.items():
-            if name in updated:
+            if name in header_touched:
                 continue
             if not b.active:
                 b.active = True
@@ -482,12 +484,14 @@ class BucketGroup:
 
     def update_from_headers(self, headers: dict,
                             observed_at: float | None = None) -> list[tuple[str, CapChange]]:
-        return self._apply_headers(headers, on_429=False, observed_at=observed_at)
+        changes, _ = self._apply_headers(headers, on_429=False, observed_at=observed_at)
+        return changes
 
     def _apply_headers(self, headers: dict, on_429: bool,
-                       observed_at: float | None = None) -> list[tuple[str, CapChange]]:
+                       observed_at: float | None = None) -> tuple[list[tuple[str, CapChange]], set[str]]:
         """Parse x-ratelimit-* headers and update matching buckets."""
         changes: list[tuple[str, CapChange]] = []
+        header_touched: set[str] = set()
         limits   = {}
         remaining = {}
         for raw_key, val in headers.items():
@@ -516,13 +520,16 @@ class BucketGroup:
                     change = CapChange(old_cap=cap_val, event="header_pin", reason="header")
                 self.buckets[limit_name] = b
                 log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
+                header_touched.add(limit_name)
                 changes.append((limit_name, change))
             else:
-                change = self.buckets[limit_name].set_from_header(
-                        cap_val, rem_val, observed_at=obs)
+                b = self.buckets[limit_name]
+                change = b.set_from_header(cap_val, rem_val, observed_at=obs)
+                if b._header_obs_at == obs:
+                    header_touched.add(limit_name)
                 if change is not None:
                     changes.append((limit_name, change))
-        return changes
+        return changes, header_touched
 
     def run_inactive_check(self) -> None:
         n = self._requests_this_period
@@ -677,12 +684,15 @@ class AdaptiveRateLimiter:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
             pw_ok, pw_wait, pw_changes = pw.consume(req_count, token_count)
             if not pw_ok:
+                self._emit_group_changes(provider_name, key, None, pw, pw_changes)
                 return False, pw_wait
             mg_ok, mg_wait, mg_changes = mg.consume(req_count, token_count)
             if not mg_ok:
                 pw.restore_tokens(token_count)
                 pw.restore_requests(req_count)
                 pw._requests_this_period -= int(req_count)
+                self._emit_group_changes(provider_name, key, None, pw, pw_changes)
+                self._emit_group_changes(provider_name, key, model, mg, mg_changes)
                 return False, mg_wait
             self._emit_group_changes(provider_name, key, None, pw, pw_changes)
             self._emit_group_changes(provider_name, key, model, mg, mg_changes)

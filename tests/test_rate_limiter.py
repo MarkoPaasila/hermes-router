@@ -966,21 +966,22 @@ def test_csv_header_pin_skips_same_cap_refresh(monkeypatch, tmp_path):
     rl = make_limiter(tmp_path)
     key, model = "sk-testkey99", "llama-3"
     headers = {
-        "x-ratelimit-limit-requests": "30",
+        "x-ratelimit-limit-requests": "45",
         "x-ratelimit-remaining-requests": "20",
-        "x-ratelimit-limit-tokens": "6000",
+        "x-ratelimit-limit-tokens": "9000",
         "x-ratelimit-remaining-tokens": "5000",
     }
     rl.update_from_headers("groq", key, model, headers, observed_at=100.0)
-    n1 = len(list(csv.DictReader(path.open()))) if path.exists() else 0
+    n1 = len(list(csv.DictReader(path.open())))
+    assert n1 > 0
     headers2 = {
-        "x-ratelimit-limit-requests": "30",
+        "x-ratelimit-limit-requests": "45",
         "x-ratelimit-remaining-requests": "10",
-        "x-ratelimit-limit-tokens": "6000",
+        "x-ratelimit-limit-tokens": "9000",
         "x-ratelimit-remaining-tokens": "1000",
     }
     rl.update_from_headers("groq", key, model, headers2, observed_at=200.0)
-    n2 = len(list(csv.DictReader(path.open()))) if path.exists() else 0
+    n2 = len(list(csv.DictReader(path.open())))
     assert n2 == n1
 
 
