@@ -3954,7 +3954,6 @@ th.sortable.sorted-desc::after{content:'↓'}
     <nav class="sidebar-nav" id="sidebar-nav">
       <button class="nav-item active" data-page="overview" onclick="showPage('overview')">Overview</button>
       <button class="nav-item" data-page="providers" onclick="showPage('providers')"><span>Providers</span><span class="nav-dot" id="nav-dot-providers"></span></button>
-      <button class="nav-item" data-page="rate-limits" onclick="showPage('rate-limits')">Rate limits</button>
       <button class="nav-item" data-page="keys" onclick="showPage('keys')">Provider Keys</button>
       <button class="nav-item" data-page="access" onclick="showPage('access')">Access Keys</button>
       <button class="nav-item" data-page="models" onclick="showPage('models')">Models</button>
@@ -4064,34 +4063,29 @@ th.sortable.sorted-desc::after{content:'↓'}
             </table>
           </div>
         </details>
-      </section>
 
-      <!-- ── Rate limits ──────────────────────────────────────────────────── -->
-      <section class="page" id="page-rate-limits">
-        <div class="panel">
+        <div class="panel" id="rl-panel-pw">
           <div class="panel-header">
-            <span class="panel-title">Token bucket filters</span>
+            <span class="panel-title">Provider-wide token buckets</span>
             <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0">
-              <input type="checkbox" id="rl-orphans" onchange="refreshRateLimits()">
+              <input type="checkbox" id="rl-orphans-pw" onchange="refreshRateLimits()">
               Show dormant / orphan groups
             </label>
           </div>
           <div class="page-intro" style="padding:12px 14px 0">
-            Live adaptive rate-limit buckets. Model rows are authoritative (headers + hard 429).
-            Provider-wide rows are shared-ceiling estimates (no header sync; softer cuts; faster recovery).
+            Shared-ceiling estimates (no header sync; softer cuts; faster recovery).
             Click a row for per-bucket detail. Clear drops learned caps for that scope.
           </div>
           <div class="panel-body">
             <table>
               <thead><tr>
-                <th class="sortable" data-sort="provider" onclick="sortRateLimits('provider')">Provider</th>
-                <th class="sortable" data-sort="key_hint" onclick="sortRateLimits('key_hint')">Key</th>
-                <th class="sortable" data-sort="scope" onclick="sortRateLimits('scope')">Scope</th>
-                <th class="sortable" data-sort="binding" onclick="sortRateLimits('binding')">Binding</th>
-                <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('headroom')">Headroom</th>
-                <th class="sortable right" data-sort="buckets" onclick="sortRateLimits('buckets')">Buckets</th>
+                <th class="sortable" data-sort="provider" onclick="sortRateLimits('provider_wide','provider')">Provider</th>
+                <th class="sortable" data-sort="key_hint" onclick="sortRateLimits('provider_wide','key_hint')">Key</th>
+                <th class="sortable" data-sort="binding" onclick="sortRateLimits('provider_wide','binding')">Binding</th>
+                <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('provider_wide','headroom')">Headroom</th>
+                <th class="sortable right" data-sort="buckets" onclick="sortRateLimits('provider_wide','buckets')">Buckets</th>
               </tr></thead>
-              <tbody id="rl-tbody"></tbody>
+              <tbody id="rl-tbody-pw"></tbody>
             </table>
           </div>
         </div>
@@ -4220,6 +4214,33 @@ th.sortable.sorted-desc::after{content:'↓'}
             </table>
           </div>
         </div>
+
+        <div class="panel" id="rl-panel-model">
+          <div class="panel-header">
+            <span class="panel-title">Model token buckets</span>
+            <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0">
+              <input type="checkbox" id="rl-orphans-model" onchange="refreshRateLimits()">
+              Show dormant / orphan groups
+            </label>
+          </div>
+          <div class="page-intro" style="padding:12px 14px 0">
+            Authoritative model buckets (headers + hard 429). Click a row for per-bucket detail.
+            Clear drops learned caps for that scope.
+          </div>
+          <div class="panel-body">
+            <table>
+              <thead><tr>
+                <th class="sortable" data-sort="provider" onclick="sortRateLimits('model','provider')">Provider</th>
+                <th class="sortable" data-sort="key_hint" onclick="sortRateLimits('model','key_hint')">Key</th>
+                <th class="sortable" data-sort="scope" onclick="sortRateLimits('model','scope')">Model</th>
+                <th class="sortable" data-sort="binding" onclick="sortRateLimits('model','binding')">Binding</th>
+                <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('model','headroom')">Headroom</th>
+                <th class="sortable right" data-sort="buckets" onclick="sortRateLimits('model','buckets')">Buckets</th>
+              </tr></thead>
+              <tbody id="rl-tbody-model"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <!-- ── Add-ons ──────────────────────────────────────────────────────── -->
@@ -4283,14 +4304,14 @@ let apiKey = localStorage.getItem('hermes_dash_key') || '';
 let statusData = null, usageData = null, logsData = [], accessKeysData = [];
 let rateLimitsData = [];
 let selectedRateGroupId = null;
-let rlSortKey = 'headroom';
-let rlSortDir = 1; // 1 = asc, -1 = desc
+let rlSortPw = {key: 'headroom', dir: 1};
+let rlSortModel = {key: 'headroom', dir: 1};
 let editingKeyTail = null;
 let INTERVAL = 5000;
 let timer = null;
 
 // ── sidebar navigation ───────────────────────────────────────────────────────
-const PAGES = ['overview', 'providers', 'rate-limits', 'keys', 'access', 'models', 'addons', 'logs'];
+const PAGES = ['overview', 'providers', 'keys', 'access', 'models', 'addons', 'logs'];
 
 function showPage(name) {
   if (!PAGES.includes(name)) name = 'overview';
@@ -5048,22 +5069,40 @@ function renderModelCaps() {
 async function refreshRateLimits() {
   if (!apiKey) return;
   try {
-    const orphans = document.getElementById('rl-orphans')?.checked ? '1' : '0';
-    const r = await fetch('/v1/rate-limits?include_orphans=' + orphans, {
+    const orphansPw = document.getElementById('rl-orphans-pw')?.checked;
+    const orphansModel = document.getElementById('rl-orphans-model')?.checked;
+    const includeOrphans = (orphansPw || orphansModel) ? '1' : '0';
+    const r = await fetch('/v1/rate-limits?include_orphans=' + includeOrphans, {
       headers: {'Authorization': 'Bearer ' + apiKey},
     });
     if (r.status === 401) return;
     if (!r.ok) return;
     const data = await r.json();
     rateLimitsData = data.groups || [];
-    renderRateLimits();
+    renderRateLimitsTables();
   } catch (e) { /* page still usable */ }
 }
 
-function sortRateLimits(key) {
-  if (rlSortKey === key) rlSortDir = -rlSortDir;
-  else { rlSortKey = key; rlSortDir = 1; }
-  renderRateLimits();
+function renderRateLimitsTables() {
+  renderProviderWideRateLimits();
+  renderModelRateLimits();
+  if (selectedRateGroupId) {
+    const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
+    if (g) renderRateDetail(g);
+    else closeRateDetail();
+  }
+}
+
+function sortRateLimits(scope, key) {
+  const st = scope === 'provider_wide' ? rlSortPw : rlSortModel;
+  if (st.key === key) st.dir = -st.dir;
+  else { st.key = key; st.dir = 1; }
+  if (scope === 'provider_wide') renderProviderWideRateLimits();
+  else renderModelRateLimits();
+  if (selectedRateGroupId) {
+    const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
+    if (g) renderRateDetail(g);
+  }
 }
 
 function _rlSortValue(g, key) {
@@ -5076,82 +5115,100 @@ function _rlSortValue(g, key) {
   return null;
 }
 
-function _rlCompare(a, b) {
-  const va = _rlSortValue(a, rlSortKey);
-  const vb = _rlSortValue(b, rlSortKey);
+function _rlCompare(a, b, sortKey, sortDir) {
+  const va = _rlSortValue(a, sortKey);
+  const vb = _rlSortValue(b, sortKey);
   if (va == null && vb == null) return 0;
   if (va == null) return 1;
   if (vb == null) return -1;
   let cmp;
   if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
   else cmp = String(va).localeCompare(String(vb));
-  return cmp * rlSortDir;
+  return cmp * sortDir;
 }
 
-function _rlSyncSortHeaders() {
-  document.querySelectorAll('#page-rate-limits thead th.sortable').forEach(th => {
+function _rlSyncSortHeaders(panelId, sortKey, sortDir) {
+  document.querySelectorAll('#' + panelId + ' thead th.sortable').forEach(th => {
     th.classList.remove('sorted-asc', 'sorted-desc');
-    if (th.dataset.sort === rlSortKey)
-      th.classList.add(rlSortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+    if (th.dataset.sort === sortKey)
+      th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
   });
 }
 
-function renderRateLimits() {
-  const tbody = document.getElementById('rl-tbody');
+function _rlFilterGroups(scope, showOrphans) {
+  return (rateLimitsData || []).filter(g => {
+    if (g.scope !== scope) return false;
+    if (!showOrphans && g.configured === false) return false;
+    return true;
+  });
+}
+
+function _rlRenderRow(g) {
+  const tr = document.createElement('tr');
+  tr.className = 'rl-row' + (g.id === selectedRateGroupId ? ' rl-selected' : '');
+  tr.onclick = () => selectRateGroup(g.id);
+  const scopeLabel = g.scope === 'model' ? (g.model || '—') : 'provider-wide';
+  const role = g.role === 'estimate'
+    ? ' <span class="pill pill-grey">estimate</span>'
+    : (g.role === 'authoritative' ? ' <span class="pill pill-ok">authoritative</span>' : '');
+  const hPct = g.headroom == null ? null : Math.round(g.headroom * 100);
+  const hColor = hPct == null ? '' : hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
+  const bar = hPct == null
+    ? '<span class="muted">—</span>'
+    : `<div style="display:inline-block;vertical-align:middle">
+         <div class="prog-track" style="width:64px;display:inline-block">
+           <div class="prog-fill ${hColor}" style="width:${hPct}%"></div>
+         </div>
+         <span class="muted" style="font-size:10px;margin-left:4px">${hPct}%</span>
+       </div>`;
+  const nBuckets = Object.keys(g.buckets || {}).length;
+  const scopeCell = g.scope === 'model'
+    ? `<td class="mono muted">${scopeLabel}${role}</td>`
+    : '';
+  tr.innerHTML = `
+    <td><strong>${g.provider}</strong></td>
+    <td class="mono muted">…${g.key_hint || ''}</td>
+    ${scopeCell}
+    <td>${g.binding || '<span class="muted">—</span>'}</td>
+    <td>${bar}</td>
+    <td class="right muted">${nBuckets}</td>`;
+  return tr;
+}
+
+function _rlRenderTable(scope, tbodyId, panelId, sortState, showOrphans, emptyColspan) {
+  const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
-  _rlSyncSortHeaders();
-  const rows = (rateLimitsData || []).slice().sort(_rlCompare);
+  _rlSyncSortHeaders(panelId, sortState.key, sortState.dir);
+  const rows = _rlFilterGroups(scope, showOrphans).slice().sort((a, b) =>
+    _rlCompare(a, b, sortState.key, sortState.dir));
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">No rate data yet</td></tr>';
-    closeRateDetail();
+    tbody.innerHTML = `<tr><td colspan="${emptyColspan}" style="text-align:center;color:var(--muted);padding:24px">No rate data yet</td></tr>`;
     return;
   }
   tbody.innerHTML = '';
-  rows.forEach(g => {
-    const tr = document.createElement('tr');
-    tr.className = 'rl-row' + (g.id === selectedRateGroupId ? ' rl-selected' : '');
-    tr.onclick = () => selectRateGroup(g.id);
-    const scopeLabel = g.scope === 'model' ? (g.model || '—') : 'provider-wide';
-    const role = g.role === 'estimate'
-      ? ' <span class="pill pill-grey">estimate</span>'
-      : (g.role === 'authoritative' ? ' <span class="pill pill-ok">authoritative</span>' : '');
-    const hPct = g.headroom == null ? null : Math.round(g.headroom * 100);
-    const hColor = hPct == null ? '' : hPct >= 50 ? 'green' : hPct >= 20 ? 'yellow' : 'red';
-    const bar = hPct == null
-      ? '<span class="muted">—</span>'
-      : `<div style="display:inline-block;vertical-align:middle">
-           <div class="prog-track" style="width:64px;display:inline-block">
-             <div class="prog-fill ${hColor}" style="width:${hPct}%"></div>
-           </div>
-           <span class="muted" style="font-size:10px;margin-left:4px">${hPct}%</span>
-         </div>`;
-    const nBuckets = Object.keys(g.buckets || {}).length;
-    tr.innerHTML = `
-      <td><strong>${g.provider}</strong></td>
-      <td class="mono muted">…${g.key_hint || ''}</td>
-      <td class="mono muted">${scopeLabel}${role}</td>
-      <td>${g.binding || '<span class="muted">—</span>'}</td>
-      <td>${bar}</td>
-      <td class="right muted">${nBuckets}</td>`;
-    tbody.appendChild(tr);
-  });
-  if (selectedRateGroupId) {
-    const still = rows.find(r => r.id === selectedRateGroupId);
-    if (still) renderRateDetail(still);
-    else closeRateDetail();
-  }
+  rows.forEach(g => tbody.appendChild(_rlRenderRow(g)));
+}
+
+function renderProviderWideRateLimits() {
+  const showOrphans = document.getElementById('rl-orphans-pw')?.checked;
+  _rlRenderTable('provider_wide', 'rl-tbody-pw', 'rl-panel-pw', rlSortPw, showOrphans, 5);
+}
+
+function renderModelRateLimits() {
+  const showOrphans = document.getElementById('rl-orphans-model')?.checked;
+  _rlRenderTable('model', 'rl-tbody-model', 'rl-panel-model', rlSortModel, showOrphans, 6);
 }
 
 function selectRateGroup(id) {
   selectedRateGroupId = id;
-  renderRateLimits();
+  renderRateLimitsTables();
 }
 
 function closeRateDetail() {
   selectedRateGroupId = null;
   const modal = document.getElementById('rl-detail-modal');
   if (modal) modal.classList.add('hidden');
-  document.querySelectorAll('#rl-tbody tr.rl-selected').forEach(tr => tr.classList.remove('rl-selected'));
+  document.querySelectorAll('#rl-tbody-pw tr.rl-selected, #rl-tbody-model tr.rl-selected').forEach(tr => tr.classList.remove('rl-selected'));
 }
 
 function renderRateDetail(g) {

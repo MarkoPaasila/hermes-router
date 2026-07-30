@@ -94,6 +94,18 @@ def test_provider_model_default_removed():
     assert hasattr(router, "PROVIDER_MODEL_DEFAULT") is False
 
 
+def test_dashboard_html_has_tbf_on_providers_and_models_not_standalone():
+    with open("router.py", encoding="utf-8") as f:
+        src = f.read()
+    assert 'id="page-rate-limits"' not in src
+    assert 'data-page="rate-limits"' not in src
+    pages_line = src.split("const PAGES")[1].split(";")[0]
+    assert "rate-limits" not in pages_line
+    assert 'id="page-providers"' in src and 'id="page-models"' in src
+    assert 'id="rl-tbody-pw"' in src
+    assert 'id="rl-tbody-model"' in src
+
+
 def test_ordered_providers_passes_sticky(monkeypatch):
     captured = {}
 
