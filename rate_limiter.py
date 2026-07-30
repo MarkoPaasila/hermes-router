@@ -35,6 +35,7 @@ RATE_LEARN_CUT_FACTOR_PROVIDER      = _float_env("RATE_LEARN_CUT_FACTOR_PROVIDER
 RATE_LEARN_SOFT_CUT_FACTOR          = _float_env("RATE_LEARN_SOFT_CUT_FACTOR", 0.9)
 RATE_LEARN_SUCCESS_STREAK_PROVIDER  = _int_env("RATE_LEARN_SUCCESS_STREAK_PROVIDER", 10)
 RATE_LEARN_NUDGE_PCT_PROVIDER       = _float_env("RATE_LEARN_NUDGE_PCT_PROVIDER", 8.0)
+RATE_PROVIDER_CAP_MULTIPLIER      = _float_env("RATE_PROVIDER_CAP_MULTIPLIER", 10.0)
 RATE_STATE_FLUSH_INTERVAL = _int_env("RATE_STATE_FLUSH_INTERVAL", 60)
 
 # ── Window definitions ────────────────────────────────────────────────────────
@@ -437,11 +438,14 @@ class AdaptiveRateLimiter:
             "model": parts.get("model"),
         }
 
-    def _caps_for(self, provider_name: str) -> dict[str, float]:
+    def _caps_for(self, provider_name: str, *, provider_wide: bool = False) -> dict[str, float]:
         caps = _load_caps_for(provider_name)
         overrides = self._auth_rate_defaults.get(provider_name, {})
         if overrides:
             caps = {**caps, **overrides}
+        if provider_wide:
+            mult = RATE_PROVIDER_CAP_MULTIPLIER
+            caps = {k: float(v) * mult for k, v in caps.items()}
         return caps
 
     def _get_group_unlocked(self, provider_name: str, key: str,
@@ -449,7 +453,9 @@ class AdaptiveRateLimiter:
         gk = self._group_key(provider_name, key, model)
         if gk not in self._groups:
             self._groups[gk] = BucketGroup(
-                provider_name=provider_name, caps=self._caps_for(provider_name))
+                provider_name=provider_name,
+                caps=self._caps_for(provider_name, provider_wide=(model is None)),
+            )
         return self._groups[gk]
 
     def get_group(self, provider_name: str, key: str, model: str | None) -> BucketGroup:

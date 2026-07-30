@@ -633,3 +633,39 @@ def test_on_success_pw_nudges_faster(tmp_path):
         rl.on_success("groq", "key-abc12345", "llama", 1.0)
     assert pw.buckets["RPM"].cap == pytest.approx(100.0 * 1.08)
     assert mg.buckets["RPM"].cap == pytest.approx(100.0)  # needs 20
+
+
+def test_new_provider_wide_caps_are_10x_model_defaults(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    mg = rl.get_group("openrouter", "key-abc12345", "nvidia/nemotron")
+    assert "TPM" in pw.buckets and "TPM" in mg.buckets
+    assert pw.buckets["TPM"].cap == pytest.approx(mg.buckets["TPM"].cap * 10.0)
+    assert pw.buckets["RPM"].cap == pytest.approx(mg.buckets["RPM"].cap * 10.0)
+
+
+def test_single_consume_model_headroom_drops_more_than_provider(tmp_path):
+    rl = make_limiter(tmp_path)
+    # Force creation of both groups at full tokens
+    rl.get_group("openrouter", "key-abc12345", None)
+    rl.get_group("openrouter", "key-abc12345", "m")
+    ok, _ = rl.check_and_consume("openrouter", "key-abc12345", "m", 1.0, 2000.0)
+    assert ok is True
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    mg = rl.get_group("openrouter", "key-abc12345", "m")
+    assert mg.headroom() < pw.headroom()
+    # Same absolute TPM debit; PW cap is 10× so remaining fraction is higher
+    assert pw.buckets["TPM"].cap == pytest.approx(mg.buckets["TPM"].cap * 10.0)
+
+
+def test_load_does_not_remultiply_provider_caps(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    # Simulate a learned (non-×10) cap already persisted
+    pw.buckets["TPM"].cap = 12345.0
+    pw.buckets["TPM"].tokens = 12345.0
+    rl.flush()
+    rl2 = make_limiter(tmp_path)
+    rl2.load()
+    pw2 = rl2.get_group("openrouter", "key-abc12345", None)
+    assert pw2.buckets["TPM"].cap == pytest.approx(12345.0)
