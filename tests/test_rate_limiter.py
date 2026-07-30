@@ -1169,3 +1169,18 @@ def test_many_soft_ticks_eventually_move_mo():
     for _ in range(200):
         g.on_429({}, apply_retry_after=False, apply_headers=False, soft=True)
     assert g.buckets["TPH"].cap < before * 0.99
+
+
+def test_on_success_nudges_only_minute_windows():
+    from rate_limiter import BucketGroup, _load_caps_for, RATE_LEARN_SUCCESS_STREAK
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    for b in g.buckets.values():
+        b._header_pinned = False
+        b._consecutive_successes = RATE_LEARN_SUCCESS_STREAK - 1
+    before = {n: b.cap for n, b in g.buckets.items()}
+    changes = g.on_success(100.0)
+    changed = {n for n, _ in changes}
+    assert changed <= {"RPM", "TPM"}
+    assert "TPM" in changed or "RPM" in changed
+    for n in ("TPH", "TPD", "TPW", "TPMo", "RPH", "RPD", "RPW", "RPMo"):
+        assert g.buckets[n].cap == pytest.approx(before[n])

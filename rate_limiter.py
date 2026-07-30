@@ -553,6 +553,9 @@ class BucketGroup:
         for name, b in self.buckets.items():
             if not b.active:
                 continue
+            _dim, wk = LIMIT_KEYS[name]
+            if wk != "M":
+                continue
             change = b.on_success(streak=streak, nudge_pct=nudge_pct)
             if change is not None:
                 changes.append((name, change))
