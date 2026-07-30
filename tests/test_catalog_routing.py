@@ -61,3 +61,43 @@ def test_smart_ordered_sticky_first(monkeypatch):
     ordered = router._get_smart_ordered([p1, p2], complexity=5, sticky=sticky)
     assert ordered[0]["provider"]["name"] == "b"
     assert ordered[0]["model"] == "m2"
+
+
+def test_remember_and_clear_sticky():
+    router.sticky_store = router.SessionStickyStore(ttl_s=3600, max_entries=100)
+    router._remember_sticky("sess", "groq", "llama", "key1")
+    assert router.sticky_store.get("sess")["key"] == "key1"
+    router._clear_sticky("sess")
+    assert router.sticky_store.get("sess") is None
+
+
+def test_sticky_for_request_reads_header():
+    sid, st = router._sticky_for_request(
+        {"X-Hermes-Session-Id": "abc"}, {"messages": []})
+    assert sid == "abc"
+    assert st is None
+
+
+def test_sticky_for_request_loads_store(monkeypatch):
+    store = router.SessionStickyStore(ttl_s=3600, max_entries=100)
+    store.set("abc", provider="groq", model="llama", key="k1")
+    monkeypatch.setattr(router, "sticky_store", store)
+    sid, st = router._sticky_for_request(
+        {"X-Hermes-Session-Id": "abc"}, {"messages": []})
+    assert sid == "abc"
+    assert st["provider"] == "groq"
+    assert st["model"] == "llama"
+    assert st["key"] == "k1"
+
+
+def test_ordered_providers_passes_sticky(monkeypatch):
+    captured = {}
+
+    def _capture(providers, complexity, est_tokens=0, prefer_local=False, sticky=None):
+        captured["sticky"] = sticky
+        return []
+
+    monkeypatch.setattr(router, "_get_smart_ordered", _capture)
+    sticky = {"provider": "groq", "model": "llama", "key": "k1"}
+    router._ordered_providers({"messages": []}, sticky=sticky)
+    assert captured["sticky"] == sticky

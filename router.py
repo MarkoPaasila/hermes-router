@@ -23,7 +23,7 @@ Quick start:
 """
 
 import atexit
-import json, os, time, threading, logging, hashlib, hmac, itertools, re, sqlite3, subprocess, secrets
+import json, os, time, threading, logging, hashlib, hmac, re, sqlite3, subprocess, secrets
 from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
@@ -34,6 +34,7 @@ from token_caps import (
     classify_token_limit_error,
     extract_caps_from_model_item,
 )
+from session_sticky import SessionStickyStore, resolve_session_id
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -1884,6 +1885,24 @@ class CredentialPool:
 
 
 pool = CredentialPool(PROVIDERS)
+sticky_store = SessionStickyStore()
+
+
+def _sticky_for_request(headers, body) -> tuple[str | None, dict | None]:
+    sid = resolve_session_id(headers, body)
+    if not sid:
+        return None, None
+    return sid, sticky_store.get(sid)
+
+
+def _remember_sticky(session_id: str | None, provider: str, model: str, key: str) -> None:
+    if session_id:
+        sticky_store.set(session_id, provider=provider, model=model, key=key)
+
+
+def _clear_sticky(session_id: str | None) -> None:
+    if session_id:
+        sticky_store.clear(session_id)
 
 rate_limiter = AdaptiveRateLimiter(state_file=RATE_STATE_FILE, auth_file=AUTH_FILE)
 rate_limiter.load()
@@ -3227,7 +3246,8 @@ def _estimated_tokens(messages: list) -> int:
     return sum(len(_message_text(m)) for m in messages) // 4
 
 
-def _ordered_providers(payload: dict, prefer_local: bool = False) -> list[dict]:
+def _ordered_providers(payload: dict, prefer_local: bool = False,
+                       sticky: dict | None = None) -> list[dict]:
     """
     Smart complexity-aware ordering: use cheapest capable model for simple
     tasks, best model for complex ones. With FAST_ROUTE_THRESHOLD set,
@@ -3236,7 +3256,8 @@ def _ordered_providers(payload: dict, prefer_local: bool = False) -> list[dict]:
     """
     messages   = payload.get("messages", [])
     complexity = classify_complexity(messages)
-    ordered    = _get_smart_ordered(PROVIDERS, complexity, _estimated_tokens(messages), prefer_local)
+    ordered    = _get_smart_ordered(PROVIDERS, complexity, _estimated_tokens(messages),
+                                    prefer_local, sticky=sticky)
     log.info(f"→ complexity={complexity} ({_COMPLEXITY_LABELS[complexity]}) "
              f"order={[c['provider']['name'] + '/' + c['model'] for c in ordered]}")
     return ordered
@@ -5300,7 +5321,9 @@ def models():
 
 
 def _route_completion(payload: dict, streaming: bool, ns: str = "",
-                      *, _rate_retry: bool = False):
+                      *, _rate_retry: bool = False,
+                      _session_id: str | None = None,
+                      _sticky: dict | None = None):
     """Core routing + failover pipeline, shared by /v1/chat/completions and the
     Anthropic-compatible /v1/messages. Takes an OpenAI-format payload and returns
     one of:
@@ -5355,7 +5378,18 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     return ("json", hit)
 
     est_tokens = _estimated_tokens(messages)
-    ordered    = _ordered_providers(payload, prefer_local)
+    ordered    = _ordered_providers(payload, prefer_local, sticky=_sticky)
+
+    def _leave_sticky_model(name: str, model: str) -> None:
+        nonlocal _sticky
+        if (_session_id and _sticky
+                and _sticky.get("provider") == name
+                and _sticky.get("model") == model):
+            _clear_sticky(_session_id)
+            _sticky = None
+
+    def _remember_success(name: str, model: str, key: str) -> None:
+        _remember_sticky(_session_id, name, model, key)
 
     # Tool-aware routing: when the request carries tools, prefer (provider, model)
     # candidates whose MODEL actually supports function calling — otherwise a model
@@ -5428,6 +5462,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         # Caller's access key is scoped to specific providers — skip anything else.
         if caller_providers is not None and name not in caller_providers:
             skip_providers.add(name)
+            _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
 
@@ -5435,6 +5470,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} (circuit open)")
             skip_providers.add(name)
+            _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
 
@@ -5443,6 +5479,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         cap = _effective_input_cap_for(provider, model)
         if cap and est_tokens >= cap:
             log.info(f"⤳ skipping {name}/{model} (~{est_tokens} tok >= {cap} cap)")
+            _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
 
@@ -5453,18 +5490,23 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 and not _model_supports_tools(name, model)):
             log.info(f"⚒ skipping {name}/{model} (no tool support)")
             tool_deferred.append(cand)
+            _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
 
         # Vision request → skip candidates whose MODEL isn't known to accept images.
         if enforce_vision and not _model_supports_vision(provider, model):
             log.info(f"🖼 skipping {name}/{model} (no vision support)")
+            _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
 
         attempts = pool.key_count(name, model) or 1
         for _ in range(attempts):
-            key = pool.get_key(name, model)
+            preferred = (_sticky["key"] if (_sticky and _sticky.get("provider") == name
+                                            and _sticky.get("model") == model)
+                         else None)
+            key = pool.get_key(name, model, preferred=preferred)
             if not key:
                 break   # all keys for this (provider, model) are cooling → next candidate
 
@@ -5612,6 +5654,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                         gen, name, model, key=key, resp_headers=dict(resp.headers),
                         provider=provider, est_tokens=_est_tokens,
                     )
+                    _remember_success(name, model, key)
                     return ("stream", wrapped, name)
                 events = []
                 for raw in resp.iter_lines():
@@ -5649,6 +5692,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 cache.set(payload, data, ns, query_emb)
                 if _response_has_tool_calls(data):
                     _promote_tools_support(name, model)
+                _remember_success(name, model, key)
                 return ("json", data)
             if streaming:
                 gen = (_anthropic_streaming_generator(resp) if is_anthropic
@@ -5658,6 +5702,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     resp_headers=dict(resp.headers), provider=provider,
                     est_tokens=_est_tokens, observed_at=_rl_t0,
                 )
+                _remember_success(name, model, key)
                 return ("stream", wrapped, name)
             else:
                 try:
@@ -5723,8 +5768,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 cache.set(payload, data, ns, query_emb)
                 if _response_has_tool_calls(data):
                     _promote_tools_support(name, model)
+                _remember_success(name, model, key)
                 return ("json", data)
 
+        _leave_sticky_model(name, model)
         _queue_tool_last_resort()
 
     if (not _rate_retry
@@ -5733,7 +5780,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         log.info(f"⏳ all candidates rate-limited — waiting {_best_rl_wait:.1f}s "
                  f"then retrying once (cap {RATE_EXHAUSTED_WAIT_S:g}s)")
         time.sleep(_best_rl_wait)
-        return _route_completion(payload, streaming, ns, _rate_retry=True)
+        return _route_completion(payload, streaming, ns, _rate_retry=True,
+                                 _session_id=_session_id, _sticky=_sticky)
 
     return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
 
@@ -5814,7 +5862,9 @@ def chat():
         return gate
 
     t_start = time.time()
-    result  = _route_completion(payload, payload.get("stream", False), _cache_ns())
+    _session_id, _sticky = _sticky_for_request(request.headers, payload)
+    result  = _route_completion(payload, payload.get("stream", False), _cache_ns(),
+                                _session_id=_session_id, _sticky=_sticky)
     _record_request_tokens(token, payload, result)
 
     entry = _log_completion(token, "chat", payload, result, time.time() - t_start)
