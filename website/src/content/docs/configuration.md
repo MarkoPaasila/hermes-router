@@ -157,9 +157,14 @@ restarts in `rate_limits_state.json`.
 | `RATE_LEARN_NUDGE_PCT_PROVIDER` | `8` | Percent to increase a provider-wide cap on a success streak |
 | `RATE_STATE_FLUSH_INTERVAL` | `60` | Seconds between background state flushes |
 | `RATE_DEFAULT_<PROVIDER>_<WINDOW>` | — | Override built-in default cap (e.g. `RATE_DEFAULT_GROQ_RPM=60`) |
+| `RATE_BUCKET_CSV_ENABLED` | off | When `1`/`true`/`yes`, append TBF cap-change events to a CSV |
+| `RATE_BUCKET_CSV` | `./rate_bucket_events.csv` | Path for that append-only event log (Calc/Excel-friendly) |
 
 The rate limit state is visible in the dashboard (Rate headroom column) and in
-`/v1/status` under each provider's `rate_limits` key.
+`/v1/status` under each provider's `rate_limits` key. For local development,
+enable `RATE_BUCKET_CSV_ENABLED` to append each cap change (nudge/cut/header
+pin/lift) with headroom into a CSV you can open in LibreOffice Calc or Excel;
+the file always appends across restarts.
 
 ### Adaptive per-model token caps
 

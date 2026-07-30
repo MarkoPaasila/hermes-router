@@ -6,6 +6,9 @@ auth.json
 router_state.json
 token_caps_state.json
 
+# Opt-in TBF learning telemetry (RATE_BUCKET_CSV_ENABLED)
+rate_bucket_events.csv
+
 # Persistent response cache (CACHE_PERSIST=1) — can contain real prompt/response
 # content, never commit it
 cache.db
