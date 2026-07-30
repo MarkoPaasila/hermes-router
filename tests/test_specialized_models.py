@@ -16,6 +16,11 @@ def test_name_denylist_drops_specialized_ids():
         "text-moderation-latest",
         "rerank-v3.5",
         "sora-video-preview",
+        "deep-research-pro-preview-12-2025",
+        "gemini-robotics-er-1.5-preview",
+        "lyria-3-pro-preview",
+        "nano-banana-pro-preview",
+        "aqa",
     ):
         assert router._is_specialized_model(mid) is True, mid
 

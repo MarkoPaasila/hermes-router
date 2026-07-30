@@ -27,6 +27,10 @@ This is the core of the router, used by every request.
   or slowest) model, and a hard question is never left with a model too weak to handle it.
 - If the chosen model is rate-limited, down, or errors — the router **automatically tries the next
   best one**. Your app just gets an answer; it never sees the failed attempt.
+- Models that return **404** or a **model-not-found / not-supported** style **400** are cooled with
+  exponential backoff so later requests skip them (payload-shaped 400s still cascade once per
+  request; **429** stays on the rate-limit path). Enable `FILTER_SPECIALIZED_MODELS` when using a
+  large auto-discovery limit so non-chat IDs are less likely to enter the roster in the first place.
 
 This also works *within* a single provider: if you list several models for one provider (e.g.
 `GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.5-pro`), the router treats each one

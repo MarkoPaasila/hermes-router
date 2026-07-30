@@ -96,6 +96,8 @@ Sensible defaults — most users never touch these.
 | `AUTO_DISCOVER_MODELS` | `0` | If `1`, fetch configured providers' `/models` lists at startup, prune listed models that disappeared, and append the best discovered models |
 | `AUTO_DISCOVER_MODEL_LIMIT` | `8` | Max models kept per provider when `AUTO_DISCOVER_MODELS=1` |
 | `FILTER_SPECIALIZED_MODELS` | `0` | If `1`, drop purpose-specific models from auto-discovery catalogs (configured `{PROVIDER}_MODEL` lists are never filtered) |
+| `UNSUITABLE_MODEL_BASE_S` | `60` | Initial cool-down seconds after a model-unsuitable 404/400 |
+| `UNSUITABLE_MODEL_CAP_S` | `3600` | Max cool-down seconds (exponential backoff caps here) |
 | `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery, e.g. `OPENROUTER_EXCLUDE_MODELS=some/model:free` |
 | `ROUTER_MODEL_ID` | `hermes-router` | The model name clients send (the router maps it to each provider's real model) |
 | `ROUTER_STATE_FILE` | `./router_state.json` | Where provider ratings/capabilities are cached between restarts (use `/tmp/...` on read-only hosts like HF Spaces) |
@@ -304,6 +306,21 @@ catalog metadata when present, otherwise name-pattern matching.
 Configured `{PROVIDER}_MODEL` lists are never filtered — put a specialized ID there
 explicitly if you want it in rotation. Embedding routing via `{PROVIDER}_EMBED_MODEL`
 is unchanged.
+
+With a large `AUTO_DISCOVER_MODEL_LIMIT`, enable this filter so discovery does not
+flood the chat roster with imagen / audio / embedding / deep-research-style IDs.
+For configured junk that slips through, use `{PROVIDER}_EXCLUDE_MODELS`.
+
+### Unsuitable-model cooldown
+
+When a chat candidate returns **404**, or a **400** whose body looks like
+model-not-found / unknown model / not supported for this endpoint, the router cools
+that `(provider, model)` in memory with exponential backoff (default base 60s, cap 1h;
+override with `UNSUITABLE_MODEL_BASE_S` / `UNSUITABLE_MODEL_CAP_S`). Later requests skip
+it until the cool-down expires; a success clears the streak. Payload-shaped 400s
+(e.g. missing `reasoning_content`) cascade for that request only and do **not** cool.
+**429** stays on the token-bucket path and is unaffected. Cooldowns are not persisted
+across restarts.
 
 ### Per-provider exclude list
 

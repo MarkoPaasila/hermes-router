@@ -486,6 +486,7 @@ def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
 _SPECIALIZED_NAME_PATTERNS = (
     "whisper", "tts", "speech", "audio", "imagen", "dall-e", "dalle", "flux",
     "ocr", "embed", "embedding", "moderation", "rerank", "video",
+    "deep-research", "robotics", "lyria", "nano-banana", "aqa",
 )
 
 
@@ -523,6 +524,7 @@ def _metadata_specialization(item: dict | None) -> str | None:
         "whisper", "moderation", "rerank", "reranking", "ocr", "video",
         "image-generation", "image_generation", "text->image", "text→image",
         "->image", "→image", "->embedding", "→embedding", "->audio", "→audio",
+        "deep-research", "robotics", "lyria", "nano-banana", "aqa",
     )
     if any(tok in joined for tok in specialized_tokens):
         # text+image->text is vision chat, not image generation
@@ -532,6 +534,7 @@ def _metadata_specialization(item: dict | None) -> str | None:
             "embedding", "embeddings", "tts", "speech", "audio", "asr", "stt",
             "whisper", "moderation", "rerank", "reranking", "ocr", "video",
             "image-generation", "image_generation",
+            "deep-research", "robotics", "lyria", "nano-banana", "aqa",
         )):
             return "specialized"
 
@@ -563,6 +566,97 @@ def _is_specialized_model(model_id: str, item: dict | None = None) -> bool:
         return False
     mn = (model_id or "").lower()
     return any(p in mn for p in _SPECIALIZED_NAME_PATTERNS)
+
+
+# ── Unsuitable-model cooldown (in-memory exponential backoff) ─────────────────
+# 404 / model-not-found style failures cool a (provider, model) so later requests
+# skip it. Payload-shaped 400s do not. 429 stays on the TBF path. Not persisted.
+
+_UNSUITABLE_MODEL_BASE_S = float(os.environ.get("UNSUITABLE_MODEL_BASE_S", "60") or 60)
+_UNSUITABLE_MODEL_CAP_S = float(os.environ.get("UNSUITABLE_MODEL_CAP_S", "3600") or 3600)
+
+_UNSUITABLE_400_RE = re.compile(
+    r"model\s+not\s+found|"
+    r"unknown\s+model|"
+    r"model\s+(?:is\s+)?not\s+supported|"
+    r"not\s+supported\s+for\s+this\s+(?:endpoint|api)|"
+    r"(?:does\s+not\s+exist|not\s+exist).*model|"
+    r"model.*(?:does\s+not\s+exist|not\s+exist)|"
+    r"\bnot_found\b|"
+    r"no\s+such\s+model",
+    re.I,
+)
+
+
+def _is_unsuitable_model_error(status_code: int, body: str = "") -> bool:
+    """True when the upstream error means this model should cool down.
+
+    404 is always unsuitable. 400 only when the body looks like model-missing /
+    wrong-endpoint — not payload/schema/reasoning-replay errors. 429 and others
+    are never unsuitable here.
+    """
+    if status_code == 404:
+        return True
+    if status_code != 400:
+        return False
+    return bool(_UNSUITABLE_400_RE.search(body or ""))
+
+
+class UnsuitableModelCooldown:
+    """Per-(provider, model) exponential backoff for unsuitable upstream errors."""
+
+    def __init__(self, base_s: float = _UNSUITABLE_MODEL_BASE_S,
+                 cap_s: float = _UNSUITABLE_MODEL_CAP_S):
+        self.base_s = float(base_s)
+        self.cap_s = float(cap_s)
+        self._lock = threading.Lock()
+        # (provider, model) -> {"failures": int, "cool_until": float}
+        self._state: dict[tuple[str, str], dict] = {}
+
+    def _now(self) -> float:
+        return time.time()
+
+    def _delay(self, failures: int) -> float:
+        if failures <= 0:
+            return 0.0
+        return min(self.cap_s, self.base_s * (2 ** (failures - 1)))
+
+    def is_cooling(self, provider: str, model: str) -> bool:
+        with self._lock:
+            st = self._state.get((provider, model))
+            if not st:
+                return False
+            return self._now() < float(st.get("cool_until") or 0)
+
+    def ready_in(self, provider: str, model: str) -> float:
+        with self._lock:
+            st = self._state.get((provider, model))
+            if not st:
+                return 0.0
+            return max(0.0, float(st.get("cool_until") or 0) - self._now())
+
+    def failures(self, provider: str, model: str) -> int:
+        with self._lock:
+            st = self._state.get((provider, model))
+            return int(st.get("failures") or 0) if st else 0
+
+    def record(self, provider: str, model: str) -> float:
+        """Record an unsuitable failure; return the new cool-down delay in seconds."""
+        with self._lock:
+            key = (provider, model)
+            st = self._state.get(key) or {"failures": 0, "cool_until": 0.0}
+            st["failures"] = int(st.get("failures") or 0) + 1
+            delay = self._delay(st["failures"])
+            st["cool_until"] = self._now() + delay
+            self._state[key] = st
+            return delay
+
+    def clear(self, provider: str, model: str) -> None:
+        with self._lock:
+            self._state.pop((provider, model), None)
+
+
+unsuitable_models = UnsuitableModelCooldown()
 
 
 # ── Provider definitions ───────────────────────────────────────────────────────
@@ -5674,6 +5768,17 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _queue_tool_last_resort()
             continue
 
+        # Unsuitable-model cooldown: skip models that recently returned 404 /
+        # model-not-found (exponential backoff). Payload-shaped 400s do not cool.
+        if unsuitable_models.is_cooling(name, model):
+            _ready = unsuitable_models.ready_in(name, model)
+            _fails = unsuitable_models.failures(name, model)
+            log.info(f"⏭ skipping {name}/{model} (unsuitable, "
+                     f"failures={_fails}, ready in {_ready:.0f}s)")
+            _leave_sticky_model(name, model)
+            _queue_tool_last_resort()
+            continue
+
         attempts = pool.key_count(name, model) or 1
         for _ in range(attempts):
             preferred = (_sticky["key"] if (_sticky and _sticky.get("provider") == name
@@ -5783,8 +5888,24 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             if resp.status_code in (400, 404):
                 _rl_release()
                 stats.record_error(name)
+                try:
+                    _err_body = (resp.text or "")[:500]
+                except Exception:
+                    _err_body = ""
                 # model-specific (e.g. bad model name) — just skip this candidate.
-                log.warning(f"  {name}/{model} {resp.status_code} — skipping this model: {resp.text[:150]}")
+                # Unsuitable (404 / model-not-found 400) cools with exponential
+                # backoff so later requests skip it; payload-shaped 400s do not.
+                if _is_unsuitable_model_error(resp.status_code, _err_body):
+                    _delay = unsuitable_models.record(name, model)
+                    log.warning(
+                        f"  {name}/{model} {resp.status_code} unsuitable — "
+                        f"cooling {_delay:.0f}s "
+                        f"(failures={unsuitable_models.failures(name, model)}): "
+                        f"{_err_body[:150]}")
+                else:
+                    log.warning(
+                        f"  {name}/{model} {resp.status_code} — skipping this model: "
+                        f"{_err_body[:150]}")
                 break
 
             if resp.status_code == 413:
@@ -5813,6 +5934,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             # Success
             stats.record_success(name, elapsed)
             stats.record_health(name, True)        # 2xx = healthy (half-open recovery)
+            unsuitable_models.clear(name, model)
             log.info(f"  ✓ {name}/{model} {resp.status_code} ({elapsed*1000:.0f}ms)")
             _req_ctx.provider = name
             _req_ctx.model    = model
