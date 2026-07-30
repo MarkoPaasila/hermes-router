@@ -397,9 +397,8 @@ PROVIDER_RATE_DEFAULTS: dict[str, dict[str, float]] = {
 }
 
 
-def _load_caps_for(provider_name: str) -> dict[str, float]:
-    """Merge built-in defaults < env-var overrides. auth.json overrides are applied
-    at BucketGroup construction time by the caller (AdaptiveRateLimiter)."""
+def _base_caps_for(provider_name: str) -> dict[str, float]:
+    """Merge built-in defaults < env-var overrides (no grid expansion)."""
     base = dict(PROVIDER_RATE_DEFAULTS.get(provider_name)
                 or PROVIDER_RATE_DEFAULTS["_default"])
     # Env overrides: RATE_DEFAULT_GROQ_RPM, RATE_DEFAULT_GROQ_TPM, …
@@ -411,7 +410,13 @@ def _load_caps_for(provider_name: str) -> dict[str, float]:
                 base[limit_name] = float(os.environ[key])
             except (TypeError, ValueError):
                 pass
-    return expand_full_grid_caps(base)
+    return base
+
+
+def _load_caps_for(provider_name: str) -> dict[str, float]:
+    """Merge built-in defaults < env-var overrides, then expand to full grid.
+    auth.json overrides are applied at BucketGroup construction time by AdaptiveRateLimiter."""
+    return expand_full_grid_caps(_base_caps_for(provider_name))
 
 
 # ── BucketGroup ───────────────────────────────────────────────────────────────
@@ -727,10 +732,11 @@ class AdaptiveRateLimiter:
         }
 
     def _caps_for(self, provider_name: str, *, provider_wide: bool = False) -> dict[str, float]:
-        caps = _load_caps_for(provider_name)
+        caps = _base_caps_for(provider_name)
         overrides = self._auth_rate_defaults.get(provider_name, {})
         if overrides:
             caps = {**caps, **overrides}
+        caps = expand_full_grid_caps(caps)
         if provider_wide:
             mult = RATE_PROVIDER_CAP_MULTIPLIER
             caps = {k: float(v) * mult for k, v in caps.items()}

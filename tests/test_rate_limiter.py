@@ -1092,6 +1092,24 @@ def test_explicit_rpd_overrides_linear_scale():
     assert caps["RPD"] >= caps["RPH"] >= caps["RPM"]
 
 
+def test_auth_rpd_override_reclamps_scaled_rph(tmp_path):
+    from rate_limiter import _load_caps_for
+    auth_file = Path(tmp_path) / "auth.json"
+    auth_file.write_text(json.dumps({
+        "rate_defaults": {"openrouter": {"RPD": 100}},
+    }))
+    rl = AdaptiveRateLimiter(
+        state_file=Path(tmp_path) / "rate_limits_state.json",
+        auth_file=auth_file,
+    )
+    caps = rl._caps_for("openrouter", provider_wide=False)
+    linear_rph = _load_caps_for("openrouter")["RPH"]
+    assert linear_rph > caps["RPD"]
+    assert caps["RPD"] == pytest.approx(100.0)
+    assert caps["RPH"] == pytest.approx(100.0)
+    assert caps["RPD"] >= caps["RPH"] >= caps["RPM"]
+
+
 def test_new_groups_always_have_ten_buckets(tmp_path):
     rl = make_limiter(tmp_path)
     pw = rl.get_group("openrouter", "key-abc12345", None)
