@@ -1095,8 +1095,9 @@ def _discover_best_model(base_url: str, key: str, extra_headers: dict = None,
 def _discover_models(provider: dict, key: str, free_only: bool = False) -> list[str]:
     """Fetch provider models from an OpenAI-compatible /models endpoint.
 
-    Returns a bounded, quality-sorted list. Fail-soft: any provider quirk simply
-    disables discovery for that provider on this start.
+    Returns a quality-sorted full catalog (caller applies AUTO_DISCOVER_MODEL_LIMIT
+    when appending extras). Fail-soft: any provider quirk simply disables discovery
+    for that provider on this start.
     """
     try:
         hdrs = {"Authorization": f"Bearer {key}", **provider.get("headers", {})}
@@ -1107,12 +1108,16 @@ def _discover_models(provider: dict, key: str, free_only: bool = False) -> list[
         for item in r.json().get("data", []):
             mid = item.get("id") if isinstance(item, dict) else None
             if isinstance(mid, str) and mid.strip():
-                models.append(mid.strip())
+                normalized = mid.strip()
+                # Gemini's OpenAI-compat /models returns ids like models/gemini-2.5-pro.
+                if provider["name"] == "gemini" and normalized.startswith("models/"):
+                    normalized = normalized[len("models/"):]
+                models.append(normalized)
         if free_only:
             models = [m for m in models if _is_free_model_id(m)]
         models = list(dict.fromkeys(models))
         models.sort(key=lambda m: (_price_rank(m), _quality_rank(provider["name"], m), m.lower()))
-        return models[:AUTO_DISCOVER_MODEL_LIMIT]
+        return models
     except Exception as e:
         log.debug(f"[ratings]   {provider['name']}: model discovery skipped: {e}")
         return []
@@ -1129,6 +1134,9 @@ def _provider_model_discovery_enabled(provider: dict) -> bool:
 def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     """Opt-in model refresh: prune configured models not reported by /models and
     append the best discovered models up to AUTO_DISCOVER_MODEL_LIMIT.
+
+    Configured models that still exist in the API catalog are always kept;
+    AUTO_DISCOVER_MODEL_LIMIT only bounds how many extras are appended.
 
     This is deliberately conservative: unsupported protocols and huge/mixed
     catalogs are skipped unless a per-provider env flag explicitly enables them.
@@ -1151,7 +1159,10 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     kept = [m for m in configured if m in discovered_set]
     if not kept:
         kept = discovered[:1]
-    refreshed = list(dict.fromkeys(kept + discovered))[:AUTO_DISCOVER_MODEL_LIMIT]
+    # Never drop valid configured models; only bound appended discoveries.
+    extras = [m for m in discovered if m not in kept]
+    append_limit = max(0, AUTO_DISCOVER_MODEL_LIMIT - len(kept))
+    refreshed = list(dict.fromkeys(kept + extras[:append_limit]))
     if refreshed == configured:
         return
 
