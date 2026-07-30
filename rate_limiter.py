@@ -489,6 +489,31 @@ class AdaptiveRateLimiter:
             if mg is not pw:
                 mg.restore_tokens(token_surplus)
 
+    def reconcile(self, provider_name: str, key: str, model: str,
+                  reserved: float, actual: float) -> None:
+        """Align T-buckets with measured usage after a request completes.
+
+        Over-reserve → restore surplus (same as restore()). Under-reserve →
+        force-debit the shortfall so headroom reflects real spend.
+        """
+        delta = float(reserved) - float(actual)
+        if delta > 0:
+            self.restore(provider_name, key, model, delta)
+            return
+        if delta >= 0:
+            return
+        extra = -delta
+        with self._lock:
+            pw, mg = self._both_groups_unlocked(provider_name, key, model)
+            now = time.time()
+            for g in (pw,) if mg is pw else (pw, mg):
+                for bname, b in g.buckets.items():
+                    if not b.active or LIMIT_KEYS.get(bname, ("?",))[0] != "T":
+                        continue
+                    b.refill(now)
+                    b.tokens = max(0.0, b.tokens - extra)
+                    b._period_consumed += extra
+
     def on_success(self, provider_name: str, key: str, model: str,
                    token_count: float) -> None:
         with self._lock:

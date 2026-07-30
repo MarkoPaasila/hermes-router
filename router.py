@@ -2626,12 +2626,18 @@ class _StreamWithUsage:
 
 
 def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | None = None,
-                          resp_headers: dict = None, provider: dict | None = None):
+                          resp_headers: dict = None, provider: dict | None = None,
+                          est_tokens: float = 0.0):
     """Wrap a streaming generator to capture the usage block from the final SSE
     chunk (present when stream_options.include_usage=true is sent upstream) and
     record tokens + cost in _provider_tokens/_provider_cost. Yields every chunk
     unchanged. Captured usage is exposed on the returned iterable as
-    `_hermes_stream_usage` so handlers can patch the request log after the stream ends."""
+    `_hermes_stream_usage` so handlers can patch the request log after the stream ends.
+
+    When `key` and `est_tokens` are set, reconciles the rate-limiter reservation
+    against measured usage (restore surplus / debit shortfall), matching the
+    non-streaming path.
+    """
     captured: dict = {}
 
     def _inner():
@@ -2672,6 +2678,7 @@ def _streaming_with_usage(gen, name: str, model: str | None = None, key: str | N
                 )
             if key:
                 _actual = float(usage.get("total_tokens") or 0)
+                rate_limiter.reconcile(name, key, model, float(est_tokens or 0), _actual)
                 rate_limiter.update_from_headers(name, key, model, resp_headers or {})
                 rate_limiter.on_success(name, key, model, _actual)
 
@@ -5462,9 +5469,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
             _req_ctx.last_tried_provider = name
             _req_ctx.last_tried_model = model
-            _est_tokens = float(provider.get("skip_if_tokens_over") or 0) or \
-                max(1.0, sum(len(str(m.get("content", ""))) for m in
-                             payload.get("messages", [])) / 4)
+            # Reserve against TBF using the request token estimate — never the
+            # skip_if_tokens_over fence (that is a routing ceiling, not usage).
+            _est_tokens = float(est_tokens) if est_tokens else max(
+                1.0, sum(len(str(m.get("content", ""))) for m in
+                         payload.get("messages", [])) / 4)
             # Proactive pacing: gate when headroom is thin even if tokens remain
             _current_headroom = rate_limiter.headroom(name, key, model)
             if _current_headroom < RATE_HEADROOM_THRESHOLD:
@@ -5580,7 +5589,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                     gen = _with_cleanup(resp, _codex_streaming_generator(resp))
                     wrapped = _streaming_with_usage(
                         gen, name, model, key=key, resp_headers=dict(resp.headers),
-                        provider=provider,
+                        provider=provider, est_tokens=_est_tokens,
                     )
                     return ("stream", wrapped, name)
                 events = []
@@ -5612,8 +5621,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                         provider=provider,
                     )
                 _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
-                _surplus = _est_tokens - _actual_tokens
-                rate_limiter.restore(name, key, model, max(0.0, _surplus))
+                rate_limiter.reconcile(name, key, model, _est_tokens, _actual_tokens)
                 rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
                 rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
@@ -5626,6 +5634,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                 wrapped = _streaming_with_usage(
                     _with_cleanup(resp, gen), name, model, key=key,
                     resp_headers=dict(resp.headers), provider=provider,
+                    est_tokens=_est_tokens,
                 )
                 return ("stream", wrapped, name)
             else:
@@ -5679,8 +5688,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = ""):
                         provider=provider,
                     )
                 _actual_tokens = float(_usage.get("total_tokens") or _est_tokens)
-                _surplus = _est_tokens - _actual_tokens
-                rate_limiter.restore(name, key, model, max(0.0, _surplus))
+                rate_limiter.reconcile(name, key, model, _est_tokens, _actual_tokens)
                 rate_limiter.update_from_headers(name, key, model, dict(resp.headers))
                 rate_limiter.on_success(name, key, model, _actual_tokens)
                 cache.set(payload, data, ns, query_emb)
@@ -5946,7 +5954,7 @@ def embeddings():
             log.info(f"  ✓ {name} embeddings ({elapsed*1000:.0f}ms)")
             data = resp.json()
             _actual = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
-            rate_limiter.restore(name, key, em, max(0.0, _est_tokens - _actual))
+            rate_limiter.reconcile(name, key, em, _est_tokens, _actual)
             rate_limiter.update_from_headers(name, key, em, dict(resp.headers))
             rate_limiter.on_success(name, key, em, _actual)
             key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)

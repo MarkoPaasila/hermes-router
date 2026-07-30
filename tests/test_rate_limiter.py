@@ -238,6 +238,20 @@ from rate_limiter import AdaptiveRateLimiter
 def make_limiter(tmp_path):
     return AdaptiveRateLimiter(state_file=Path(tmp_path) / "rate_limits_state.json")
 
+def test_reconcile_restores_surplus(tmp_path):
+    rl = make_limiter(tmp_path)
+    assert rl.check_and_consume("openrouter", "key-abc12345", "m", 1.0, 8000.0)[0]
+    h_reserved = rl.headroom("openrouter", "key-abc12345", "m")
+    rl.reconcile("openrouter", "key-abc12345", "m", 8000.0, 2000.0)
+    assert rl.headroom("openrouter", "key-abc12345", "m") > h_reserved + 0.2
+
+def test_reconcile_debits_deficit(tmp_path):
+    rl = make_limiter(tmp_path)
+    assert rl.check_and_consume("openrouter", "key-abc12345", "m", 1.0, 4000.0)[0]
+    h_reserved = rl.headroom("openrouter", "key-abc12345", "m")
+    rl.reconcile("openrouter", "key-abc12345", "m", 4000.0, 12000.0)
+    assert rl.headroom("openrouter", "key-abc12345", "m") < h_reserved - 0.2
+
 def test_check_and_consume_passes(tmp_path):
     rl = make_limiter(tmp_path)
     ok, wait = rl.check_and_consume("groq", "key-abc12345", "llama", 1.0, 100.0)
