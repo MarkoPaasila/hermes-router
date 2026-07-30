@@ -1065,3 +1065,53 @@ def test_list_groups_emits_integer_rpx(tmp_path):
     assert isinstance(rpm["cap"], int)
     assert isinstance(rpm["used"], int)
     assert isinstance(rpm["tokens"], int)
+
+
+FULL_LIMIT_KEYS = {
+    "RPM", "RPH", "RPD", "RPW", "RPMo",
+    "TPM", "TPH", "TPD", "TPW", "TPMo",
+}
+
+
+def test_load_caps_for_returns_full_grid():
+    from rate_limiter import _load_caps_for, WINDOWS
+    caps = _load_caps_for("openrouter")
+    assert set(caps) == FULL_LIMIT_KEYS
+    assert caps["TPH"] == pytest.approx(caps["TPM"] * (WINDOWS["H"] / WINDOWS["M"]))
+    assert caps["TPMo"] == pytest.approx(caps["TPM"] * (WINDOWS["Mo"] / WINDOWS["M"]))
+    assert caps["TPMo"] >= caps["TPW"] >= caps["TPD"] >= caps["TPH"] >= caps["TPM"]
+    assert caps["RPMo"] >= caps["RPW"] >= caps["RPD"] >= caps["RPH"] >= caps["RPM"]
+
+
+def test_explicit_rpd_overrides_linear_scale():
+    from rate_limiter import _load_caps_for, WINDOWS
+    caps = _load_caps_for("gemini")
+    assert caps["RPD"] == pytest.approx(1500.0)
+    # Must not be forced up to RPM * (day/minute)
+    assert caps["RPD"] < caps["RPM"] * (WINDOWS["D"] / WINDOWS["M"])
+    assert caps["RPD"] >= caps["RPH"] >= caps["RPM"]
+
+
+def test_new_groups_always_have_ten_buckets(tmp_path):
+    rl = make_limiter(tmp_path)
+    pw = rl.get_group("openrouter", "key-abc12345", None)
+    mg = rl.get_group("openrouter", "key-abc12345", "m")
+    assert set(pw.buckets) == FULL_LIMIT_KEYS
+    assert set(mg.buckets) == FULL_LIMIT_KEYS
+    assert pw.buckets["TPM"].cap == pytest.approx(mg.buckets["TPM"].cap * 10.0)
+    assert pw.buckets["TPMo"].cap == pytest.approx(mg.buckets["TPMo"].cap * 10.0)
+
+
+def test_one_consume_debits_all_ten_and_mo_pct_drops_less(tmp_path):
+    rl = make_limiter(tmp_path)
+    rl.get_group("openrouter", "key-abc12345", "m")
+    mg = rl.get_group("openrouter", "key-abc12345", "m")
+    for b in mg.buckets.values():
+        b.tokens = b.cap
+    tpm_before = mg.buckets["TPM"].tokens / mg.buckets["TPM"].cap
+    tpmo_before = mg.buckets["TPMo"].tokens / mg.buckets["TPMo"].cap
+    ok, _ = rl.check_and_consume("openrouter", "key-abc12345", "m", 1.0, 500.0)
+    assert ok is True
+    tpm_after = mg.buckets["TPM"].tokens / mg.buckets["TPM"].cap
+    tpmo_after = mg.buckets["TPMo"].tokens / mg.buckets["TPMo"].cap
+    assert (tpm_before - tpm_after) > (tpmo_before - tpmo_after)

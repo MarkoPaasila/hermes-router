@@ -151,6 +151,59 @@ LIMIT_KEYS = {
     "TPW": ("T", "W"),  "TPMo": ("T", "Mo"),
 }
 
+ALL_LIMIT_KEYS = tuple(LIMIT_KEYS.keys())
+_WINDOW_ORDER = ("M", "H", "D", "W", "Mo")  # short → long
+
+
+def _limit_name(dim: str, window: str) -> str:
+    prefix = "R" if dim == "R" else "T"
+    return f"{prefix}P{window}"  # RPM, RPH, …, RPMo
+
+
+def expand_full_grid_caps(base: dict[str, float]) -> dict[str, float]:
+    """Fill missing R/T windows from M; explicit values win; Mo≥…≥M with explicit sticky."""
+    out: dict[str, float] = {}
+    for dim in ("R", "T"):
+        names = [_limit_name(dim, wk) for wk in _WINDOW_ORDER]
+        if not any(n in base for n in names):
+            continue
+        m_name = _limit_name(dim, "M")
+        if m_name in base:
+            m_cap = float(base[m_name])
+        else:
+            # Derive M from the shortest explicit longer window
+            m_cap = None
+            for wk, n in zip(_WINDOW_ORDER, names):
+                if n in base:
+                    m_cap = float(base[n]) * (WINDOWS["M"] / WINDOWS[wk])
+                    break
+            if m_cap is None:
+                continue
+        caps_w: dict[str, float] = {}
+        explicit: set[str] = set()
+        for wk, n in zip(_WINDOW_ORDER, names):
+            if n in base:
+                caps_w[n] = float(base[n])
+                explicit.add(n)
+            else:
+                caps_w[n] = float(m_cap) * (WINDOWS[wk] / WINDOWS["M"])
+        for i in range(1, len(names)):
+            shorter, longer = names[i - 1], names[i]
+            if caps_w[longer] >= caps_w[shorter]:
+                continue
+            if longer in explicit and shorter not in explicit:
+                caps_w[shorter] = caps_w[longer]
+            elif longer not in explicit:
+                caps_w[longer] = caps_w[shorter]
+            else:
+                # both explicit and inverted — keep longer explicit, pull shorter down
+                caps_w[shorter] = caps_w[longer]
+        out.update(caps_w)
+    for k, v in base.items():
+        if k not in out:
+            out[k] = float(v)
+    return out
+
 # ── TokenBucket ───────────────────────────────────────────────────────────────
 
 class TokenBucket:
@@ -358,7 +411,7 @@ def _load_caps_for(provider_name: str) -> dict[str, float]:
                 base[limit_name] = float(os.environ[key])
             except (TypeError, ValueError):
                 pass
-    return base
+    return expand_full_grid_caps(base)
 
 
 # ── BucketGroup ───────────────────────────────────────────────────────────────
