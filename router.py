@@ -472,6 +472,95 @@ def _filter_excluded(provider_name: str, models: list[str]) -> list[str]:
     return [m for m in models if m.lower() not in excl]
 
 
+def _exclude_env_key(provider_name: str) -> str:
+    return f"{provider_name.upper()}_EXCLUDE_MODELS"
+
+
+def _exclude_list_raw(provider_name: str) -> list[str]:
+    """Ordered exclude IDs for a provider, preserving casing from os.environ."""
+    raw = os.environ.get(_exclude_env_key(provider_name), "")
+    return [m.strip() for m in raw.split(",") if m.strip()]
+
+
+def _persist_exclude_list(provider_name: str, items: list[str]) -> None:
+    """Write {PROVIDER}_EXCLUDE_MODELS to .env and os.environ (delete when empty)."""
+    key = _exclude_env_key(provider_name)
+    if items:
+        value = ",".join(items)
+        _env_write_line(key, value)
+        os.environ[key] = value
+    else:
+        _env_write_line(key, None)
+        os.environ.pop(key, None)
+
+
+def _exclude_list_add(provider_name: str, model: str) -> list[str]:
+    """Append model to the provider exclude list (case-insensitive dedupe)."""
+    items = _exclude_list_raw(provider_name)
+    lower = model.lower()
+    if any(m.lower() == lower for m in items):
+        return items
+    items = items + [model]
+    _persist_exclude_list(provider_name, items)
+    return items
+
+
+def _exclude_list_remove(provider_name: str, model: str) -> list[str]:
+    """Remove model from the provider exclude list (case-insensitive)."""
+    lower = model.lower()
+    items = [m for m in _exclude_list_raw(provider_name) if m.lower() != lower]
+    _persist_exclude_list(provider_name, items)
+    return items
+
+
+def _apply_model_block_live(provider_name: str, model: str, blocked: bool) -> None:
+    """Mutate the live PROVIDERS roster (and key pool on unblock) immediately."""
+    lower = model.lower()
+    for p in PROVIDERS:
+        if p["name"] != provider_name:
+            continue
+        models = list(p.get("models") or [])
+        if blocked:
+            kept = [m for m in models if m.lower() != lower]
+            if models and not kept:
+                log.warning(f"{provider_name}: all models excluded via "
+                            f"{_exclude_env_key(provider_name)} — provider has no usable models")
+            p["models"] = kept
+            p["model"] = kept[0] if kept else ""
+        else:
+            if not any(m.lower() == lower for m in models):
+                models.append(model)
+            p["models"] = models
+            if not p.get("model") and models:
+                p["model"] = models[0]
+            pool.ensure_model(provider_name, model, list(p.get("keys") or []))
+        return
+
+
+def _set_model_excluded(provider_name: str, model: str, blocked: bool) -> list[str]:
+    """Persist exclude change to .env first, then apply to the live roster.
+
+    Returns the provider's exclude list after the change. Raises on .env write
+    failure without mutating PROVIDERS.
+    """
+    if blocked:
+        items = _exclude_list_add(provider_name, model)
+    else:
+        items = _exclude_list_remove(provider_name, model)
+    _apply_model_block_live(provider_name, model, blocked)
+    return items
+
+
+def _all_excluded_models() -> list[dict]:
+    """All (provider, model) pairs currently listed in *_EXCLUDE_MODELS."""
+    names = set(PROVIDER_MODEL_ENV.keys()) | {p["name"] for p in PROVIDERS}
+    out: list[dict] = []
+    for name in sorted(names):
+        for mid in _exclude_list_raw(name):
+            out.append({"provider": name, "model": mid})
+    return out
+
+
 # Substrings that mark purpose-specific (non-chat) models when catalog metadata
 # does not explicitly classify the item. Avoid bare "image" — vision chat models
 # use that word too.
@@ -3771,7 +3860,8 @@ th.sortable.sorted-desc::after{content:'↓'}
     <div class="panel-header">
       <span class="panel-title" id="rl-detail-title">Detail</span>
       <div class="rl-detail-actions">
-        <button class="btn" id="rl-detail-clear-top" type="button">Clear learned state</button>
+        <button class="btn hidden" id="rl-detail-block-top" type="button">Block model</button>
+        <button class="btn hidden" id="rl-detail-clear-top" type="button">Clear learned state</button>
         <button class="btn" onclick="closeRateDetail()">Close</button>
       </div>
     </div>
@@ -4046,6 +4136,25 @@ th.sortable.sorted-desc::after{content:'↓'}
             </table>
           </div>
         </div>
+
+        <div class="panel" id="rl-panel-blocked">
+          <div class="panel-header">
+            <span class="panel-title">Blocked models</span>
+          </div>
+          <div class="page-intro" style="padding:12px 14px 0">
+            Excluded via <span class="mono">{PROVIDER}_EXCLUDE_MODELS</span>. Unblock restores them to routing without a restart.
+          </div>
+          <div class="panel-body">
+            <table>
+              <thead><tr>
+                <th>Model</th>
+                <th>Provider</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="rl-tbody-blocked"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <!-- ── Add-ons ──────────────────────────────────────────────────────── -->
@@ -4108,6 +4217,7 @@ th.sortable.sorted-desc::after{content:'↓'}
 let apiKey = localStorage.getItem('hermes_dash_key') || '';
 let statusData = null, usageData = null, logsData = [], accessKeysData = [];
 let rateLimitsData = [];
+let excludedModelsData = [];
 let selectedRateGroupId = null;   // provider-wide detail
 let selectedModelRow = null;      // {provider, model} for combined Models modal
 let rlSortPw = {key: 'headroom', dir: 1};
@@ -4195,6 +4305,7 @@ async function refresh() {
     renderAll();
     setHeader(true);
     await refreshRateLimits();
+    await refreshExcludedModels();
   } catch(e) {
     setHeader(false, 'unreachable');
   }
@@ -4285,6 +4396,7 @@ function renderAll() {
   renderKeys();
   renderAccessKeys();
   renderCombinedModels();
+  renderBlockedModels();
 }
 
 function renderNavHealth() {
@@ -5261,6 +5373,17 @@ function renderRateDetail(groups) {
   const modal = document.getElementById('rl-detail-modal');
   if (modal) modal.classList.remove('hidden');
 
+  const blockTop = document.getElementById('rl-detail-block-top');
+  if (blockTop) {
+    if (selectedModelRow) {
+      blockTop.classList.remove('hidden');
+      blockTop.onclick = () => blockSelectedModel();
+    } else {
+      blockTop.classList.add('hidden');
+      blockTop.onclick = null;
+    }
+  }
+
   const clearTop = document.getElementById('rl-detail-clear-top');
   if (clearTop) {
     if (list.length === 1) {
@@ -5338,6 +5461,93 @@ async function clearRateGroup(id) {
     await refreshRateLimits();
   } catch (e) {
     alert('Clear failed: ' + e);
+  }
+}
+
+async function refreshExcludedModels() {
+  if (!apiKey) return;
+  try {
+    const r = await fetch('/v1/config/excluded-models', {
+      headers: {'Authorization': 'Bearer ' + apiKey},
+    });
+    if (r.status === 401 || !r.ok) return;
+    const data = await r.json();
+    excludedModelsData = data.excluded || [];
+    renderBlockedModels();
+  } catch (e) { /* page still usable */ }
+}
+
+function renderBlockedModels() {
+  const tbody = document.getElementById('rl-tbody-blocked');
+  if (!tbody) return;
+  const rows = (excludedModelsData || []).slice().sort((a, b) => {
+    const c = String(a.provider || '').localeCompare(String(b.provider || ''));
+    if (c) return c;
+    return String(a.model || '').localeCompare(String(b.model || ''));
+  });
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">No blocked models</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(row => `<tr>
+    <td class="mono">${esc(row.model || '')}</td>
+    <td>${esc(row.provider || '')}</td>
+    <td style="text-align:right">
+      <button class="btn" type="button"
+        data-unblock-provider="${attr(row.provider || '')}"
+        data-unblock-model="${attr(row.model || '')}">Unblock</button>
+    </td>
+  </tr>`).join('');
+  tbody.querySelectorAll('[data-unblock-provider]').forEach(btn => {
+    btn.addEventListener('click', () => unblockModel(
+      btn.getAttribute('data-unblock-provider'),
+      btn.getAttribute('data-unblock-model')));
+  });
+}
+
+async function blockSelectedModel() {
+  if (!selectedModelRow) return;
+  const provider = selectedModelRow.provider;
+  const model = selectedModelRow.model;
+  if (!provider || !model) return;
+  if (!confirm('Block ' + provider + '/' + model + '? It will be added to '
+    + provider.toUpperCase() + '_EXCLUDE_MODELS and will not be routed.')) return;
+  try {
+    const r = await fetch('/v1/config/exclude-model', {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      body: JSON.stringify({provider, model, blocked: true}),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert((err.error && err.error.message) || err.error || ('Block failed: HTTP ' + r.status));
+      return;
+    }
+    closeRateDetail();
+    await refresh();
+  } catch (e) {
+    alert('Block failed: ' + e);
+  }
+}
+
+async function unblockModel(provider, model) {
+  if (!provider || !model) return;
+  if (!confirm('Unblock ' + provider + '/' + model + '? It will be removed from '
+    + provider.toUpperCase() + '_EXCLUDE_MODELS and restored to routing.')) return;
+  try {
+    const r = await fetch('/v1/config/exclude-model', {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      body: JSON.stringify({provider, model, blocked: false}),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert((err.error && err.error.message) || err.error || ('Unblock failed: HTTP ' + r.status));
+      return;
+    }
+    await refresh();
+  } catch (e) {
+    alert('Unblock failed: ' + e);
   }
 }
 </script>
@@ -5611,6 +5821,18 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _est_tokens = float(est_tokens) if est_tokens else max(
                 1.0, sum(len(str(m.get("content", ""))) for m in
                          payload.get("messages", [])) / 4)
+            # #region agent log
+            if name == "gemini" and model == "gemini-2.5-pro":
+                try:
+                    open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
+                        __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "A,C,E",
+                            "location": "router.py:trying", "message": "admitting gemini-2.5-pro attempt",
+                            "data": {"headroom": rate_limiter.headroom(name, key, model),
+                                     "est_tokens": _est_tokens},
+                            "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
+                except Exception:
+                    pass
+            # #endregion
             # Thin headroom is a signal, not a hard skip: after burst-sized caps a
             # prior large debit can sit at ~0–5% while the next debit still fits,
             # and when it does not we want the wait tracked for exhausted-retry.
@@ -5633,6 +5855,17 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 if not _rl_ok:
                     if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
                         _best_rl_wait = float(_rl_wait)
+                    # #region agent log
+                    try:
+                        open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
+                            __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "B,D,E",
+                                "location": "router.py:rate_hold", "message": "skipped rate_hold",
+                                "data": {"provider": name, "model": model, "wait_s": _rl_wait,
+                                         "headroom": _current_headroom},
+                                "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
+                    except Exception:
+                        pass
+                    # #endregion
                     log.info(f"  {name}/{model} rate hold ({_rl_wait:.1f}s) — trying next")
                     _crec("note", name, model, "skipped", "rate_hold")
                     continue
@@ -5658,11 +5891,41 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 _rl_release()
                 stats.record_error(name)
                 # 429 is NOT a health failure — rate limiter learns + Retry-After hold.
+                # #region agent log
+                _dbg_hdrs = {k: v for k, v in dict(resp.headers).items()
+                             if k.lower() in ("retry-after", "x-ratelimit-limit",
+                                              "x-ratelimit-remaining", "x-ratelimit-reset")
+                             or k.lower().startswith("x-ratelimit-")}
+                try:
+                    open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
+                        __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "A,B,C",
+                            "location": "router.py:429", "message": "upstream 429 before on_429",
+                            "data": {"provider": name, "model": model, "headroom_before": _current_headroom,
+                                     "headers": {k: str(v)[:80] for k, v in list(_dbg_hdrs.items())[:20]},
+                                     "body_prefix": (resp.text or "")[:160]},
+                            "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
+                except Exception:
+                    pass
+                # #endregion
                 rate_limiter.on_429(
                     name, key, model, dict(resp.headers),
                     model_headroom_before=_current_headroom,
                     observed_at=_rl_t0,
                 )
+                # #region agent log
+                try:
+                    _snap = rate_limiter.snapshot(name, key, model)
+                    open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
+                        __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "B,D",
+                            "location": "router.py:429-after", "message": "after on_429 snapshot",
+                            "data": {"provider": name, "model": model,
+                                     "blocked_until": _snap.get("blocked_until"),
+                                     "blocked_remain_s": (max(0.0, (_snap.get("blocked_until") or 0) - time.time())
+                                                          if _snap.get("blocked_until") else 0)},
+                            "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
+                except Exception:
+                    pass
+                # #endregion
                 log.warning(f"  {name}/{model} 429 — rate-limit hold, trying next")
                 _crec("note", name, model, "failed", "http_429")
                 continue
@@ -6349,6 +6612,61 @@ def config_feature(name):
     enabled = bool(body.get("enabled"))
     _env_write_line(addon["env"], addon["on"] if enabled else addon["off"])
     return jsonify({"name": name, "enabled": enabled, "restart_required": True})
+
+
+@app.route("/v1/config/excluded-models")
+def config_excluded_models():
+    """List models blocked via {PROVIDER}_EXCLUDE_MODELS (env + dashboard)."""
+    err = _auth_check()
+    if err:
+        return err
+    return jsonify({"excluded": _all_excluded_models()})
+
+
+@app.route("/v1/config/exclude-model", methods=["POST"])
+def config_exclude_model():
+    """Block or unblock a provider model. Body: {provider, model, blocked}.
+
+    Writes {PROVIDER}_EXCLUDE_MODELS and updates the live roster immediately
+    (no restart required).
+    """
+    err = _auth_check()
+    if err:
+        return err
+    body = request.get_json(force=True, silent=True) or {}
+    provider = (body.get("provider") or "").strip()
+    model = (body.get("model") or "").strip()
+    if "blocked" not in body:
+        return jsonify({"error": {"message": "missing 'blocked'",
+                                  "type": "invalid_request_error"}}), 400
+    blocked = bool(body.get("blocked"))
+    if not provider:
+        return jsonify({"error": {"message": "missing 'provider'",
+                                  "type": "invalid_request_error"}}), 400
+    if provider not in PROVIDER_MODEL_ENV:
+        return jsonify({"error": {"message": f"unknown provider: {provider}",
+                                  "type": "invalid_request_error"}}), 400
+    if not model:
+        return jsonify({"error": {"message": "missing 'model'",
+                                  "type": "invalid_request_error"}}), 400
+    if any(c in model for c in "\n\r"):
+        return jsonify({"error": {"message": "model must not contain newlines",
+                                  "type": "invalid_request_error"}}), 400
+    if not re.fullmatch(r"[A-Za-z0-9._\-:/]+", model):
+        return jsonify({"error": {"message": "model contains unsupported characters",
+                                  "type": "invalid_request_error"}}), 400
+    try:
+        excluded = _set_model_excluded(provider, model, blocked)
+    except OSError as e:
+        log.error(f"exclude-model write failed: {e}")
+        return jsonify({"error": {"message": f"failed to write .env: {e}",
+                                  "type": "server_error"}}), 500
+    return jsonify({
+        "provider": provider,
+        "model": model,
+        "blocked": blocked,
+        "excluded": excluded,
+    })
 
 
 @app.route("/v1/config/restart", methods=["POST"])

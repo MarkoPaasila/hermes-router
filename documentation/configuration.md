@@ -91,7 +91,7 @@ Sensible defaults — most users never touch these.
 | `FILTER_SPECIALIZED_MODELS` | `0` | If `1`, drop purpose-specific models from auto-discovery catalogs (configured `{PROVIDER}_MODEL` lists are never filtered) |
 | `UNSUITABLE_MODEL_BASE_S` | `60` | Initial cool-down seconds after a model-unsuitable 404/400 |
 | `UNSUITABLE_MODEL_CAP_S` | `3600` | Max cool-down seconds (exponential backoff caps here) |
-| `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery, e.g. `OPENROUTER_EXCLUDE_MODELS=some/model:free` |
+| `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery. Dashboard Models page can Block/Unblock the same list without restart. |
 | `ROUTER_MODEL_ID` | `hermes-router` | The model name clients send (the proxy maps it to each provider's real model) |
 | `ROUTER_STATE_FILE` | `./router_state.json` | Where provider ratings/capabilities are cached between restarts |
 | `ROUTER_STATE_TTL_HOURS` | `24` | How long the cached probe state is trusted before re-probing (`0` = re-probe every start) |
@@ -334,6 +334,11 @@ Excluded models are matched case-insensitively (exact ID only, no globs). The
 filter applies both to your configured model list and to any extras appended by
 auto-discovery. If every model for a provider is excluded, the provider stays in
 rotation with no usable models and a warning is logged at startup.
+
+From the dashboard **Models** page you can also **Block** a model in its detail
+modal (or **Unblock** from the Blocked models panel). That writes the same
+`{PROVIDER}_EXCLUDE_MODELS` line in `.env` and updates the live roster immediately
+— no restart required. Hand-edited excludes show in the Blocked panel too.
 
 ## Key selection
 
