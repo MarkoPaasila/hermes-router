@@ -1,12 +1,9 @@
----
-title: "Monitoring"
-description: "The built-in web dashboard, hr status, Prometheus /metrics, and the /v1/status and /v1/logs endpoints."
----
+# Monitoring
 
 ## Web dashboard
 
-The router serves a built-in **browser dashboard** — no install, no extra service. It ships
-inside `router.py`, so it's available the moment the router is running. Just open the router
+The proxy serves a built-in **browser dashboard** — no install, no extra service. It ships
+inside `router.py`, so it's available the moment the proxy is running. Just open the router
 in a browser:
 
 ```
@@ -23,26 +20,28 @@ splits it into pages, refreshed every 5 seconds:
   setup checklist, and summary stats (requests, tokens, spend, cache hit-rate, error rate)
 - **Providers** — health cards (worst-first) plus a detailed table (rating, latency, keys,
   breaker state, cost, rate headroom), and a **provider-wide token buckets** panel for the
-  adaptive upstream rate limiter (TBF)
+  adaptive upstream rate-limit headroom
 - **Provider Keys** — add a key for any provider and see live per-key request counts and daily
   budget usage
 - **Access Keys** — mint new `PROXY_API_KEYS` for teammates/other apps, with optional rate/
-  budget limits, and revoke them — see [below](#proxy-api-keys--the-dashboard-key)
+  budget limits, and revoke them — see
+  [below](#proxy-api-keys--the-dashboard-key)
 - **Models** — one row per configured model (capabilities, key status dots, limiting factor,
-  headroom); click a row for stacked per-key TBF bucket bars
+  headroom); click a row for stacked per-key rate-limit bucket bars
 - **Add-ons** — toggle optional features on/off, plus live cache stats
 - **Request Log** — the last requests (endpoint, provider, model, latency, complexity score,
   Fail/Skip cascade counts, tokens, status), filterable by status and endpoint; click Fail/Skip
   to open the full cascade path (skipped / failed / success) with reasons
 
+
 Every write (add a key, toggle an add-on, mint/revoke an access key) shows a
-"Restart Required" banner — click it to restart the router in place; the page reconnects
+"Restart Required" banner — click it to restart the proxy in place; the page reconnects
 automatically once it's back.
 
 It's pure HTML/JS (no framework, no external CDN) and reads/writes only the router's own
-`/v1/*` endpoints — so it adds essentially no memory or CPU to the router itself.
+`/v1/*` endpoints — so it adds essentially no memory or CPU to the proxy itself.
 
-> **Accessing it remotely.** By default the router binds to `0.0.0.0` (all interfaces). If you
+> **Accessing it remotely.** By default the proxy binds to `0.0.0.0` (all interfaces). If you
 > set `HOST=127.0.0.1` (localhost-only, recommended on a shared/VPS host), reach the dashboard
 > over an SSH tunnel: `ssh -L 8319:127.0.0.1:8319 user@server`, then open
 > `http://localhost:8319/` locally. With **Docker** the mapped port (`-p 8319:8319`) exposes it
@@ -53,9 +52,9 @@ icon in the panel header) that opens this page in your browser.
 
 ## Proxy API keys & the dashboard key
 
-`PROXY_API_KEYS` is the credential your app uses to call the router **and** the key that unlocks
+`PROXY_API_KEYS` is the credential your app uses to call the proxy **and** the key that unlocks
 the web dashboard — there's only one tier, no separate "admin" vs. "chat" key. If you never set
-one, the router generates a real random key on first boot and saves it to `.env`, logging it once
+one, the proxy generates a real random key on first boot and saves it to `.env`, logging it once
 so you can copy it (this also replaces the placeholder value `.env.example` ships with, so
 copying that file verbatim doesn't leave every install on the same public default). Once you have
 one real key, it's left alone — nothing regenerates it out from under you.
@@ -85,7 +84,7 @@ hr status --json   # raw JSON for scripts
 
 A Prometheus-compatible endpoint is exposed at `/metrics`. It reveals only counts and
 timings — never request content — so it's **unauthenticated by default**, like `/health`.
-Set `METRICS_REQUIRE_AUTH=1` to require the proxy key.
+Set `METRICS_REQUIRE_AUTH=1` to require the access key.
 
 ```bash
 curl http://localhost:8319/metrics
@@ -97,7 +96,7 @@ Point Prometheus/Grafana at it to track per-provider traffic and the cache over 
 
 | Metric | Type | Labels | Meaning |
 |---|---|---|---|
-| `hermes_router_uptime_seconds` | gauge | — | Seconds since the router started |
+| `hermes_router_uptime_seconds` | gauge | — | Seconds since the proxy started |
 | `hermes_router_providers` | gauge | — | Number of configured providers |
 | `hermes_router_requests_total` | counter | `provider` | Total requests routed per provider |
 | `hermes_router_errors_total` | counter | `provider` | Total errored requests per provider |
@@ -109,7 +108,7 @@ Point Prometheus/Grafana at it to track per-provider traffic and the cache over 
 | `hermes_router_semantic_cache_hits_total` | counter | — | Semantic-cache hits |
 | `hermes_router_tokens_total` | counter | `provider` | Tokens served per provider (non-streaming) |
 | `hermes_router_cost_usd_total` | counter | `provider` | Estimated USD cost served per provider |
-| `hermes_router_key_requests_total` | counter | `key` | Requests per proxy key (key tail) |
+| `hermes_router_key_requests_total` | counter | `key` | Requests per access key (key tail) |
 
 ## Alerting (Prometheus + Alertmanager)
 
@@ -120,7 +119,7 @@ or proxy in front of the router.
 > **Don't stack another LLM gateway in front of Hermes just for this.** If you're running
 > something like LiteLLM between your app and Hermes purely to get usage/cost visibility, and
 > Hermes only sees *one* key pointed at that gateway, you're losing Hermes's whole reason to
-> exist: rotating across **many real provider keys** with per-provider rating and failover. Give
+> exist: rotating across **many real provider keys** with per-provider rating and fallback. Give
 > Hermes your real provider keys directly (`hr auth add <provider>`) and point Prometheus at
 > Hermes's own `/metrics` — no middleman needed.
 
@@ -135,7 +134,7 @@ scrape_configs:
     metrics_path: /metrics
 ```
 
-If you've set `METRICS_REQUIRE_AUTH=1`, add your proxy key as a bearer token:
+If you've set `METRICS_REQUIRE_AUTH=1`, add your access key as a bearer token:
 
 ```yaml
     authorization:
@@ -194,13 +193,13 @@ Alertmanager already sends to (Slack, PagerDuty, email, …); nothing else on th
 to change.
 
 **For per-key budget enforcement** (as opposed to alerting after the fact), see
-[Configuration → Per-key budgets & rate limits](/configuration/#per-key-budgets--rate-limits) —
+[Configuration → Per-key budgets & rate limits](configuration.md#per-key-budgets--rate-limits) —
 `hr limit set <key> --cost-day 5` rejects a caller's requests with `429` before they're ever sent
 to a provider, once its daily spend crosses the limit.
 
 ## Usage analytics (`/v1/usage`)
 
-`GET /v1/usage` (proxy key required) returns a JSON summary for dashboards and billing:
+`GET /v1/usage` (access key required) returns a JSON summary for dashboards and billing:
 
 - **per provider** — requests, errors, tokens served, and estimated `cost` (`{"usd": …}`, plus a
   converted currency when `COST_FX_RATE` is set)
@@ -210,7 +209,7 @@ to a provider, once its daily spend crosses the limit.
 - **totals** — total tokens, total estimated cost, and uptime
 
 Cost is estimated from a built-in price table; free providers and subscription plans are `$0`.
-See [Configuration → Cost awareness](/configuration/#cost--spend-awareness).
+See [Configuration → Cost awareness](configuration.md).
 
 ```bash
 curl -H "Authorization: Bearer sk-router-1" http://localhost:8319/v1/usage
@@ -218,30 +217,33 @@ curl -H "Authorization: Bearer sk-router-1" http://localhost:8319/v1/usage
 
 ## JSON status (`/v1/status`)
 
-`GET /v1/status` (proxy key required) returns the full picture as JSON: per-provider key
+`GET /v1/status` (access key required) returns the full picture as JSON: per-provider key
 cooldown state, rating, model, latency, `supports_tools`, `reasoning`, tokens served,
 circuit-breaker status, plus cache (incl. semantic + a `persistent` flag), routing, and per-key
 limit/usage config. This is what `hr status` renders.
 
 Each entry in a provider's `keys` array also reports `requests` — how many times that specific
-**provider key** (last 6 chars only) has been used since the router started. The built-in web
+**provider key** (last 6 chars only) has been used since the proxy started. The built-in web
 dashboard shows this as a tooltip on each key's status dot.
 
-The `rotation` block reports key selection mode (`{"rotation": {"mode": "sticky-key"}}`);
+The `rotation` block reports key selection mode (`{"rotation": {"mode": "key-affinity"}}`);
 the `limits` block reports per-key budgets and live usage; `hr status` shows limits in the footer.
-See [configuration.md](/configuration/) for details.
+See [configuration.md](configuration.md) for details.
 
 ## Request log (`/v1/logs`)
 
-`GET /v1/logs` (proxy key required) returns the most recent requests from an **in-memory ring
+`GET /v1/logs` (access key required) returns the most recent requests from an **in-memory ring
 buffer** — the data source behind the web dashboard's live log. It never writes to disk: the
 last `REQUEST_LOG_SIZE` entries (default **500**) are kept in RAM and the oldest fall off as new
 ones arrive (~250 KB at the default size). Set `REQUEST_LOG_SIZE=0` to disable it entirely.
 
 Each entry records: timestamp, endpoint (`chat`/`messages`/`embeddings`), caller (key tail),
 streaming flag, complexity score (1–5), estimated tokens, chosen provider + model, latency,
-cascade count, status (`success`/`error`/`cache_hit`), and prompt/completion token counts.
-Request and response **content is never stored** — only metadata.
+`failed` / `skipped` counts, `cascades` (`failed + skipped`; older builds counted only failed
+forwards), `cascade` (ordered steps with `provider`, `model`, `outcome`, `reason`), status
+(`success`/`error`/`cache_hit`), and prompt/completion token counts.
+Request and response **content is never stored** — only metadata. The dashboard Fail/Skip cell
+opens the full cascade path when a trail is present.
 
 Query parameters (all optional): `limit` (default 100), `provider`, `status`
 (`success`/`error`/`cache_hit`), and `endpoint` (`chat`/`messages`/`embeddings`).
@@ -250,7 +252,3 @@ Query parameters (all optional): `limit` (default 100), `provider`, `status`
 curl -H "Authorization: Bearer sk-router-1" \
   "http://localhost:8319/v1/logs?limit=20&status=error"
 ```
-
----
-
-**Next:** [How it works](/architecture/) — the full request pipeline and every moving part, under the hood.

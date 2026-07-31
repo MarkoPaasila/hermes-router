@@ -9,7 +9,7 @@ experience needed. Pick the path that matches your computer and follow it top to
 
 hermes-router has two pieces. Knowing this makes everything below make sense:
 
-1. **The router (`router.py`)** — the actual program. It's plain Python, so it runs on
+1. **The proxy (`router.py`)** — the actual program. It's plain Python, so it runs on
    **Windows, macOS, and Linux** equally well. This is the part that does the work.
 2. **The `hr` command** — a friendly helper (`hr setup`, `hr auth add`, `hr status`, …). It's
    written in **bash**, so it works on Linux/macOS (and Windows via WSL2 or Git Bash), but
@@ -119,7 +119,7 @@ GEMINI_API_KEYS=paste-your-gemini-key-here
 PROXY_API_KEYS=choose-a-secret-password
 ```
 
-`PROXY_API_KEYS` is the password **your app** will use to talk to the router — pick anything.
+`PROXY_API_KEYS` is the password **your app** will use to talk to the proxy — pick anything.
 
 **Step 3 — start it.**
 
@@ -187,7 +187,7 @@ You should see a dashboard of providers. That's it.
 
 ## Path 3 — Windows
 
-The router runs natively on Windows; you just choose how you want to manage it. Here are the
+The proxy runs natively on Windows; you just choose how you want to manage it. Here are the
 three options, easiest first.
 
 ### 3a. Docker Desktop (recommended)
@@ -214,7 +214,7 @@ This is the smoothest Windows experience — no Python, no bash, nothing to conf
 
 #### Connecting the VS Code extension to this container
 
-The [VS Code extension](vscode-extension.md) talks to the router over HTTP, so it works against
+The [VS Code extension](vscode-extension.md) talks to the proxy over HTTP, so it works against
 your Docker container. In the extension settings:
 
 - **`hermesRouter.baseUrl`** → `http://localhost:8319`
@@ -251,12 +251,12 @@ WSL2 runs a real Ubuntu inside Windows, so everything behaves exactly like Linux
 3. Inside Ubuntu, follow [Path 2 — Linux/macOS](#path-2-linux--macos-the-hr-way). `hr` and
    all its commands now work.
 
-To reach the router from a Windows app, use `http://localhost:8319` — WSL2 forwards
+To reach the proxy from a Windows app, use `http://localhost:8319` — WSL2 forwards
 localhost automatically.
 
 ### 3c. Native Python (no Docker, no bash)
 
-Run the router directly. You won't have the `hr` command, but the router works fully.
+Run the proxy directly. You won't have the `hr` command, but the proxy works fully.
 
 **Step 1 — get the code** (PowerShell):
 
@@ -293,7 +293,7 @@ PowerShell window to test it (see [Check it's working](#check-its-working)).
 
 > **Making keys stick:** the `$env:` lines only last for that window. To set them
 > permanently, use Windows "Edit the system environment variables", or create a `.env` file
-> in the folder (the router reads it on startup):
+> in the folder (the proxy reads it on startup):
 > ```
 > GEMINI_API_KEYS=paste-your-gemini-key
 > PROXY_API_KEYS=choose-a-secret-password
@@ -307,7 +307,7 @@ PowerShell window to test it (see [Check it's working](#check-its-working)).
 
 ## Path 4 — Hugging Face Space (host it online)
 
-Want the router running in the cloud (free) instead of your own computer? A **Docker** Space
+Want the proxy running in the cloud (free) instead of your own computer? A **Docker** Space
 works well. Follow these steps carefully — the **port** is the #1 thing people get wrong.
 
 **Step 1 — create the Space.** On [huggingface.co](https://huggingface.co) → your profile →
@@ -320,10 +320,10 @@ works well. Follow these steps carefully — the **port** is the #1 thing people
 | **License** | `mit` (matches the project) |
 | **Select the Space SDK** | **Docker** — ⚠️ *not* Gradio/Static; it's a web server, not a Gradio app |
 | **Choose a Docker template** | **Blank** — ⚠️ *not* Streamlit/Shiny/etc. We ship our own `Dockerfile`, so you want the empty starting point |
-| **Space hardware** | **CPU Basic (Free)** — the router is lightweight; no GPU needed |
+| **Space hardware** | **CPU Basic (Free)** — the proxy is lightweight; no GPU needed |
 | **Storage Bucket** | leave **off** (keys go in Secrets, not files — see Step 4) |
 | **Space Dev Mode** | leave **off** (PRO-only, not needed) |
-| **Visibility** | **Public** — the app URL must be reachable; this is why Step 5 (a strong proxy key) matters |
+| **Visibility** | **Public** — the app URL must be reachable; this is why Step 5 (a strong access key) matters |
 
 > **Why Public?** A Public Space's app URL is openly reachable, which is what lets your app
 > connect to it. *Private* Spaces require an HF token on every request (awkward for an agent),
@@ -366,7 +366,7 @@ password). SSH works too, but only after you add an SSH key under
 > next step. Don't overwrite it with the GitHub repo's README — that one has no Space config.
 
 **Step 3 — fix the port (don't skip this!).** This is the critical bit. Hugging Face serves
-your app on **one** port, set by `app_port` (default **7860**), but the router listens on
+your app on **one** port, set by `app_port` (default **7860**), but the proxy listens on
 **8319**. The README that HF auto-generates has **no `app_port` line at all** — so you must
 add it, or the Space hangs on "Starting" forever. Edit the **Space's own `README.md`** and
 make the YAML block at the very top look like this (the new line is `app_port: 8319`):
@@ -458,7 +458,7 @@ Expected: a JSON reply with the model's answer inside `choices[0].message.conten
 
 **4. Open the dashboard.** Browse to **`http://localhost:8319/`** for the live monitoring
 dashboard — provider health, request log, cache stats, and per-key usage. It asks for your
-proxy key once and remembers it in the browser. With Docker the mapped port (`-p 8319:8319`)
+access key once and remembers it in the browser. With Docker the mapped port (`-p 8319:8319`)
 already exposes it to your host. Running on a remote box bound to `HOST=127.0.0.1`? Tunnel it:
 `ssh -L 8319:127.0.0.1:8319 user@server`, then open `http://localhost:8319/` locally. See
 [monitoring.md](monitoring.md) for the full dashboard tour.
@@ -469,13 +469,13 @@ already exposes it to your host. Running on a remote box bound to `HOST=127.0.0.
 
 **Hugging Face Space stuck on "Starting" forever**
 - This is the #1 issue, and it's the **port**. Open the **Logs → Container** tab: if you see
-  `Serving on http://0.0.0.0:8319`, the router is fine — HF just isn't looking there. The
+  `Serving on http://0.0.0.0:8319`, the proxy is fine — HF just isn't looking there. The
   auto-generated `README.md` does **not** include `app_port`, so HF probes its default 7860
   and never sees the app. Fix: add `app_port: 8319` to the README metadata block (Step 3) and
   commit. It'll rebuild and flip to "Running".
 
 **`Connection refused` / page won't load**
-- Is the router actually running? (Docker: `docker compose ps`; native: is the `python
+- Is the proxy actually running? (Docker: `docker compose ps`; native: is the `python
   router.py` window still open?)
 - On a **Hugging Face Space**, this is almost always the **port** — re-check Step 3 above
   (`app_port: 8319` or `PORT=7860`).
@@ -513,7 +513,7 @@ Still stuck? Run `hr doctor` (Linux/macOS/WSL) for an automated diagnosis, or ch
 
 ## Keep it running (survive reboots)
 
-> **Important:** a plain `hr start` (or `hr setup`'s "start now") runs the router as a normal
+> **Important:** a plain `hr start` (or `hr setup`'s "start now") runs the proxy as a normal
 > background process — it does **not** come back after a server reboot. To survive reboots, install
 > it as a service. Pick the line that matches how you run it:
 
@@ -523,7 +523,7 @@ Still stuck? Run `hr doctor` (Linux/macOS/WSL) for an automated diagnosis, or ch
 hr service install      # installs a systemd unit + enables it on boot
 ```
 
-That's it — the router now starts on boot and restarts automatically if it crashes, and `hr restart`
+That's it — the proxy now starts on boot and restarts automatically if it crashes, and `hr restart`
 manages it. `hr setup` also **offers this as a step**. Run as root (or with `sudo`) for a system
 service; without either it installs a per-user service and enables *lingering* so it still starts at
 boot. Check it with `hr service status`; remove it with `hr service uninstall`. (The unit name is

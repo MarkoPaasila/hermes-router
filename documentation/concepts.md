@@ -44,7 +44,7 @@ similar numbers, which lets you search by meaning ("find notes about my trip") i
 exact words. The basis of long-term memory and search. hermes-router serves these at
 `/v1/embeddings`.
 
-### Tool / function calling
+### Tool / tool calling
 Giving the model the ability to *do* things, not just talk. You describe some functions
 (e.g. `get_weather(city)`); the model can choose to "call" one, you run it, and you hand the
 result back. This is how an AI checks live data, does math, or controls other software.
@@ -70,9 +70,11 @@ A pattern where, before answering, you *retrieve* relevant text (via embeddings)
 to the prompt — so the model can answer using your documents, not just what it memorized.
 
 ### Rate limit
-A cap providers put on how much you can use them for free in a given time. Hitting one is
-why apps break — and exactly what hermes-router routes around by switching providers.
+A cap providers put on how much you can use them in a given time. Hitting one is expected
+capacity exhaustion — and exactly what hermes-router falls back around by switching candidates.
+(Not the same as an operator **budget** on an access key, or a per-model **token cap** on size.)
 
-### Failover
-Automatically switching to a backup when something fails. hermes-router fails over between
-providers so a single outage or rate-limit never reaches your app.
+### Fallback
+Moving to the next catalog candidate when the current one cannot serve the request — including
+rate-limits, errors, timeouts, and capability skips. Rate-limits are not failures.
+

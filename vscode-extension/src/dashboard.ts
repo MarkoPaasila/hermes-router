@@ -105,7 +105,8 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     const provs = s.providers || {};
     const names = Object.keys(provs).sort();
     const cache = s.cache || {};
-    const mode = (s.rotation && s.rotation.mode) || '—';
+    const modeRaw = (s.rotation && s.rotation.mode) || '—';
+    const mode = modeRaw === 'sticky-key' ? 'key affinity' : modeRaw;
     let totalTokens = 0;
     let totalCost = 0;
     let totalRequests = 0;
@@ -142,19 +143,19 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     const errRate = totalRequests ? totalErrors / totalRequests * 100 : 0;
     const stateCls = !totalKeys || openBreakers || errRate > 25 ? 'bad' : errRate > 5 ? 'warn' : 'ok';
     const stateText = !totalKeys ? 'Needs a key' : stateCls === 'bad' ? 'Needs attention' : stateCls === 'warn' ? 'Running with warnings' : 'Ready';
-    const headline = !totalKeys ? 'Add a provider key to start' : stateCls === 'ok' ? 'Hermes is ready' : 'Hermes is still routing';
-    const detail = !totalKeys ? 'Open the web dashboard and add at least one provider API key.' :
-      stateCls === 'ok' ? 'Provider pool looks healthy.' :
+    const headline = !totalKeys ? 'Add a provider key to start' : stateCls === 'ok' ? 'hermes-router is ready' : 'hermes-router needs attention';
+    const detail = !totalKeys ? 'Open the web dashboard and add at least one provider key.' :
+      stateCls === 'ok' ? 'Providers look healthy.' :
       'Fallback is active. Check providers with warnings when you have time.';
 
     el.innerHTML = '<div class="stack">' +
       '<section class="hero"><span class="state '+stateCls+'">'+stateText+'</span><h2>'+headline+'</h2><p>'+detail+'</p></section>' +
-      '<div class="actions"><button onclick="cmd(\\'hermesRouter.openWebDashboard\\')">Open web dashboard</button><button class="secondary" onclick="cmd(\\'hermesRouter.restart\\')">Restart router</button></div>' +
+      '<div class="actions"><button onclick="cmd(\\'hermesRouter.openWebDashboard\\')">Open web dashboard</button><button class="secondary" onclick="cmd(\\'hermesRouter.restart\\')">Restart</button></div>' +
       '<div class="metrics"><div class="metric"><div class="label">Ready keys</div><div class="value">'+readyKeys+'/'+totalKeys+'</div></div>' +
       '<div class="metric"><div class="label">Errors</div><div class="value">'+errRate.toFixed(1)+'%</div></div>' +
       '<div class="metric"><div class="label">Tokens</div><div class="value">'+tok(totalTokens)+'</div></div>' +
       '<div class="metric"><div class="label">Spend</div><div class="value">'+usd(totalCost)+'</div></div></div>' +
-      '<div class="card"><h3>Router</h3><p>Rotation: <span class="pill">'+esc(mode)+'</span> Cache: <span class="pill">'+(cache.enabled ? Math.round((cache.hit_rate||0)*100)+'%' : 'off')+'</span>'+(sem.enabled ? ' <span class="pill">semantic</span>' : '')+'</p></div>' +
+      '<div class="card"><h3>Proxy</h3><p>Keys: <span class="pill">'+esc(mode)+'</span> Cache: <span class="pill">'+(cache.enabled ? Math.round((cache.hit_rate||0)*100)+'%' : 'off')+'</span>'+(sem.enabled ? ' <span class="pill">semantic</span>' : '')+'</p></div>' +
       '<div><h3>Providers needing attention first</h3><div class="list">'+(items.map(i=>i.html).join('') || '<p>No providers configured.</p>')+'</div></div>' +
       '<div class="actions"><button class="secondary" onclick="send(\\'refresh\\')">Refresh</button>${doctorButton}</div>' +
       '</div>';

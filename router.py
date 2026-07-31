@@ -145,10 +145,10 @@ SEMANTIC_THRESHOLD = float(os.environ.get("SEMANTIC_CACHE_THRESHOLD", "0.95"))
 COST_CURRENCY      = os.environ.get("COST_CURRENCY", "USD").strip().upper() or "USD"
 try:    COST_FX_RATE = float(os.environ.get("COST_FX_RATE", 0) or 0)
 except (TypeError, ValueError): COST_FX_RATE = 0.0
-# Keys are sticky-until-fail (preferred key when ready, else first ready in deque order).
+# Keys use key affinity (preferred key when ready, else first ready in deque order).
 _raw_rotation = os.environ.get("ROTATION_MODE", "").strip()
 if _raw_rotation:
-    log.warning(f"ROTATION_MODE={_raw_rotation!r} is ignored; keys are sticky-until-fail")
+    log.warning(f"ROTATION_MODE={_raw_rotation!r} is ignored; keys use key affinity")
 STATE_FILE        = Path(os.environ.get("ROUTER_STATE_FILE", "./router_state.json"))
 RATE_STATE_FILE   = Path(os.environ.get("RATE_STATE_FILE", "./rate_limits_state.json"))
 TOKEN_CAPS_ENABLED = os.environ.get("TOKEN_CAPS", "1").strip().lower() not in (
@@ -299,31 +299,32 @@ BREAKER_COOLDOWN    = int(os.environ.get("BREAKER_COOLDOWN", 60))       # second
 # Providers known for low-latency inference — promoted for short requests
 _FAST_PROVIDERS = {"groq", "cerebras", "sambanova", "mistral"}
 
-# ── Smart routing: capability ratings ─────────────────────────────────────────
-# 1=outstanding  2=best  3=good  4=fair  5=basic  (lower = more capable)
+# ── Selection: capability scores (wire key still "rating") ────────────────────
+# 1=weakest … 5=strongest (higher = more capable). See CONTEXT.md / ADR-0001.
 # Recommended base model: set ROUTER_BASE_MODEL_PROVIDER + ROUTER_BASE_MODEL
 # e.g. ROUTER_BASE_MODEL_PROVIDER=openai  ROUTER_BASE_MODEL=gpt-4o-mini
+CAPABILITY_SCALE_VERSION = 2  # v1 was inverted (1=strongest); migrate persisted ratings
 KNOWN_MODEL_RATINGS: dict = {
-    # 1 — Outstanding
-    "gpt-5.3-codex": 1, "gpt-5-codex": 1, "gpt-5.5": 1, "gpt-4o": 1, "o1": 1, "o3": 1,
-    "claude-opus-4": 1, "claude-opus": 1, "gemini-2.5-pro": 1,
-    "nemotron-3-ultra": 1,
-    "gpt-4.5": 1, "claude-3-7": 1, "gemini-2.0-ultra": 1,
-    "deepseek-r2": 1, "qwen3-235b": 1, "qwen3-72b": 1,
-    # 2 — Best
-    "gemini-2.5-flash": 2, "gemini-2.0-flash": 2,
-    "llama-3.3-70b": 2, "llama-3.1-70b": 2,
-    "mistral-large": 2, "mistral-medium": 2,
-    "command-r-plus": 2, "command-a": 2, "nvidia/nemotron-3-super": 2, "nemotron": 2,
-    "big-pickle": 2,
-    "deepseek-v4-flash": 2, "deepseek-v4": 2,  # capable but slow cold-start → "best", not first-choice
-    "deepseek-v3": 2, "deepseek-v2": 2,
-    "claude-sonnet": 2, "claude-3-5": 2, "grok-2": 2,
-    "qwen2.5-72b": 2, "qwen-72b": 2, "qwen3-32b": 2,
-    "phi-4": 2, "phi-4-reasoning": 2,
-    "mixtral-8x22b": 2, "wizardlm-2-8x22b": 2,
-    "yi-large": 2, "moonshot-v1": 2,
-    "llama-4-maverick": 2, "llama-4-scout": 2,
+    # 5 — Outstanding
+    "gpt-5.3-codex": 5, "gpt-5-codex": 5, "gpt-5.5": 5, "gpt-4o": 5, "o1": 5, "o3": 5,
+    "claude-opus-4": 5, "claude-opus": 5, "gemini-2.5-pro": 5,
+    "nemotron-3-ultra": 5,
+    "gpt-4.5": 5, "claude-3-7": 5, "gemini-2.0-ultra": 5,
+    "deepseek-r2": 5, "qwen3-235b": 5, "qwen3-72b": 5,
+    # 4 — Best
+    "gemini-2.5-flash": 4, "gemini-2.0-flash": 4,
+    "llama-3.3-70b": 4, "llama-3.1-70b": 4,
+    "mistral-large": 4, "mistral-medium": 4,
+    "command-r-plus": 4, "command-a": 4, "nvidia/nemotron-3-super": 4, "nemotron": 4,
+    "big-pickle": 4,
+    "deepseek-v4-flash": 4, "deepseek-v4": 4,  # capable but slow cold-start → "best", not first-choice
+    "deepseek-v3": 4, "deepseek-v2": 4,
+    "claude-sonnet": 4, "claude-3-5": 4, "grok-2": 4,
+    "qwen2.5-72b": 4, "qwen-72b": 4, "qwen3-32b": 4,
+    "phi-4": 4, "phi-4-reasoning": 4,
+    "mixtral-8x22b": 4, "wizardlm-2-8x22b": 4,
+    "yi-large": 4, "moonshot-v1": 4,
+    "llama-4-maverick": 4, "llama-4-scout": 4,
     # 3 — Good
     "gemini-2.5-flash-lite": 3, "gemini-1.5-flash": 3,
     "gpt-4o-mini": 3, "gpt-oss-120b": 3,
@@ -333,20 +334,20 @@ KNOWN_MODEL_RATINGS: dict = {
     "phi-3.5": 3, "phi-3-medium": 3,
     "mixtral-8x7b": 3, "wizardlm-2-7b": 3,
     "yi-medium": 3, "yi-6b": 3,
-    # 4 — Fair
-    "command-r7b": 4, "command-r7b-12-2024": 4,
-    "llama-3.2-3b": 4, "mistral-7b": 4,
-    "qwen2.5-7b": 4, "qwen3-4b": 4, "phi-3-mini": 4,
-    "phi-3.5-mini": 4, "yi-mini": 4,
+    # 2 — Fair
+    "command-r7b": 2, "command-r7b-12-2024": 2,
+    "llama-3.2-3b": 2, "mistral-7b": 2,
+    "qwen2.5-7b": 2, "qwen3-4b": 2, "phi-3-mini": 2,
+    "phi-3.5-mini": 2, "yi-mini": 2,
 }
 _RATING_PATTERNS: list = [
-    (1, ["pro-exp", "ultra", "opus", "o3", "o1-pro", "405b", "671b", "r1-zero"]),
-    (2, ["70b", "large", "plus", "pro", "turbo", "super", "sonnet", "72b", "32b", "maverick", "scout", "phi-4", "wizardlm"]),
+    (5, ["pro-exp", "ultra", "opus", "o3", "o1-pro", "405b", "671b", "r1-zero"]),
+    (4, ["70b", "large", "plus", "pro", "turbo", "super", "sonnet", "72b", "32b", "maverick", "scout", "phi-4", "wizardlm"]),
     (3, ["flash", "small", "mini", "medium", "120b", "8b-instant", "glm-4", "14b", "22b", "mixtral", "qwen", "yi-m", "phi-3"]),
-    (4, ["7b", "8b", "lite", "fast", "r7b", "nano", "3b", "phi-3-mini", "phi-3.5-mini", "yi-mini", "4b"]),
-    (5, ["micro", "tiny", "1b"]),
+    (2, ["7b", "8b", "lite", "fast", "r7b", "nano", "3b", "phi-3-mini", "phi-3.5-mini", "yi-mini", "4b"]),
+    (1, ["micro", "tiny", "1b"]),
 ]
-_COMPLEXITY_LABELS = {1: "critical", 2: "complex", 3: "standard", 4: "simple", 5: "trivial"}
+_COMPLEXITY_LABELS = {1: "trivial", 2: "simple", 3: "standard", 4: "complex", 5: "critical"}
 
 # Approximate list prices (USD per 1M tokens) as (input, output), for cost
 # ESTIMATION only. Substring match like _rate_model (longest key wins). Anything
@@ -397,7 +398,7 @@ PROVIDER_QUALITY_RANKS: dict = {
 }
 _provider_state: dict = {}   # populated at startup by _initialize_ratings()
 # Per-(provider, model) capability — rating + tool/reasoning support. Keyed by
-# (provider_name, model). Lets smart routing treat each model in a provider's
+# (provider_name, model). Lets selection treat each model in a provider's
 # comma-separated list as its own candidate, instead of inheriting the primary's.
 _model_state: dict = {}
 
@@ -1186,8 +1187,8 @@ def _quality_rank(provider_name: str, model: str) -> int:
     for key in sorted(MODEL_QUALITY_RANKS, key=len, reverse=True):
         if key in mn:
             return MODEL_QUALITY_RANKS[key]
-    # Fall back to capability rating, then provider rank for stable same-price ties.
-    return _rate_model(model) * 100 + PROVIDER_QUALITY_RANKS.get(provider_name, 99)
+    # Fall back to capability (higher=stronger → lower sort key), then provider rank.
+    return (6 - _rate_model(model)) * 100 + PROVIDER_QUALITY_RANKS.get(provider_name, 99)
 
 
 def _cost(model: str, prompt_toks, completion_toks) -> float:
@@ -1261,6 +1262,7 @@ def _promote_tools_support(name: str, model: str) -> None:
         doc.setdefault("model_state", {})[key] = entry
         if name in (doc.get("providers") or {}) and doc["providers"][name].get("model") == model:
             doc["providers"][name]["supports_tools"] = True
+        doc.setdefault("scale_version", CAPABILITY_SCALE_VERSION)
         STATE_FILE.write_text(json.dumps(doc, indent=2))
     except Exception as e:
         log.debug(f"[ratings] could not persist tools promotion for {name}/{model}: {e}")
@@ -1338,7 +1340,7 @@ def _discover_best_model(base_url: str, key: str, extra_headers: dict = None,
             models.append(normalized)
         if free_only:
             models = [m for m in models if _is_free_model_id(m)]
-        return min(models, key=_rate_model) if models else None
+        return max(models, key=_rate_model) if models else None
     except Exception:
         return None
 
@@ -1626,7 +1628,7 @@ def _probe_reasoning(provider: dict, key: str, model: str) -> bool:
 
 
 def classify_complexity(messages: list) -> int:
-    """Heuristic: 1 (critical) → 5 (trivial). No LLM call."""
+    """Heuristic: 1 (easiest/trivial) → 5 (hardest/critical). No LLM call."""
     content = " ".join(
         m["content"] if isinstance(m.get("content"), str)
         else " ".join(p.get("text", "") for p in m["content"] if isinstance(p, dict))
@@ -1644,11 +1646,11 @@ def classify_complexity(messages: list) -> int:
                                          "how many", "give me a number", "true or false", "in one word",
                                          "spell", "what does", "one sentence", "yes or no answer",
                                          "what year", "what time", "how old"])
-    if tokens > 2000 or (has_code and has_complex): return 1
-    if tokens > 800  or has_complex:                return 2
+    if tokens > 2000 or (has_code and has_complex): return 5
+    if tokens > 800  or has_complex:                return 4
     if tokens > 300  or has_code:                   return 3
-    if tokens > 100  or (not has_simple):           return 4
-    return 5
+    if tokens > 100  or (not has_simple):           return 2
+    return 1
 
 
 def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
@@ -1659,17 +1661,17 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
     a flat list of candidate dicts {"provider": <provider>, "model": <model str>}.
 
     Each model in a provider's comma-separated list is its own candidate, scored on
-    its OWN rating — so e.g. gemini-2.5-pro can be picked for a hard request while
-    gemini-2.5-flash-lite handles easy ones, instead of the extra models only being
-    429-failover. Within equal ratings, a provider's models keep their listed order
-    (list_index tie-break), so cheapest-first ordering still holds.
+    its OWN capability (wire key "rating") — so e.g. gemini-2.5-pro can be picked for a
+    hard request while gemini-2.5-flash-lite handles easy ones, instead of the extra models
+    only being rate-limit fallback. Within equal capability, a provider's models keep their
+    listed order (list_index tie-break), so cheapest-first ordering still holds.
 
     When FAST_ROUTE_THRESHOLD is set and the request is shorter than it, low-latency
-    providers win ties. With prefer_local (the `:fast` profile), a configured local
-    model leads on easy turns (complexity ≥ 3), with cloud as fallback.
+    providers win ties. With prefer_local (the `:fast` preference), a configured local
+    model leads on easy turns (complexity ≤ 3), with cloud as fallback.
 
-    When sticky is provided and its (provider, model) is still in the catalog,
-    that candidate is moved to the front after scoring.
+    When sticky (session affinity) is provided and its (provider, model) is still in the
+    catalog, that candidate is moved to the front after scoring.
     """
     fast_first = FAST_ROUTE_TOKENS > 0 and 0 < est_tokens < FAST_ROUTE_TOKENS
 
@@ -1680,8 +1682,8 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         rating = _model_caps(name, model)["rating"]
         avail  = _provider_state.get(name, {}).get("available", True)
         fast   = 0 if (fast_first and name in _FAST_PROVIDERS) else 1
-        # `:fast` profile: a short/casual turn prefers the local model first.
-        local_first = 0 if (prefer_local and name == "local" and complexity >= 3) else 1
+        # `:fast` preference: a short/casual turn prefers the local model first.
+        local_first = 0 if (prefer_local and name == "local" and complexity <= 3) else 1
         # Health-aware terms — tier/sort_within stay FIRST so capability matching
         # is never overridden by health (a healthy weak model must not outrank the
         # correct-capability one). When every candidate is healthy these two terms
@@ -1695,15 +1697,15 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
             _rate_score = 1.0 - rate_limiter.headroom(name, _peek_key, model)
         price   = _price_rank(model)
         quality = _quality_rank(name, model)
-        if rating <= complexity:
+        if rating >= complexity:
             tier        = 0
-            sort_within = complexity - rating   # 0 = perfect match, larger = overkill
+            sort_within = rating - complexity   # 0 = perfect match, larger = overkill
         else:
             tier        = 1
-            sort_within = rating - complexity   # too weak — closest first
+            sort_within = complexity - rating   # too weak — closest first
         # local_first leads the key so a preferred local model sorts ahead of all
         # others on easy turns; it's a constant 1 otherwise, leaving order unchanged.
-        # list_index trails so a provider's listed model order breaks rating ties.
+        # list_index trails so a provider's listed model order breaks capability ties.
         return (local_first, tier, price, quality, sort_within, breaker_open, health,
                 _rate_score, 0 if avail else 1, fast, cand["list_index"])
 
@@ -1758,12 +1760,36 @@ def _resolve_caps(p: dict, key: str, model: str, ok: bool) -> dict:
     return {"rating": _rate_model(model), "supports_tools": supports_tools, "reasoning": reasoning}
 
 
+def _migrate_capability_scale(doc: dict) -> dict:
+    """Invert persisted capability scores from scale v1 (1=strongest) to v2 (1=weakest)."""
+    if doc.get("scale_version") == CAPABILITY_SCALE_VERSION:
+        return doc
+
+    def _flip(entry: dict) -> dict:
+        if not isinstance(entry, dict):
+            return entry
+        out = dict(entry)
+        r = out.get("rating")
+        if isinstance(r, (int, float)) and 1 <= int(r) <= 5:
+            out["rating"] = 6 - int(r)
+        return out
+
+    providers = doc.get("providers") or {}
+    doc["providers"] = {k: _flip(v) for k, v in providers.items()}
+    model_state = doc.get("model_state") or {}
+    doc["model_state"] = {k: _flip(v) for k, v in model_state.items()}
+    doc["scale_version"] = CAPABILITY_SCALE_VERSION
+    log.info("[ratings] Migrated persisted capability scores to scale_version=%s",
+             CAPABILITY_SCALE_VERSION)
+    return doc
+
+
 def _initialize_ratings(providers: list, pool_ref):
     """Background: probe all providers, fix bad models, assign ratings, persist state."""
     global _provider_state, _model_state
     if STATE_FILE.exists():
         try:
-            cached_doc = json.loads(STATE_FILE.read_text())
+            cached_doc = _migrate_capability_scale(json.loads(STATE_FILE.read_text()))
             _provider_state = cached_doc.get("providers", {})
             # Per-model caps were persisted as "name::model" keys — restore tuples.
             _model_state = {}
@@ -1793,6 +1819,17 @@ def _initialize_ratings(providers: list, pool_ref):
                         pool_ref.rename_model(p["name"], old, cached_model)
                 log.info(f"[ratings] State is {age/3600:.1f}h old (< {STATE_TTL_HOURS}h TTL) "
                          "— skipping startup probes")
+                try:
+                    STATE_FILE.write_text(json.dumps({
+                        **cached_doc,
+                        "last_updated": cached_doc.get("last_updated")
+                            or time.strftime("%Y-%m-%dT%H:%M:%S"),
+                        "providers": _provider_state,
+                        "model_state": {f"{n}::{m}": v for (n, m), v in _model_state.items()},
+                        "scale_version": CAPABILITY_SCALE_VERSION,
+                    }, indent=2))
+                except Exception:
+                    pass
                 return
         except Exception:
             pass
@@ -1831,7 +1868,7 @@ def _initialize_ratings(providers: list, pool_ref):
         for m in (p.get("models") or [actual]):
             caps = cached_models.get((name, m)) or _resolve_caps(p, key, m, caps_probe_ok)
             new_model_state[(name, m)] = caps
-            log.info(f"[ratings]   {name}/{m}: rating={caps['rating']} "
+            log.info(f"[ratings]   {name}/{m}: capability={caps['rating']} "
                      f"tools={'yes' if caps['supports_tools'] else 'no'} "
                      f"reasoning={'yes' if caps['reasoning'] else 'no'}")
         # Provider-level fields mirror the primary model's caps (back-compat).
@@ -1848,6 +1885,7 @@ def _initialize_ratings(providers: list, pool_ref):
     try:
         STATE_FILE.write_text(json.dumps({"last_updated": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                            "last_updated_ts": time.time(),
+                                           "scale_version": CAPABILITY_SCALE_VERSION,
                                            "providers": new_state,
                                            "model_state": {f"{n}::{m}": v
                                                            for (n, m), v in new_model_state.items()}},
@@ -1868,10 +1906,10 @@ def _initialize_ratings(providers: list, pool_ref):
 class CredentialPool:
     """Thread-safe key pool with per-key health cooldown tracking.
 
-    Keys are sticky-until-fail: return the preferred key when ready, otherwise
+    Keys use key affinity: return the preferred key when ready, otherwise
     the first ready key in stable deque order (no rotation).
 
-    Upstream rate limits are handled by AdaptiveRateLimiter (TBF), not this pool.
+    Upstream rate limits are handled by AdaptiveRateLimiter, not this pool.
     cool_until here is only for network/5xx health failures via mark_key_down."""
 
     def __init__(self, providers: list[dict]):
@@ -3343,10 +3381,10 @@ def _estimated_tokens(messages: list) -> int:
 def _ordered_providers(payload: dict, prefer_local: bool = False,
                        sticky: dict | None = None) -> list[dict]:
     """
-    Smart complexity-aware ordering: use cheapest capable model for simple
+    Complexity-aware catalog selection: use cheapest capable model for simple
     tasks, best model for complex ones. With FAST_ROUTE_THRESHOLD set,
     short requests break ties in favour of low-latency providers. With
-    prefer_local (the `:fast` profile), a local model leads on easy turns.
+    prefer_local (the `:fast` preference), a local model leads on easy turns.
     """
     messages   = payload.get("messages", [])
     complexity = classify_complexity(messages)
@@ -3966,14 +4004,14 @@ th.sortable.sorted-desc::after{content:'↓'}
 .pill-warn{background:rgba(250,204,21,.12);color:var(--yellow)}
 .pill-grey{background:rgba(136,146,164,.12);color:var(--muted)}
 
-/* ── rating bar ── */
+/* ── capability bar (higher = stronger; wire field still "rating") ── */
 .rating-bar{display:flex;gap:3px;align-items:center}
 .rating-pip{width:9px;height:9px;border-radius:2px;background:var(--border)}
-.r1 .rating-pip.active{background:var(--green)}
-.r2 .rating-pip.active{background:#22d3ee}
+.r1 .rating-pip.active{background:var(--red)}
+.r2 .rating-pip.active{background:var(--yellow)}
 .r3 .rating-pip.active{background:var(--accent)}
-.r4 .rating-pip.active{background:var(--yellow)}
-.r5 .rating-pip.active{background:var(--red)}
+.r4 .rating-pip.active{background:#22d3ee}
+.r5 .rating-pip.active{background:var(--green)}
 
 /* ── progress bar ── */
 .prog-track{background:var(--surface2);border-radius:99px;height:5px;min-width:80px;overflow:hidden}
@@ -4176,7 +4214,7 @@ th.sortable.sorted-desc::after{content:'↓'}
           <div class="panel-body">
             <table>
               <thead><tr>
-                <th>Provider</th><th>Model</th><th>Rating</th>
+                <th>Provider</th><th>Model</th><th>Capability</th>
                 <th class="right">Requests</th><th class="right">Errors</th>
                 <th class="right">Err %</th><th class="right">Avg Latency</th>
                 <th class="right">Tokens</th><th class="right">Cost (USD)</th>
@@ -4189,7 +4227,7 @@ th.sortable.sorted-desc::after{content:'↓'}
 
         <div class="panel" id="rl-panel-pw">
           <div class="panel-header">
-            <span class="panel-title">Provider-wide token buckets</span>
+            <span class="panel-title">Provider-wide rate headroom</span>
             <label class="muted" style="font-size:12px;display:flex;align-items:center;gap:6px;font-weight:500;text-transform:none;letter-spacing:0">
               <input type="checkbox" id="rl-orphans-pw" onchange="refreshRateLimits()">
               Show dormant / orphan groups
@@ -4326,7 +4364,7 @@ th.sortable.sorted-desc::after{content:'↓'}
                 <th class="sortable" data-sort="model" onclick="sortRateLimits('model','model')">Model</th>
                 <th class="sortable" data-sort="provider" onclick="sortRateLimits('model','provider')">Provider</th>
                 <th>Key</th>
-                <th class="sortable" data-sort="rating" onclick="sortRateLimits('model','rating')">Rating</th>
+                <th class="sortable" data-sort="rating" onclick="sortRateLimits('model','rating')">Capability</th>
                 <th>Tools</th><th>Reasoning</th>
                 <th class="sortable" data-sort="binding" onclick="sortRateLimits('model','binding')">Limiting factor</th>
                 <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('model','headroom')">Headroom</th>
@@ -4535,9 +4573,9 @@ function el(tag, cls, html) {
 
 function ratingPips(r) {
   if (!r) return '<span class="muted">—</span>';
-  const cls = ['','r1','r2','r3','r4','r5'][r] || 'r5';
-  const labels = ['','Outstanding','Best','Good','Fair','Basic'];
-  let h = `<div class="rating-bar ${cls}" title="${labels[r]||''}">`;
+  const cls = ['','r1','r2','r3','r4','r5'][r] || 'r1';
+  const labels = ['','Weakest','Fair','Good','Strong','Strongest'];
+  let h = `<div class="rating-bar ${cls}" title="Capability ${r}/5 — ${labels[r]||''}">`;
   for (let i=1;i<=5;i++) h += `<div class="rating-pip ${i<=r?'active':''}"></div>`;
   return h + '</div>';
 }
@@ -4606,18 +4644,18 @@ function renderPlainOverview() {
   if (!keyCount) {
     state.classList.add('bad');
     state.textContent = 'needs a key';
-    title.textContent = 'Add one provider key to start routing';
-    msg.textContent = 'Choose a provider below, paste its API key, then restart Hermes Router.';
+    title.textContent = 'Add one provider key to start';
+    msg.textContent = 'Choose a provider below, paste its API key, then restart hermes-router.';
   } else if (openBreakers || errRate > 25) {
     state.classList.add('warn');
     state.textContent = 'needs attention';
-    title.textContent = 'Hermes is running, but some providers are failing';
+    title.textContent = 'hermes-router is running, but some providers need attention';
     msg.textContent = 'Requests can still fall back to healthy providers. Add more keys or check providers with high errors.';
   } else {
     state.classList.add('good');
     state.textContent = 'ready';
-    title.textContent = 'Hermes Router is ready';
-    msg.textContent = active ? 'Traffic is flowing through your provider pool.' : 'No requests yet. Point your app at the endpoint below.';
+    title.textContent = 'hermes-router is ready';
+    msg.textContent = active ? 'Traffic is flowing through your providers.' : 'No requests yet. Point your client at the endpoint below.';
   }
 
   document.getElementById('quick-endpoint').textContent = location.origin + '/v1';
@@ -4829,14 +4867,15 @@ function renderLogs() {
         : '<span class="muted">0</span>';
     }
     const cmpx = e.complexity;
-    const cmpxColor = !cmpx ? 'var(--muted)' : cmpx<=2?'var(--red)':cmpx>=5?'var(--green)':'var(--yellow)';
+    const cmpxColor = !cmpx ? 'var(--muted)' : cmpx>=4?'var(--red)':cmpx<=2?'var(--green)':'var(--yellow)';
+    const cmpxTitle = cmpx ? `Complexity ${cmpx}/5 (${({1:'trivial',2:'simple',3:'standard',4:'complex',5:'critical'})[cmpx]||''})` : '';
     tr.innerHTML = `
       <td class="mono muted">${fmt.time(e.ts)}</td>
       <td>${e.endpoint||'—'}</td>
       <td><strong>${e.provider||'—'}</strong></td>
       <td class="muted mono" style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${e.model||''}">${e.model||'—'}</td>
       <td class="right">${fmt.ms(e.latency_ms)}</td>
-      <td class="right" style="color:${cmpxColor}">${cmpx||'—'}</td>
+      <td class="right" style="color:${cmpxColor}" title="${cmpxTitle}">${cmpx||'—'}</td>
       <td class="right" ${hasTrail ? `style="cursor:pointer" data-cascade-idx="${idx}"` : ''}>${cascCell}</td>
       <td class="right muted">${e.prompt_tokens!=null?fmt.num(e.prompt_tokens):'—'}</td>
       <td class="right muted">${e.completion_tokens!=null?fmt.num(e.completion_tokens):'—'}</td>
@@ -5033,7 +5072,7 @@ function renderKeys() {
   }).join('');
 }
 
-// ── access keys (proxy keys others use to call the router) ───────────────────
+// ── access keys (clients use these to call the proxy) ────────────────────────
 function renderAccessKeys() {
   const tbody = document.getElementById('access-keys-tbody');
   if (!tbody) return;
@@ -5679,7 +5718,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                       *, _rate_retry: bool = False,
                       _session_id: str | None = None,
                       _sticky: dict | None = None):
-    """Core routing + failover pipeline, shared by /v1/chat/completions and the
+    """Core selection + fallback cascade, shared by /v1/chat/completions and the
     Anthropic-compatible /v1/messages. Takes an OpenAI-format payload and returns
     one of:
         ("json",   data_dict)            non-streaming success (OpenAI format)
@@ -5947,13 +5986,13 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             if resp.status_code == 429:
                 _rl_release()
                 stats.record_error(name)
-                # 429 is NOT a health failure — TBF learns + Retry-After hold.
+                # 429 is NOT a health failure — rate limiter learns + Retry-After hold.
                 rate_limiter.on_429(
                     name, key, model, dict(resp.headers),
                     model_headroom_before=_current_headroom,
                     observed_at=_rl_t0,
                 )
-                log.warning(f"  {name}/{model} 429 — TBF hold, trying next")
+                log.warning(f"  {name}/{model} 429 — rate-limit hold, trying next")
                 _crec("note", name, model, "failed", "http_429")
                 continue
 
@@ -6470,7 +6509,7 @@ def embeddings():
                     model_headroom_before=_current_headroom,
                     observed_at=_rl_t0,
                 )
-                log.warning(f"  {name} embeddings 429 — TBF hold, trying next key")
+                log.warning(f"  {name} embeddings 429 — rate-limit hold, trying next key")
                 trail.note(name, em, "failed", "http_429")
                 continue
             if resp.status_code in (400, 401, 403, 404):
@@ -6571,7 +6610,7 @@ def _features_snapshot() -> dict:
         {"name": "persistent_cache", "title": "Persistent cache", "kind": "flag",
          "enabled": cache.persistent, "env": "CACHE_PERSIST", "on": "1", "off": "0",
          "desc": "Mirror the cache to SQLite so it survives restarts."},
-        {"name": "fast_routing", "title": "Fast routing", "kind": "flag",
+        {"name": "fast_routing", "title": "Fast selection", "kind": "flag",
          "enabled": FAST_ROUTE_TOKENS > 0, "env": "FAST_ROUTE_THRESHOLD", "on": "200", "off": "0",
          "desc": "Short requests prefer low-latency providers on ties."},
         {"name": "model_discovery", "title": "Model discovery", "kind": "flag",
@@ -6579,19 +6618,19 @@ def _features_snapshot() -> dict:
          "desc": "Refresh configured provider model lists from /models at startup, bounded by AUTO_DISCOVER_MODEL_LIMIT."},
         {"name": "filter_specialized_models", "title": "Filter specialized models", "kind": "flag",
          "enabled": FILTER_SPECIALIZED_MODELS, "env": "FILTER_SPECIALIZED_MODELS", "on": "1", "off": "0",
-         "desc": "When model discovery is on, drop TTS / STT / image-gen / OCR / video / embedding / moderation / rerank IDs from discovered catalogs so they never enter the chat pool."},
+         "desc": "When model discovery is on, drop TTS / STT / image-gen / OCR / video / embedding / moderation / rerank IDs from discovered catalogs so they never enter the chat catalog."},
         {"name": "token_caps", "title": "Adaptive token caps", "kind": "flag",
          "enabled": TOKEN_CAPS_ENABLED, "env": "TOKEN_CAPS", "on": "1", "off": "0",
          "desc": "Track per-model input/output ceilings from /models metadata and classified 413/token-limit 400s."},
         {"name": "metrics_auth", "title": "Metrics auth", "kind": "flag",
          "enabled": bool(_int_env("METRICS_REQUIRE_AUTH", 0)), "env": "METRICS_REQUIRE_AUTH",
-         "on": "1", "off": "0", "desc": "Require the proxy key on /metrics."},
+         "on": "1", "off": "0", "desc": "Require an access key on /metrics."},
         {"name": "cost_currency", "title": "Cost currency conversion", "kind": "flag",
          "enabled": COST_FX_RATE > 0, "env": "COST_FX_RATE", "on": "83", "off": "0",
          "desc": "Show a second currency (e.g. INR) alongside USD spend."},
-        {"name": "key_budgets", "title": "Per-key budgets & rate limits", "kind": "config",
+        {"name": "key_budgets", "title": "Per-access-key budgets", "kind": "config",
          "enabled": KEY_LIMITS_ON, "manage": "hr limit set <key> --rpm/--req-day/--tokens-day/--cost-day",
-         "desc": "Per-key RPM / daily request / token / cost ceilings."},
+         "desc": "Per-access-key RPM / daily request / token / cost ceilings (operator budgets, not upstream rate limits)."},
         {"name": "local_model", "title": "Local model provider", "kind": "config",
          "enabled": has_local, "manage": "hr model set local <model>",
          "desc": "Route to a model on your own machine (Ollama / LM Studio / llama.cpp)."},
@@ -6835,7 +6874,7 @@ def config_update_proxy_key(tail):
     live_keys = _read_proxy_api_keys_live()
     key = _resolve_proxy_key_by_tail(tail, live_keys)
     if not key:
-        return jsonify({"error": {"message": f"no proxy key ending in '{tail}'",
+        return jsonify({"error": {"message": f"no access key ending in '{tail}'",
                                   "type": "invalid_request_error"}}), 404
 
     body = request.get_json(force=True, silent=True) or {}
@@ -6869,10 +6908,10 @@ def config_delete_proxy_key(tail):
     live_keys = _read_proxy_api_keys_live()
     key = _resolve_proxy_key_by_tail(tail, live_keys)
     if not key:
-        return jsonify({"error": {"message": f"no proxy key ending in '{tail}'",
+        return jsonify({"error": {"message": f"no access key ending in '{tail}'",
                                   "type": "invalid_request_error"}}), 404
     if len(live_keys) <= 1:
-        return jsonify({"error": {"message": "can't delete the last proxy key — you'd lock yourself out",
+        return jsonify({"error": {"message": "can't delete the last access key — you'd lock yourself out",
                                   "type": "invalid_request_error"}}), 400
     live_keys.remove(key)
     _env_write_line("PROXY_API_KEYS", ",".join(live_keys))
@@ -7164,7 +7203,7 @@ if __name__ == "__main__":
     log.info(f"Cache: {'enabled' if CACHE_TTL > 0 else 'disabled'} (TTL={CACHE_TTL}s, max={CACHE_MAX_SIZE}"
              f"{', persistent' if cache.persistent else ''})")
     log.info(f"Fast routing: {'enabled' if FAST_ROUTE_TOKENS > 0 else 'disabled'} (threshold={FAST_ROUTE_TOKENS} tokens)")
-    log.info("Key selection: sticky-until-fail")
+    log.info("Key selection: key affinity")
     log.info(f"Dashboard: http://{'localhost' if HOST in ('0.0.0.0','') else HOST}:{PORT}/dashboard")
     _skips = {p["name"]: p["skip_if_tokens_over"] for p in PROVIDERS if p.get("skip_if_tokens_over")}
     if _skips:

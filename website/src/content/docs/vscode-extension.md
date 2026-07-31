@@ -4,7 +4,7 @@ description: "Monitor and manage hermes-router from inside VS Code — and use i
 ---
 
 The **hermes-router** VS Code extension turns your editor into a control panel for the router
-*and* lets you use the router's free provider pool as a model inside Copilot Chat. You never
+*and* lets you use the router's free provider catalog as a model inside Copilot Chat. You never
 have to leave VS Code to check provider health, add a key, or chat through hermes-router.
 
 [![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/MohammedShafiq.hermes-router?label=VS%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=MohammedShafiq.hermes-router)
@@ -38,7 +38,7 @@ Or install a `.vsix` by hand: download it from the
 
 > **What you also need:** a hermes-router that's actually running — either locally
 > (`hr setup`) or remotely (e.g. a [Hugging Face Space](/deployment/#path-4-hugging-face-space-host-it-online)).
-> The extension is a *front-end*; it talks to a router, it isn't the router itself.
+> The extension is a *front-end*; it talks to a router, it isn't the proxy itself.
 
 ---
 
@@ -55,7 +55,7 @@ After installing, tell the extension where your router is and how to authenticat
 | `hermesRouter.dockerContainer` | *(empty)* | Set to your container's name to manage a router running in **Docker** (see [below](#using-the-router-in-docker)). |
 | `hermesRouter.refreshSeconds` | `10` | How often the dashboard and status bar refresh. |
 
-If you run the router on your own machine with the defaults, you don't need to change
+If you run the proxy on your own machine with the defaults, you don't need to change
 anything — it works out of the box.
 
 ---
@@ -66,8 +66,8 @@ anything — it works out of the box.
 
 A small badge sits in the bottom status bar:
 
-- `✓ hermes-router 11/12` — the router is up and 11 of 12 providers are available.
-- It turns into a **warning** if the router is unreachable or down.
+- `✓ hermes-router 11/12` — the proxy is up and 11 of 12 providers are available.
+- It turns into a **warning** if the proxy is unreachable or down.
 
 Click it to open the dashboard.
 
@@ -100,7 +100,7 @@ in-editor panel has buttons for Refresh and Restart; the rest are palette-only):
 | **Open Web Dashboard (browser)** | Open the router's full browser dashboard at `/dashboard` — health, request log, per-key usage, and every config action |
 | **Restart Router** | Apply config changes (`hr restart`) |
 | **Run Doctor (diagnose)** | Diagnose install/health problems (`hr doctor`) |
-| **Update to Latest** | Upgrade the router (`hr update`) |
+| **Update to Latest** | Upgrade the proxy (`hr update`) |
 | **Import Codex (ChatGPT) Login** | Bring in a ChatGPT-subscription login (`hr auth import-codex`) — the one config action that stays here, since it reads a local OAuth login file the web dashboard can't reach |
 
 > **Adding keys, setting models, toggling add-ons, and changing key rotation mode** all live in
@@ -114,11 +114,11 @@ in-editor panel has buttons for Refresh and Restart; the rest are palette-only):
 
 ---
 
-## Using the router in Docker
+## Using the proxy in Docker
 
-**Configuring** the router (add keys, set models, toggle add-ons) is done entirely through the
-**web dashboard** now, and that works identically whether the router runs bare-metal or in
-Docker — it's just HTTP to the router itself, no `hr` CLI needed inside the container. Point your
+**Configuring** the proxy (add keys, set models, toggle add-ons) is done entirely through the
+**web dashboard** now, and that works identically whether the proxy runs bare-metal or in
+Docker — it's just HTTP to the proxy itself, no `hr` CLI needed inside the container. Point your
 browser (or the extension's **Open Web Dashboard** button) at the container's mapped port, e.g.
 `http://localhost:8319/`.
 
@@ -129,7 +129,7 @@ operation on the container, not just an HTTP call:
   settings. Its own **Restart Router** command then correctly runs `docker restart <container>`
   instead of `hr restart` (which would just kill the container's main process). This also makes
   **Doctor** and **Update** work via `docker exec` — see the `:cli` image setup below.
-- **Or use the web dashboard's own "Restart Now" button.** This restarts the router process
+- **Or use the web dashboard's own "Restart Now" button.** This restarts the proxy process
   in-place. Inside a container where `router.py` is the main process, that process exiting stops
   the *container* — it only comes back on its own if the container has a restart policy. The
   provided `docker-compose.yml` already sets `restart: unless-stopped`, so Compose users are
@@ -160,20 +160,20 @@ OAuth login the web dashboard can't reach) needs `-v ~/.codex:/root/.codex` moun
 ## Use hermes-router as an AI model (Copilot Chat)
 
 This is the headline feature. The extension registers **hermes-router** as a language model in
-VS Code, so you can chat through your free provider pool right inside Copilot.
+VS Code, so you can chat through your free provider catalog right inside Copilot.
 
 1. Make sure the **GitHub Copilot Chat** extension is installed and you're on **VS Code ≥ 1.104**.
 2. Open the Chat view, click the **model picker** (the model name near the input box).
 3. Choose **hermes-router**.
 
-Now every prompt is answered by whichever free provider the router picks — no per-token bill.
+Now every prompt is answered by whichever free provider the proxy picks — no per-token bill.
 Replies **stream** in just like any built-in model.
 
 ### Agent mode (tool calling)
 
 hermes-router supports **tool calling**, so it works in Copilot **agent mode**: it can run
-terminal commands, edit files, and call MCP tools to complete a task. The router automatically
-sends tool-using requests only to providers whose models support function calling, so tools
+terminal commands, edit files, and call MCP tools to complete a task. The proxy automatically
+sends tool-using requests only to providers whose models support tool calling, so tools
 "just work" without you choosing a specific provider.
 
 > **It's also available to other extensions.** Anything that uses the VS Code `vscode.lm` API
@@ -183,8 +183,8 @@ sends tool-using requests only to providers whose models support function callin
 
 ## Troubleshooting
 
-**Status bar says the router is down / "unreachable"**
-: The extension can't reach `baseUrl`. Confirm the router is running (`curl <baseUrl>/health`)
+**Status bar says the proxy is down / "unreachable"**
+: The extension can't reach `baseUrl`. Confirm the proxy is running (`curl <baseUrl>/health`)
   and that `hermesRouter.baseUrl` points at it. For a remote router, include the full
   `https://…` URL.
 
@@ -200,10 +200,10 @@ sends tool-using requests only to providers whose models support function callin
   a plain **Windows** host, or inside a container that doesn't bundle it:
   - **Docker:** set `hermesRouter.dockerContainer` to your container's name so these commands run
     via `docker exec`/`docker restart` instead (see
-    [Using the router in Docker](#using-the-router-in-docker)) — or just use the web dashboard's
+    [Using the proxy in Docker](#using-the-router-in-docker)) — or just use the web dashboard's
     own Restart button, which needs no `hr` at all (works as long as your container has a restart
     policy, e.g. `--restart unless-stopped`).
-  - **Windows without Docker:** run the router under **WSL2**, where `hr` works — see
+  - **Windows without Docker:** run the proxy under **WSL2**, where `hr` works — see
     [Deployment → Windows](/deployment/#path-3-windows).
   - Monitoring, the web dashboard, and "use as a model" all work regardless — only these three
     commands need `hr` (or `docker`) reachable.
@@ -214,5 +214,5 @@ sends tool-using requests only to providers whose models support function callin
 
 ---
 
-See also: [Deployment](/deployment/) (run the router locally, in Docker, or on a Space) and
+See also: [Deployment](/deployment/) (run the proxy locally, in Docker, or on a Space) and
 [Monitoring](/monitoring/) (the `hr status` / `/v1/status` / Prometheus equivalents).

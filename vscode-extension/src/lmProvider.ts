@@ -17,7 +17,7 @@ export class HermesChatModelProvider implements vscode.LanguageModelChatProvider
     return [
       {
         id: "hermes-router",
-        name: "hermes-router (free pool)",
+        name: "hermes-router (free catalog)",
         family: "hermes-router",
         version: "1.0.0",
         maxInputTokens: 32000,

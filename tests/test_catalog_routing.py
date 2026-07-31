@@ -41,10 +41,10 @@ def test_smart_ordered_no_provider_rotation(monkeypatch):
     monkeypatch.setattr(router.stats, "breaker_open", lambda n: False)
     monkeypatch.setattr(router.stats, "health_bucket", lambda n: 0)
     monkeypatch.setattr(router.rate_limiter, "headroom", lambda *a, **k: 1.0)
-    monkeypatch.setattr(router, "_model_caps", lambda n, m: {"rating": 5, "supports_tools": True, "reasoning": False})
+    monkeypatch.setattr(router, "_model_caps", lambda n, m: {"rating": 3, "supports_tools": True, "reasoning": False})
     monkeypatch.setattr(router, "_provider_state", {"a": {"available": True}, "b": {"available": True}})
-    o1 = [c["provider"]["name"] for c in router._get_smart_ordered([p1, p2], complexity=5)]
-    o2 = [c["provider"]["name"] for c in router._get_smart_ordered([p1, p2], complexity=5)]
+    o1 = [c["provider"]["name"] for c in router._get_smart_ordered([p1, p2], complexity=1)]
+    o2 = [c["provider"]["name"] for c in router._get_smart_ordered([p1, p2], complexity=1)]
     assert o1 == o2
 
 
@@ -55,10 +55,10 @@ def test_smart_ordered_sticky_first(monkeypatch):
     monkeypatch.setattr(router.stats, "breaker_open", lambda n: False)
     monkeypatch.setattr(router.stats, "health_bucket", lambda n: 0)
     monkeypatch.setattr(router.rate_limiter, "headroom", lambda *a, **k: 1.0)
-    monkeypatch.setattr(router, "_model_caps", lambda n, m: {"rating": 5, "supports_tools": True, "reasoning": False})
+    monkeypatch.setattr(router, "_model_caps", lambda n, m: {"rating": 3, "supports_tools": True, "reasoning": False})
     monkeypatch.setattr(router, "_provider_state", {"a": {"available": True}, "b": {"available": True}})
     sticky = {"provider": "b", "model": "m2", "key": "k2"}
-    ordered = router._get_smart_ordered([p1, p2], complexity=5, sticky=sticky)
+    ordered = router._get_smart_ordered([p1, p2], complexity=1, sticky=sticky)
     assert ordered[0]["provider"]["name"] == "b"
     assert ordered[0]["model"] == "m2"
 

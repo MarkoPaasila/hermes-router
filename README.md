@@ -5,9 +5,9 @@
 [![Docker Hub](https://img.shields.io/docker/v/shafiq735/hermes-router?label=Docker%20Hub&logo=docker&sort=semver)](https://hub.docker.com/r/shafiq735/hermes-router)
 [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/MohammedShafiq.hermes-router?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=MohammedShafiq.hermes-router)
 
-**Keep your AI app online for free.** hermes-router sits between your app and a pool of
-free AI providers (Gemini, OpenRouter, Groq, and more). When one provider hits its rate
-limit, it automatically falls back to the next — so your app keeps working instead of
+**Keep your AI app online for free.** hermes-router is a **proxy** that sits between your
+client and free AI providers (Gemini, OpenRouter, Groq, and more). When one candidate hits its
+rate limit, the proxy automatically falls back to the next — so your app keeps working instead of
 erroring out.
 
 It speaks **both the OpenAI API and the Anthropic API**, so any tool or library that
@@ -19,13 +19,13 @@ already talks to either works unchanged — just point it at hermes-router inste
   Anthropic SDK)
 ```
 
-**Highlights:** OpenAI **and** Anthropic API compatible · sticky-until-fail key selection &
-failover · full-catalog smart routing (sends each request to the cheapest model that can handle it,
-session-sticky when clients send a session id) ·
+**Highlights:** OpenAI **and** Anthropic API compatible · **key affinity** & catalog
+**fallback** · full-catalog **selection** (cheapest capable model; **session affinity** when
+clients send a session id) ·
 **local models** (Ollama / LM Studio) with cloud fallback · tool calling · embeddings ·
-response caching (incl. optional **semantic** cache) · **per-key budgets & rate limits** ·
+response caching (incl. optional **semantic** cache) · **per-access-key budgets** ·
 **built-in web dashboard** (just open `http://localhost:8319/`) · **usage analytics**
-(`/v1/usage`) with **cost/spend tracking** · circuit breaker for unhealthy providers ·
+(`/v1/usage`) with **spend tracking** · circuit breaker for unhealthy providers ·
 Prometheus `/metrics` · **runs as a reboot-surviving service** (`hr service`) · toggle
 optional features with `hr features` · one structured `auth.json` for all your keys.
 
@@ -37,7 +37,7 @@ The docs read in order, from zero experience to a running, monitored agent:
 
 - 🚀 **[Getting started](documentation/getting-started.md)** — what this is, key terms, your first message
 - 📖 **[Concepts](documentation/concepts.md)** — plain-language glossary (LLM, token, agent, RAG…)
-- 🧭 **[Routing Features](documentation/routing.md)** — plain-language guide to how requests get routed (chat, tools, vision, embeddings)
+- 🧭 **[Selection Features](documentation/routing.md)** — how requests get selected (chat, tools, vision, embeddings)
 
 **Set it up:**
 
@@ -53,7 +53,7 @@ The docs read in order, from zero experience to a running, monitored agent:
 **Operate & extend:**
 
 - **[Monitoring](documentation/monitoring.md)** — **web dashboard** (`/dashboard`), `hr status`, Prometheus `/metrics`, `/v1/status` (tokens, spend)
-- **[VS Code Extension](documentation/vscode-extension.md)** — monitor & manage the router, and use it as a model in Copilot Chat
+- **[VS Code Extension](documentation/vscode-extension.md)** — monitor & manage the proxy, and use it as a model in Copilot Chat
 
 ---
 
@@ -66,11 +66,11 @@ flows through it like this:
   ┌──────────┐   OpenAI-format request    ┌─────────────────────────────────────┐
   │ Your app │ ─────────────────────────► │            hermes-router            │
   └──────────┘   Bearer PROXY_API_KEYS    │                                     │
-       ▲                                   │  1. Auth check (PROXY_API_KEYS)     │
+       ▲                                   │  1. Auth check (access keys)        │
        │                                   │  2. Cache lookup (exact match)      │
-       │         OpenAI-format response    │  3. Rate the request (1–5)          │
+       │         OpenAI-format response    │  3. Complexity score (1–5)          │
        └────────────────────────────────► │  4. Order full catalog by fit       │
-                                           │  5. Try candidates, sticky keys     │
+                                           │  5. Cascade candidates, key affinity│
                                            └───────────────┬─────────────────────┘
                                                            │ first one that succeeds
                                            ┌───────────────▼─────────────────────┐
@@ -82,19 +82,19 @@ flows through it like this:
 **The moving parts:**
 
 - **Credential pool** — every provider can hold many keys (from `auth.json`, then `.env`).
-  Keys use **sticky-until-fail** selection (same key until it errors or is rate-limited, then
-  the next ready key). Upstream rate limits are handled by an adaptive token-bucket filter
-  (learns from headers/429s, paces or fails over on low headroom, honors `Retry-After`); pool
-  cool-downs are only for health failures (network/5xx). Key usage counts are visible in
+  Keys use **key affinity** (same key until it errors or is rate-limited, then
+  the next ready key). Upstream **rate limits** are tracked adaptively from headers/429s
+  (headroom ranks candidates; real Retry-After / 429 triggers fallback); pool
+  cool-downs are only for health **failures** (network/5xx). Key usage counts are visible in
   `/v1/status` and the web dashboard.
-- **Smart routing** — each request is scored 1–5 for difficulty (by length and content, no
-  extra API call), and each `(provider, model)` catalog entry is scored 1–5 for capability. The
-  router picks the *cheapest* candidate that can still handle the request. With a session id,
-  it reuses the same `(provider, model, key)` until cascade-away. Tool requests only go to
-  tool-capable models.
-- **Failover** — if a provider errors or times out, the router cascades to the next one
-  automatically, so a single failure never reaches your app.
-- **Circuit breaker** — a provider that keeps failing is pulled out of rotation for a
+- **Selection** — each request is scored 1–5 for **complexity** (1=easiest … 5=hardest), and each
+  `(provider, model)` catalog entry is scored 1–5 for **capability** (1=weakest … 5=strongest).
+  The proxy picks the *cheapest* candidate that can still handle the request. With a session id,
+  **session affinity** reuses the same `(provider, model, key)` until fallback leaves it. Tool
+  requests only go to tool-capable models.
+- **Fallback** — if a candidate cannot serve (rate-limit, error, timeout), the proxy **cascades**
+  to the next one automatically, so a single problem never reaches your client.
+- **Circuit breaker** — a provider that keeps failing health checks is pulled out of rotation for a
   cooldown, then re-probed. Healthy providers are always preferred.
 - **Response cache** — identical requests can be served from an in-memory cache (TTL-based),
   saving free-tier quota.
@@ -144,7 +144,7 @@ curl http://localhost:8319/health
 ```
 
 Or open **`http://localhost:8319/`** in a browser for the live monitoring dashboard —
-provider health, request log, cache stats, and per-key usage (it'll ask for your proxy key).
+provider health, request log, cache stats, and per-key usage (it'll ask for your access key).
 
 ### Quick start
 
@@ -179,7 +179,7 @@ The `./install.sh` step puts `hr` (and the full name `hermes-router`) on your PA
 | `hr auth list` | Show every provider and how many keys it has |
 | `hr model list` | Show every provider and its active model |
 | `hr model set <provider> <model>` | Override the model used for a specific provider |
-| `hr limit set <key> [opts]` | Set a proxy key's rate/budget limits (`--rpm`/`--req-day`/`--tokens-day`/`--cost-day`) |
+| `hr limit set <key> [opts]` | Set an access key's budget limits (`--rpm`/`--req-day`/`--tokens-day`/`--cost-day`) |
 | `hr features list` | Show core features + optional add-ons, with on/off state |
 | `hr features enable\|disable <name>` | Turn an add-on on/off (writes `.env`; see [Configuration](documentation/configuration.md)) |
 | `hr start` | Run the router (same as `python router.py`) |

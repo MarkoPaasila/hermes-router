@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Align user-facing copy with the project glossary (`CONTEXT.md`): capability (not rating),
+  selection/fallback, key affinity, access keys. Capability scores now use **1=weakest … 5=strongest**
+  (higher = more), matching Complexity **1=easiest … 5=hardest**.
+
 ## 0.9.3
 
 - **Fix remote control buttons.** Restart now uses the router HTTP restart endpoint for remote

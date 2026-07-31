@@ -1,15 +1,15 @@
 # Configuration
 
 All configuration is via environment variables (in `.env`) and the `auth.json` credential
-store. Everything is optional with sensible defaults — the router runs out of the box once
+store. Everything is optional with sensible defaults — the proxy runs out of the box once
 it has at least one key.
 
 ## Core features vs. add-ons
 
 hermes-router splits its behavior into two groups:
 
-- **Core features** — always on; they *are* the router. Auth, the credential pool + sticky key
-  selection, failover, the circuit breaker, smart routing, protocol translation
+- **Core features** — always on; they *are* the proxy. Auth, the credential pool + key affinity
+  selection, fallback, the circuit breaker, catalog selection, protocol translation
   (OpenAI/Anthropic/Codex), capability probing, token counting, request guardrails, and
   usage/cost tracking.
 - **Add-ons** — optional behaviors you turn on when you want them. Each is backed by an
@@ -33,7 +33,7 @@ hr restart                            # apply
 | `fast_routing` | `FAST_ROUTE_THRESHOLD` | off | Short requests prefer low-latency providers on ties |
 | `model_discovery` | `AUTO_DISCOVER_MODELS` | off | Refresh provider model lists from `/models` at startup |
 | `filter_specialized_models` | `FILTER_SPECIALIZED_MODELS` | off | Drop TTS/STT/image-gen/OCR/video/embedding/moderation/rerank IDs from discovery |
-| `metrics_auth` | `METRICS_REQUIRE_AUTH` | off | Require the proxy key on `/metrics` |
+| `metrics_auth` | `METRICS_REQUIRE_AUTH` | off | Require the access key on `/metrics` |
 | `cost_currency` | `COST_FX_RATE` | off | Show a second currency (e.g. ₹) alongside USD spend |
 | `key_budgets` | `auth.json` / `PROXY_LIMIT_*` | off | Per-key RPM / daily request / token / cost ceilings — manage with `hr limit` |
 | `local_model` | `LOCAL_BASE_URL` / `LOCAL_MODEL` | off | Route to a model on your own machine — manage with `hr model set local` |
@@ -47,7 +47,7 @@ the command that manages them. The live state is also in `/v1/status` under `fea
 `hr auth add` writes to **`auth.json`** — the router's own credential store, kept next to
 the router. It's git-ignored, so real keys are never committed. Codex (ChatGPT
 subscription) logins are stored separately under `codex_accounts` (via
-`hr auth import-codex`); the router refreshes their OAuth access tokens automatically.
+`hr auth import-codex`); the proxy refreshes their OAuth access tokens automatically.
 
 ```json
 {
@@ -58,7 +58,7 @@ subscription) logins are stored separately under `codex_accounts` (via
 }
 ```
 
-> Keys in `.env` (e.g. `OPENROUTER_API_KEYS=k1,k2`) still work too — the router reads
+> Keys in `.env` (e.g. `OPENROUTER_API_KEYS=k1,k2`) still work too — the proxy reads
 > `auth.json` first, then falls back to `.env`. Point at a different file with
 > `ROUTER_AUTH_FILE=/path/to/auth.json`.
 
@@ -68,11 +68,11 @@ subscription) logins are stored separately under `codex_accounts` (via
 |---|---|---|
 | `PORT` | `8319` | Port to listen on |
 | `HOST` | `0.0.0.0` | Bind address. Set `127.0.0.1` to listen on localhost only (recommended on a shared/VPS host — reach it via localhost or an SSH tunnel). Keep `0.0.0.0` for Docker. |
-| `PROXY_API_KEYS` | *(auto-generated)* | Comma-separated keys your app uses to authenticate — and the key needed to open the web dashboard. If left unset (or on the `.env.example` placeholder), the router generates a real random key on first boot and saves it back to `.env`, logging it once. Add more from the dashboard's **Access Keys** page, or set your own here. |
+| `PROXY_API_KEYS` | *(auto-generated)* | Comma-separated keys your app uses to authenticate — and the key needed to open the web dashboard. If left unset (or on the `.env.example` placeholder), the proxy generates a real random key on first boot and saves it back to `.env`, logging it once. Add more from the dashboard's **Access Keys** page, or set your own here. |
 | `ROUTER_AUTH_FILE` | `./auth.json` | Where keys are stored |
 | `CACHE_TTL_SECONDS` | `300` | Response cache lifetime (`0` disables). Entries are namespaced per API key, so different `PROXY_API_KEYS` never share a cached answer — safe for multi-tenant use |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `METRICS_REQUIRE_AUTH` | `0` | Require the proxy key on `/metrics` (`1` to enable) |
+| `METRICS_REQUIRE_AUTH` | `0` | Require the access key on `/metrics` (`1` to enable) |
 | `REASONING_TOKEN_RESERVE` | `4096` | Extra output budget added for reasoning models so hidden chain-of-thought doesn't eat the answer (`0` disables) |
 
 ### Advanced settings
@@ -95,7 +95,7 @@ Sensible defaults — most users never touch these.
 | `UNSUITABLE_MODEL_BASE_S` | `60` | Initial cool-down seconds after a model-unsuitable 404/400 |
 | `UNSUITABLE_MODEL_CAP_S` | `3600` | Max cool-down seconds (exponential backoff caps here) |
 | `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery, e.g. `OPENROUTER_EXCLUDE_MODELS=some/model:free` |
-| `ROUTER_MODEL_ID` | `hermes-router` | The model name clients send (the router maps it to each provider's real model) |
+| `ROUTER_MODEL_ID` | `hermes-router` | The model name clients send (the proxy maps it to each provider's real model) |
 | `ROUTER_STATE_FILE` | `./router_state.json` | Where provider ratings/capabilities are cached between restarts (use `/tmp/...` on read-only hosts like HF Spaces) |
 | `ROUTER_STATE_TTL_HOURS` | `24` | How long the cached probe state is trusted before re-probing (`0` = re-probe every start) |
 | `BREAKER_WINDOW` | `8` | Recent outcomes the circuit breaker weighs per provider |
@@ -105,7 +105,7 @@ Sensible defaults — most users never touch these.
 
 ### Per-key budgets & rate limits
 
-Give each `PROXY_API_KEYS` entry a ceiling so the router is safe to share with a team. These
+Give each `PROXY_API_KEYS` entry a ceiling so the proxy is safe to share with a team. These
 env vars are **global defaults**; set per-key overrides in `auth.json` with `hr limit set`.
 `0` = unlimited (the default — no enforcement). Live usage shows in `/v1/status` and `hr status`.
 
@@ -136,7 +136,7 @@ It starts from conservative built-in defaults and adjusts caps up or down based 
 `x-ratelimit-*` response headers and 429 signals. Learned limits persist across
 restarts in `rate_limits_state.json`.
 
-> Two scopes are tracked per key, and each always maintains the full **`[R,T]×[M,H,D,W,Mo]`** grid (ten buckets). **Model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). Header-synced caps stay pinned (no success AIMD nudge until a non-header 429). Header applies use request-start observation time so stale responses cannot overwrite newer state. Failed upstream calls after admit release the R+T reservation on both scopes. New buckets start at `RATE_BUCKET_INITIAL_FILL` of cap (default `0.5`). Caps are initialized from built-in defaults, env overrides, or `auth.json`: **explicit values win**; any missing window is scaled linearly from minute (`Cap(W)=Cap(M)×(T_W/T_M)`); ordering stays **Mo≥…≥M** with explicit values sticky. Long windows are **never auto-deactivated** — all ten buckets stay on for debit and ranking. **Routing never hard-skips on empty TBF estimates** (explore-into-limit / force-admit); headroom only ranks new-session and post-bump picks. Optional sleep only when refill wait is **&lt; `RATE_ADMIT_WAIT_S`** (default 60s); `Retry-After` still holds and cascades. Hard model 429s cut **one** ladder-attributed bucket, then **reclamp** so adjacent windows satisfy `C_short ≤ C_long ≤ C_short×(T_long/T_short)`. Minute windows nudge on the normal success streak; longer windows nudge slower (`RATE_LEARN_LONG_*`). **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers). When a provider-wide group is first created, its caps start at **10×** the model/base defaults for that provider (`RATE_PROVIDER_CAP_MULTIPLIER`, default `10`). Each request debits the **same absolute amount** from both scopes, so headroom **percentages** diverge because the caps differ. On a 429, if model headroom was ≥ 90% before the attempt, provider-wide gets one extra soft cut (surprise path, at most once per 60 s per provider-wide group). Provider-wide 429s also apply a tiny soft tick **`ε × (T_M/T_window)`** to every PW bucket (`RATE_LEARN_PW_TICK_EPS`, default `0.05`); longer windows move less per tick but accumulate. `RATE_HEADROOM_THRESHOLD` is a ranking / “thin headroom” log signal only — **not** a hard skip before attempting. Persisted provider-wide caps are loaded as-is and are **not** re-multiplied on restart.
+> Two scopes are tracked per key, and each always maintains the full **`[R,T]×[M,H,D,W,Mo]`** grid (ten buckets). **Model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). Header-synced caps stay pinned (no success AIMD nudge until a non-header 429). Header applies use request-start observation time so stale responses cannot overwrite newer state. Failed upstream calls after admit release the R+T reservation on both scopes. New buckets start at `RATE_BUCKET_INITIAL_FILL` of cap (default `0.5`). Caps are initialized from built-in defaults, env overrides, or `auth.json`: **explicit values win**; any missing window is scaled linearly from minute (`Cap(W)=Cap(M)×(T_W/T_M)`); ordering stays **Mo≥…≥M** with explicit values sticky. Long windows are **never auto-deactivated** — all ten buckets stay on for debit and ranking. **Selection never hard-skips on empty rate-limit estimates** (explore-into-limit / force-admit); headroom only ranks new-session and post-bump picks. Optional sleep only when refill wait is **&lt; `RATE_ADMIT_WAIT_S`** (default 60s); `Retry-After` still holds and cascades. Hard model 429s cut **one** ladder-attributed bucket, then **reclamp** so adjacent windows satisfy `C_short ≤ C_long ≤ C_short×(T_long/T_short)`. Minute windows nudge on the normal success streak; longer windows nudge slower (`RATE_LEARN_LONG_*`). **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers). When a provider-wide group is first created, its caps start at **10×** the model/base defaults for that provider (`RATE_PROVIDER_CAP_MULTIPLIER`, default `10`). Each request debits the **same absolute amount** from both scopes, so headroom **percentages** diverge because the caps differ. On a 429, if model headroom was ≥ 90% before the attempt, provider-wide gets one extra soft cut (surprise path, at most once per 60 s per provider-wide group). Provider-wide 429s also apply a tiny soft tick **`ε × (T_M/T_window)`** to every PW bucket (`RATE_LEARN_PW_TICK_EPS`, default `0.05`); longer windows move less per tick but accumulate. `RATE_HEADROOM_THRESHOLD` is a ranking / “thin headroom” log signal only — **not** a hard skip before attempting. Persisted provider-wide caps are loaded as-is and are **not** re-multiplied on restart.
 
 | Env var | Default | Description |
 |---|---|---|
@@ -147,7 +147,7 @@ restarts in `rate_limits_state.json`.
 | `RATE_LEARN_LONG_STREAK` | `40` | Successes before nudging H/D/W/Mo caps |
 | `RATE_LEARN_LONG_NUDGE_PCT` | `2` | Percent nudge for long-window success streaks |
 | `RATE_LEARN_PW_TICK_EPS` | `0.05` | Provider-wide soft-tick fraction at the minute window; scaled per bucket as `ε × (T_M/T_window)` on every PW 429 |
-| `RATE_PROVIDER_CAP_MULTIPLIER` | `10` | Multiplier applied to base caps when creating a new provider-wide TBF group |
+| `RATE_PROVIDER_CAP_MULTIPLIER` | `10` | Multiplier applied to base caps when creating a new provider-wide rate-limit group |
 | `RATE_BUCKET_INITIAL_FILL` | `0.5` | Fraction of cap for new buckets when tokens are not set explicitly |
 | `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a minute-window cap up |
 | `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase minute-window cap on a success streak |
@@ -158,7 +158,7 @@ restarts in `rate_limits_state.json`.
 | `RATE_LEARN_NUDGE_PCT_PROVIDER` | `8` | Percent to increase a provider-wide cap on a success streak |
 | `RATE_STATE_FLUSH_S` | `600` | Seconds between background state flushes |
 | `RATE_DEFAULT_<PROVIDER>_<WINDOW>` | — | Override built-in default cap (e.g. `RATE_DEFAULT_GROQ_RPM=60`) |
-| `RATE_BUCKET_CSV_ENABLED` | off | When `1`/`true`/`yes`, append TBF cap-change events to a CSV |
+| `RATE_BUCKET_CSV_ENABLED` | off | When `1`/`true`/`yes`, append rate-limit cap-change events to a CSV |
 | `RATE_BUCKET_CSV` | `./rate_bucket_events.csv` | Path for that append-only event log (Calc/Excel-friendly) |
 
 The rate limit state is visible on the dashboard **Providers** page (provider-wide token
@@ -190,7 +190,7 @@ Caps appear under each provider in `/v1/status` as `token_caps` (includes confid
 
 ### Cost / spend awareness
 
-The router estimates **spend** from a built-in price table (USD per 1M tokens, input/output).
+The proxy estimates **spend** from a built-in price table (USD per 1M tokens, input/output).
 Free providers and subscription plans (Codex, Kimi coding) are **$0**. Estimated cost shows per
 provider and per key in `/v1/usage`, `/v1/status`, `hr status`, the VS Code dashboard, and
 `/metrics` (`hermes_router_cost_usd_total`). USD is always the canonical figure.
@@ -212,7 +212,7 @@ machine. It's keyless (cloud providers remain the fallback). See
 | Variable | Default | Purpose |
 |---|---|---|
 | `LOCAL_BASE_URL` | `http://localhost:11434/v1` | Your local server's OpenAI-compatible endpoint (LM Studio: `:1234/v1`) |
-| `LOCAL_MODEL` | `llama3.1` | Local model id (comma-separate for multi-model failover) |
+| `LOCAL_MODEL` | `llama3.1` | Local model id (comma-separate for multi-model fallback) |
 | `LOCAL_API_KEY` | `local` | Only if your local server actually requires a key |
 | `LOCAL_EMBED_MODEL` | *(unset)* | Optional — also serve `/v1/embeddings` from the local server |
 
@@ -238,7 +238,7 @@ machine. It's keyless (cloud providers remain the fallback). See
 
 ### Per-provider capability overrides
 
-The router auto-probes each provider at startup, but you can force the result:
+The proxy auto-probes each provider at startup, but you can force the result:
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -272,12 +272,12 @@ hr restart
 ```
 
 Free-tier rate limits are almost always **per-model**, so each model is its own quota
-bucket. When the first model hits its limit (429), the router **fails over to the next model
+bucket. When the first model hits its limit (429), the proxy **falls back to the next model
 on the same key** before cascading to the next provider — multiplying free throughput along a
 new axis (keys × models × providers), with no extra signups. Each model is **also a first-class
-routing candidate**, scored on its own rating and capability — so the router can pick the right
+routing candidate**, scored on its own rating and capability — so the proxy can pick the right
 model in the list for each request (e.g. a stronger model for a hard or tool-using turn), not just
-fall over to it. Within equal cost/capability buckets, the router prefers known stronger model
+fall over to it. Within equal cost/capability buckets, the proxy prefers known stronger model
 families, then falls back to your listed order.
 
 > **Mixing model classes is fine.** Tool-calling and reasoning are detected **per model** at
@@ -317,7 +317,7 @@ For configured junk that slips through, use `{PROVIDER}_EXCLUDE_MODELS`.
 ### Unsuitable-model cooldown
 
 When a chat candidate returns **404**, or a **400** whose body looks like
-model-not-found / unknown model / not supported for this endpoint, the router cools
+model-not-found / unknown model / not supported for this endpoint, the proxy cools
 that `(provider, model)` in memory with exponential backoff (default base 60s, cap 1h;
 override with `UNSUITABLE_MODEL_BASE_S` / `UNSUITABLE_MODEL_CAP_S`). Later requests skip
 it until the cool-down expires; a success clears the streak. Payload-shaped 400s
@@ -343,11 +343,11 @@ rotation with no usable models and a warning is logged at startup.
 
 ## Key selection
 
-When a provider holds several keys (or several accounts), the router uses **sticky-until-fail**
+When a provider holds several keys (or several accounts), the proxy uses **key affinity**
 selection: it keeps using the same key for a `(provider, model)` until that key errors or is
 rate-limited, then tries the next ready key in stable deque order. There is no round-robin or
 sequential rotation mode.
 
-The legacy `ROTATION_MODE` env var (and `hr mode`) are **ignored** — if set, the router logs a
-warning at startup. Failover, per-key cooldowns, and the circuit breaker keep working as before.
+The legacy `ROTATION_MODE` env var (and `hr mode`) are **ignored** — if set, the proxy logs a
+warning at startup. Fallback, per-key cooldowns, and the circuit breaker keep working as before.
 Key usage counts show in `hr status`, `/v1/status` (`keys[].requests`), and the web dashboard.

@@ -27,7 +27,13 @@ export class StatusBar {
     const providers = status.providers || {};
     const total = Object.keys(providers).length;
     const up = Object.values(providers).filter((p) => p.available !== false).length;
-    const mode = status.rotation?.mode ? ` · ${status.rotation.mode}` : "";
+    const modeRaw = status.rotation?.mode;
+    const mode =
+      modeRaw === "sticky-key"
+        ? " · key affinity"
+        : modeRaw
+          ? ` · ${modeRaw}`
+          : "";
     this.item.text = `$(check) hermes-router ${up}/${total}`;
     this.item.tooltip = `hermes-router: ${up}/${total} providers available${mode}\nClick to open the dashboard`;
     this.item.backgroundColor =

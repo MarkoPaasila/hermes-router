@@ -1,10 +1,10 @@
 ---
 title: "Usage"
-description: "Call the router from the OpenAI SDK or Anthropic SDK, with tool use, embeddings and reasoning models."
+description: "Call the proxy from the OpenAI SDK or Anthropic SDK, with tool use, embeddings and reasoning models."
 ---
 
 hermes-router speaks **both the OpenAI API and the Anthropic API**. Point any client
-that already talks to either at the router and it works unchanged.
+that already talks to either at the proxy and it works unchanged.
 
 `api_key` is any value from `PROXY_API_KEYS` (default `sk-router-1`; set your own in
 `.env` — see [configuration.md](/configuration/)).
@@ -24,18 +24,18 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-Streaming (`stream=True`) and function calling (`tools=[...]`) both work.
+Streaming (`stream=True`) and tool calling (`tools=[...]`) both work.
 
 > **Tip — multiply your free quota:** give a provider several models with a comma-separated
 > `<PROVIDER>_MODEL` (e.g. `GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-flash`). Since
-> rate limits are per-model, the router fails over across a provider's models before moving
+> rate limits are per-model, the proxy falls back across a provider's models before moving
 > on — capacity scales with keys × **models** × providers. See
 > [Configuration](/configuration/#multiple-models-per-provider).
 
 ## Anthropic SDK
 
 Already built on the Anthropic SDK? Point its `base_url` at hermes-router — no code
-changes. The router accepts Anthropic's `/v1/messages` format (and the `x-api-key`
+changes. The proxy accepts Anthropic's `/v1/messages` format (and the `x-api-key`
 header), translates it, and routes across **all** your free providers:
 
 ```python
@@ -43,7 +43,7 @@ import anthropic
 
 client = anthropic.Anthropic(api_key="sk-router-1", base_url="http://localhost:8319")
 msg = client.messages.create(
-    model="claude-3-5-sonnet-20241022",   # model name is ignored — the router picks
+    model="claude-3-5-sonnet-20241022",   # model name is ignored — the proxy picks
     max_tokens=100,
     messages=[{"role": "user", "content": "Hello!"}],
 )
@@ -52,8 +52,8 @@ print(msg.content[0].text)
 
 Streaming (`client.messages.stream(...)`) works too.
 
-> The `model` you pass is **ignored** — hermes-router routes to the cheapest capable free
-> provider, so an Anthropic-SDK app transparently gets the same multi-provider failover.
+> The `model` you pass is **ignored** — hermes-router selects to the cheapest capable free
+> provider, so an Anthropic-SDK app transparently gets the same multi-provider fallback.
 > (Use the `openai`/`anthropic` paid providers if you specifically want those models.)
 
 ### Tool use
@@ -74,14 +74,14 @@ msg = client.messages.create(
 # msg.stop_reason == "tool_use", with a tool_use block ready to run
 ```
 
-When a request carries tools, the router **automatically routes only to providers whose
-model supports function calling** (detected at startup), so a request never lands on a
+When a request carries tools, the proxy **automatically routes only to providers whose
+model supports tool calling** (detected at startup), so a request never lands on a
 model that would silently ignore the tools. Override detection per provider with
 `<PROVIDER>_SUPPORTS_TOOLS=1` / `=0` (see [configuration.md](/configuration/)).
 
 ## Embeddings
 
-The router also speaks the OpenAI **embeddings** API, backed by free providers (Gemini,
+The proxy also speaks the OpenAI **embeddings** API, backed by free providers (Gemini,
 Mistral, Cohere):
 
 ```python
@@ -91,14 +91,14 @@ print(len(resp.data[0].embedding))   # e.g. 3072 from Gemini
 
 Unlike chat, embeddings use a **stable provider** (not round-robin): vectors from
 different providers have different dimensions and can't be mixed in one store, so the
-router keeps hitting the same provider and only fails over if it goes down. For a strict
+router keeps hitting the same provider and only falls back if it goes down. For a strict
 single-dimension guarantee, disable the others' embed models (e.g. `MISTRAL_EMBED_MODEL=`
 and `COHERE_EMBED_MODEL=` empty in `.env`).
 
 ## Reasoning models
 
 Some models (e.g. gpt-oss, Nemotron, GLM-4.5) spend output tokens on hidden
-chain-of-thought before answering. The router detects these at startup and reserves extra
+chain-of-thought before answering. The proxy detects these at startup and reserves extra
 output budget for them, so a small `max_tokens` never yields an empty reply. Tune with
 `REASONING_TOKEN_RESERVE` (see [configuration.md](/configuration/)).
 

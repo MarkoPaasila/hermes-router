@@ -1,7 +1,4 @@
----
-title: "Concepts"
-description: "Plain-language glossary: LLM, token, embedding, tool, agent, RAG, failover and more."
----
+# Concepts — a plain-language glossary
 
 Every term you'll bump into while using hermes-router or building an agent, explained
 simply. No prior AI experience assumed.
@@ -47,7 +44,7 @@ similar numbers, which lets you search by meaning ("find notes about my trip") i
 exact words. The basis of long-term memory and search. hermes-router serves these at
 `/v1/embeddings`.
 
-### Tool / function calling
+### Tool / tool calling
 Giving the model the ability to *do* things, not just talk. You describe some functions
 (e.g. `get_weather(city)`); the model can choose to "call" one, you run it, and you hand the
 result back. This is how an AI checks live data, does math, or controls other software.
@@ -55,7 +52,7 @@ result back. This is how an AI checks live data, does math, or controls other so
 ### Agent
 A program that uses an LLM to **pursue a goal over multiple steps** — thinking, using tools,
 and reacting to results — rather than answering a single question. A chatbot replies once;
-an agent keeps going until the job is done. (Build one in **[build-an-agent.md](/build-an-agent/)**.)
+an agent keeps going until the job is done. (Build one in **[build-an-agent.md](build-an-agent.md)**.)
 
 ### Agent loop
 The repeating cycle at the heart of every agent: **Observe** (look at the goal + what's
@@ -73,13 +70,11 @@ A pattern where, before answering, you *retrieve* relevant text (via embeddings)
 to the prompt — so the model can answer using your documents, not just what it memorized.
 
 ### Rate limit
-A cap providers put on how much you can use them for free in a given time. Hitting one is
-why apps break — and exactly what hermes-router routes around by switching providers.
+A cap providers put on how much you can use them in a given time. Hitting one is expected
+capacity exhaustion — and exactly what hermes-router falls back around by switching candidates.
+(Not the same as an operator **budget** on an access key, or a per-model **token cap** on size.)
 
-### Failover
-Automatically switching to a backup when something fails. hermes-router fails over between
-providers so a single outage or rate-limit never reaches your app.
+### Fallback
+Moving to the next catalog candidate when the current one cannot serve the request — including
+rate-limits, errors, timeouts, and capability skips. Rate-limits are not failures.
 
----
-
-**Next:** [Routing Features](/routing/) — plain-language guide to how the router picks a provider for chat, tools, vision, and embeddings.

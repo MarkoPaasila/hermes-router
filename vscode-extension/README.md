@@ -1,33 +1,33 @@
 # hermes-router — VS Code extension
 
 A control panel for [hermes-router](https://github.com/Shaf2665/Hermes-router) inside VS Code:
-**monitor** your provider pool and **manage** the router without leaving the editor.
+**monitor** your providers and **manage** the proxy without leaving the editor.
 
 ## Features
 
 - **Status bar** — at-a-glance health: `✓ hermes-router N/total` providers available (turns
-  red/warns when the router is down or unreachable). Click to open the dashboard.
-- **Dashboard** (activity-bar sidebar) — live table of every provider: up/down, rating,
-  latency, model(s), and key cooldowns, plus cache hit-rate and the active key-rotation mode.
+  red/warns when the proxy is down or unreachable). Click to open the dashboard.
+- **Dashboard** (activity-bar sidebar) — live view of every provider: up/down, capability,
+  latency, model(s), and key cooldowns, plus cache hit-rate and key affinity mode.
   Auto-refreshes.
 - **Manage** (command palette or dashboard buttons):
   - **Restart**, **Run Doctor**, **Update**
   - **Add Provider Key** — opens a terminal running `hr auth add <provider>` (your key is typed
     hidden; the extension never handles it)
   - **Import Codex (ChatGPT) Login** — `hr auth import-codex`
-  - **Set Provider Model(s)** — comma-separate for multi-model rate-limit failover
-  - **Set Key Rotation Mode** — `round-robin` / `sequential`
+  - **Set Provider Model(s)** — comma-separate for multi-model rate-limit fallback
+  - **Set Key Rotation Mode** — `round-robin` / `sequential` (ignored; keys use key affinity)
 
 ## Use it as an AI model (Copilot Chat)
 
 The extension registers **hermes-router** as a language model in VS Code. Open **Copilot Chat**,
-click the **model picker**, and choose **hermes-router** — your prompts now route through the
-router's free pool. It's also available to any extension via the `vscode.lm` API.
+click the **model picker**, and choose **hermes-router** — your prompts now go through the
+proxy's free catalog. It's also available to any extension via the `vscode.lm` API.
 
 > Requires **VS Code ≥ 1.104** and the **GitHub Copilot Chat** extension (for the chat UI +
 > model picker). Supports streamed text **and tool calling**, so it works in Copilot **agent
-> mode** (run commands, edit files, call MCP tools) — the router automatically routes
-> tool-using requests to tool-capable providers.
+> mode** (run commands, edit files, call MCP tools) — the proxy selects tool-capable
+> candidates when tools are present.
 
 ## Requirements
 
@@ -39,19 +39,19 @@ commands — the `hr` CLI on your PATH. See the
 
 | Setting | Default | Description |
 |---|---|---|
-| `hermesRouter.baseUrl` | `http://localhost:8319` | Router URL. Use your Space URL for a remote router. |
-| `hermesRouter.apiKey` | `sk-router-1` | A value from `PROXY_API_KEYS` — used to read `/v1/status`. |
+| `hermesRouter.baseUrl` | `http://localhost:8319` | Proxy URL. Use your Space URL for a remote instance. |
+| `hermesRouter.apiKey` | `sk-router-1` | An access key from `PROXY_API_KEYS` — used to read `/v1/status`. |
 | `hermesRouter.hrPath` | `hr` | Path to the `hr` CLI (for local control actions). |
-| `hermesRouter.dockerContainer` | `` | Container name to manage the router via Docker (see below). |
+| `hermesRouter.dockerContainer` | `` | Container name to manage the proxy via Docker (see below). |
 | `hermesRouter.refreshSeconds` | `10` | Dashboard / status-bar refresh interval. |
 
-> **Remote routers:** Monitoring works over HTTP against any `baseUrl`. The control commands
+> **Remote proxies:** Monitoring works over HTTP against any `baseUrl`. The control commands
 > use the local `hr` CLI, so they're disabled (with a notice) when `baseUrl` is not localhost —
-> manage a remote router where it's hosted.
+> manage a remote proxy where it's hosted.
 
-## Managing a router running in Docker
+## Managing a proxy running in Docker
 
-On Windows (or anywhere the router runs in a container) there's no `hr` on your host. Set
+On Windows (or anywhere the proxy runs in a container) there's no `hr` on your host. Set
 **`hermesRouter.dockerContainer`** to your container's name and the control buttons run against
 the container instead:
 
@@ -80,6 +80,3 @@ PATH (Docker Desktop provides it).
 ```bash
 code --install-extension MohammedShafiq.hermes-router
 ```
-
-Or grab a `.vsix` from the [releases](https://github.com/Shaf2665/Hermes-router/releases) and
-run **Extensions → … → Install from VSIX**.

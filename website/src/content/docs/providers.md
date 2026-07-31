@@ -3,7 +3,7 @@ title: "Providers"
 description: "Every free & paid provider, sign-up links, capabilities, plus Codex (ChatGPT subscription)."
 ---
 
-hermes-router routes across a pool of providers. You only need **one** key to start —
+hermes-router selects across a pool of providers. You only need **one** key to start —
 add more (and more providers) to stay online longer. You can stack quota by creating
 multiple keys per provider, and by signing up with multiple Google/GitHub accounts.
 
@@ -29,12 +29,12 @@ they're stored).
 
 > **Hugging Face note:** one token reaches 45,000+ models across many inference partners
 > via an OpenAI-compatible endpoint. The free credit is small, so it's best as an *extra* in
-> the pool (the router fails over to other providers when it runs out). The default model
+> the pool (the proxy falls back to other providers when it runs out). The default model
 > uses the `:cheapest` suffix to stretch the credit; change it with `HUGGINGFACE_MODEL`.
 
 ## Paid providers
 
-Add your existing API key; the router handles everything else.
+Add your existing API key; the proxy handles everything else.
 
 | Provider | Default model | API keys |
 |---|---|---|
@@ -53,14 +53,14 @@ setup is different:
 
 ```bash
 codex login            # one-time, with the official Codex CLI (opens browser / device flow)
-hr auth import-codex    # copy the login into the router (reads ~/.codex/auth.json)
+hr auth import-codex    # copy the login into the proxy (reads ~/.codex/auth.json)
 hr restart
 ```
 
-The router stores the account under `codex_accounts` in `auth.json`, **refreshes the access
+The proxy stores the account under `codex_accounts` in `auth.json`, **refreshes the access
 token automatically** before it expires, and translates your OpenAI-format requests to the
 Codex **Responses API** transparently. Add several accounts (run `hr auth import-codex` after
-logging into each); the router uses sticky-until-fail key selection per account until that
+logging into each); the proxy uses key affinity key selection per account until that
 account errors or is rate-limited. Override the model with `CODEX_MODEL` (default `gpt-5.5`).
 
 > ⚠️ **Terms of service:** routing ChatGPT *subscription* quota through a proxy is a gray
@@ -96,7 +96,7 @@ hr restart
 
 The default routes to free models (`deepseek-v4-flash-free`, `minimax-m3-free`,
 `qwen3.6-plus-free`). Free promotions rotate — when one ends OpenCode returns a model error and
-the router automatically **skips it and fails over** to the next, so you stay online. Reach the
+the proxy automatically **skips it and falls back** to the next, so you stay online. Reach the
 premium models (Claude, GPT, Gemini, GLM, Kimi, Qwen…) by setting `OPENCODE_MODEL`.
 
 **OpenCode Go** is OpenCode's low-cost subscription tier (**$5 first month, then $10/mo**) —
@@ -110,7 +110,7 @@ hr restart
 
 > **Only do this after you've actually enabled Go billing.** Adding an `opencode_go` key is the
 > router's *only* signal that you've subscribed — it doesn't verify it. A key added without Go
-> billing enabled will fail on every request with an auth error (the router backs off after
+> billing enabled will fail on every request with an auth error (the proxy backs off after
 > repeated failures instead of retrying forever, but it will never succeed). If you haven't
 > subscribed, skip this section — OpenCode Zen above already covers the free tier.
 
@@ -123,7 +123,7 @@ V4 Pro/Flash, MiMo…)
 Run a model on your **own machine** and route to it — free, private, and fast, with the cloud
 providers as automatic fallback. Any OpenAI-compatible local server works (Ollama, LM Studio,
 llama.cpp's server, vLLM…). It's **keyless**, so there's nothing to add with `hr auth add` —
-just point the router at it:
+just point the proxy at it:
 
 ```bash
 # e.g. with Ollama:  ollama serve  &&  ollama pull llama3.1
@@ -135,16 +135,16 @@ Or set it directly in `.env`:
 
 ```
 LOCAL_BASE_URL=http://localhost:11434/v1     # Ollama default (LM Studio: http://localhost:1234/v1)
-LOCAL_MODEL=llama3.1                          # comma-separate for multi-model failover
+LOCAL_MODEL=llama3.1                          # comma-separate for multi-model fallback
 # LOCAL_EMBED_MODEL=nomic-embed-text          # optional: also serve /v1/embeddings locally
 ```
 
 The provider turns on as soon as `LOCAL_BASE_URL` or `LOCAL_MODEL` is set.
 
-**Conversation mode** — send the model id **`hermes-router:fast`** (or the header
-`X-Hermes-Profile: fast`) and the router prefers your local model for short/casual turns,
+**Fast preference** — send the model id **`hermes-router:fast`** (or the header
+`X-Hermes-Profile: fast`) and the proxy prefers your local model for short/casual turns,
 falling back to the cloud pool for heavier requests. Plain `hermes-router` keeps the normal
-smart routing across every provider.
+catalog selection across every provider.
 
 ## Valid provider names
 

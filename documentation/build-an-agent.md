@@ -163,7 +163,7 @@ That's a real agent — it observed, decided to act, used a tool, and finished. 
 functions (search, calculator, save-to-file…) and you can build agents that do real work.
 
 > hermes-router automatically routes tool requests only to providers whose model supports
-> function calling, so this works across the free pool without you worrying about it.
+> tool calling, so this works across the free pool without you worrying about it.
 
 ---
 
