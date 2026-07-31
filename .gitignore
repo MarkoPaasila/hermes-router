@@ -5,6 +5,7 @@ auth.json
 # Runtime state (probe results / ratings cache) — regenerated on start
 router_state.json
 token_caps_state.json
+rate_limits_state.json
 
 # Opt-in TBF learning telemetry (RATE_BUCKET_CSV_ENABLED)
 rate_bucket_events.csv
