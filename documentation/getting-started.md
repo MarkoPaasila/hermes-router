@@ -20,7 +20,7 @@ the "cards" are free API keys from providers like Google Gemini, Groq, and other
 - **It's free.** It uses the free tiers of many AI providers.
 - **It doesn't go down.** When one provider hits its limit, it falls back to another, so
   your app keeps working.
-- **It's a drop-in.** If you already use code that talks to OpenAI or Anthropic, you change
+- **It's a drop-in.** If you already use code that talks to OpenAI, you change
   *one line* (the address) and it works.
 
 ## Words you'll keep seeing

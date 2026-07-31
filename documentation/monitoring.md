@@ -44,11 +44,7 @@ It's pure HTML/JS (no framework, no external CDN) and reads/writes only the rout
 > **Accessing it remotely.** By default the proxy binds to `0.0.0.0` (all interfaces). If you
 > set `HOST=127.0.0.1` (localhost-only, recommended on a shared/VPS host), reach the dashboard
 > over an SSH tunnel: `ssh -L 8319:127.0.0.1:8319 user@server`, then open
-> `http://localhost:8319/` locally. With **Docker** the mapped port (`-p 8319:8319`) exposes it
-> to your host automatically. The raw API endpoints stay key-protected either way.
-
-From **VS Code**, the extension's dashboard panel has a **⬈ Web dashboard** button (and a globe
-icon in the panel header) that opens this page in your browser.
+> `http://localhost:8319/` locally. The raw API endpoints stay key-protected either way.
 
 ## Proxy API keys & the dashboard key
 
@@ -80,129 +76,11 @@ hr status
 hr status --json   # raw JSON for scripts
 ```
 
-## Prometheus metrics (`/metrics`)
-
-A Prometheus-compatible endpoint is exposed at `/metrics`. It reveals only counts and
-timings — never request content — so it's **unauthenticated by default**, like `/health`.
-Set `METRICS_REQUIRE_AUTH=1` to require the access key.
-
-```bash
-curl http://localhost:8319/metrics
-```
-
-Point Prometheus/Grafana at it to track per-provider traffic and the cache over time.
-
-### Exposed metrics
-
-| Metric | Type | Labels | Meaning |
-|---|---|---|---|
-| `hermes_router_uptime_seconds` | gauge | — | Seconds since the proxy started |
-| `hermes_router_providers` | gauge | — | Number of configured providers |
-| `hermes_router_requests_total` | counter | `provider` | Total requests routed per provider |
-| `hermes_router_errors_total` | counter | `provider` | Total errored requests per provider |
-| `hermes_router_avg_latency_ms` | gauge | `provider` | Mean successful-request latency (ms) |
-| `hermes_router_circuit_breaker_open` | gauge | `provider` | `1` if the breaker is open, else `0` |
-| `hermes_router_cache_hits_total` | counter | — | Response-cache hits |
-| `hermes_router_cache_misses_total` | counter | — | Response-cache misses |
-| `hermes_router_cache_size` | gauge | — | Entries currently in the response cache |
-| `hermes_router_semantic_cache_hits_total` | counter | — | Semantic-cache hits |
-| `hermes_router_tokens_total` | counter | `provider` | Tokens served per provider (non-streaming) |
-| `hermes_router_cost_usd_total` | counter | `provider` | Estimated USD cost served per provider |
-| `hermes_router_key_requests_total` | counter | `key` | Requests per access key (key tail) |
-
-## Alerting (Prometheus + Alertmanager)
-
-`/metrics` is already native Prometheus format, so you can wire up **real alerts** — "notify me
-when spend spikes" or "tell me when a provider goes down" — with just config, no extra gateway
-or proxy in front of the router.
-
-> **Don't stack another LLM gateway in front of Hermes just for this.** If you're running
-> something like LiteLLM between your app and Hermes purely to get usage/cost visibility, and
-> Hermes only sees *one* key pointed at that gateway, you're losing Hermes's whole reason to
-> exist: rotating across **many real provider keys** with per-provider rating and fallback. Give
-> Hermes your real provider keys directly (`hr auth add <provider>`) and point Prometheus at
-> Hermes's own `/metrics` — no middleman needed.
-
-**1. Scrape it** — add Hermes as a target in `prometheus.yml`:
-
-```yaml
-scrape_configs:
-  - job_name: hermes-router
-    scrape_interval: 30s
-    static_configs:
-      - targets: ["localhost:8319"]
-    metrics_path: /metrics
-```
-
-If you've set `METRICS_REQUIRE_AUTH=1`, add your access key as a bearer token:
-
-```yaml
-    authorization:
-      credentials: sk-router-1
-```
-
-**2. Alert on it** — an example rules file covering the failure modes that actually matter
-(spend, dead providers, error spikes, latency), using the metrics from the table above:
-
-```yaml
-groups:
-  - name: hermes-router
-    rules:
-      - alert: HermesRouterProviderDown
-        expr: hermes_router_circuit_breaker_open == 1
-        for: 5m
-        labels: { severity: warning }
-        annotations:
-          summary: "{{ $labels.provider }}'s circuit breaker has been open for 5+ minutes"
-
-      - alert: HermesRouterHighErrorRate
-        expr: |
-          rate(hermes_router_errors_total[5m])
-            / clamp_min(rate(hermes_router_requests_total[5m]), 1e-9) > 0.5
-        for: 5m
-        labels: { severity: warning }
-        annotations:
-          summary: "{{ $labels.provider }} error rate above 50% over 5m"
-
-      - alert: HermesRouterDailySpendHigh
-        # cost_usd_total is cumulative since the last restart, not a daily counter —
-        # increase() over 24h approximates "spend today" (skews only right after a restart).
-        expr: increase(hermes_router_cost_usd_total[24h]) > 5
-        labels: { severity: warning }
-        annotations:
-          summary: "{{ $labels.provider }} has cost an estimated ${{ $value }} in the last 24h"
-
-      - alert: HermesRouterSlow
-        expr: hermes_router_avg_latency_ms > 5000
-        for: 10m
-        labels: { severity: info }
-        annotations:
-          summary: "{{ $labels.provider }} average latency above 5s for 10m"
-
-      - alert: HermesRouterUnreachable
-        expr: up{job="hermes-router"} == 0
-        for: 2m
-        labels: { severity: critical }
-        annotations:
-          summary: "Prometheus can't scrape hermes-router — it may be down"
-```
-
-Adjust the thresholds (`> 5` for daily spend, `0.5` for error rate, etc.) to your own budget and
-tolerance — these are starting points, not fixed rules. Wire the resulting alerts into whatever
-Alertmanager already sends to (Slack, PagerDuty, email, …); nothing else on the Hermes side needs
-to change.
-
-**For per-key budget enforcement** (as opposed to alerting after the fact), see
-[Configuration → Per-key budgets & rate limits](configuration.md#per-key-budgets--rate-limits) —
-`hr limit set <key> --cost-day 5` rejects a caller's requests with `429` before they're ever sent
-to a provider, once its daily spend crosses the limit.
-
 ## Usage analytics (`/v1/usage`)
 
 `GET /v1/usage` (access key required) returns a JSON summary for dashboards and billing:
 
-- **per provider** — requests, errors, tokens served, and estimated `cost` (`{"usd": …}`, plus a
-  converted currency when `COST_FX_RATE` is set)
+- **per provider** — requests, errors, tokens served, and estimated `cost` (`{"usd": …}`)
 - **per key** — request, token, and cost totals (lifetime + today, plus the live RPM window);
   keys are shown by their **last 6 chars only**, never in full
 - **cache** — hits, misses, hit-rate, semantic hits
@@ -219,7 +97,7 @@ curl -H "Authorization: Bearer sk-router-1" http://localhost:8319/v1/usage
 
 `GET /v1/status` (access key required) returns the full picture as JSON: per-provider key
 cooldown state, rating, model, latency, `supports_tools`, `reasoning`, tokens served,
-circuit-breaker status, plus cache (incl. semantic + a `persistent` flag), routing, and per-key
+circuit-breaker status, plus cache (incl. semantic), routing, and per-key
 limit/usage config. This is what `hr status` renders.
 
 Each entry in a provider's `keys` array also reports `requests` — how many times that specific

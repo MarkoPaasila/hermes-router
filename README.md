@@ -2,31 +2,27 @@
 
 ![Hermes Router](hermes-router-banner.png)
 
-[![Docker Hub](https://img.shields.io/docker/v/shafiq735/hermes-router?label=Docker%20Hub&logo=docker&sort=semver)](https://hub.docker.com/r/shafiq735/hermes-router)
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/MohammedShafiq.hermes-router?label=VS%20Code&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=MohammedShafiq.hermes-router)
-
 **Keep your AI app online for free.** hermes-router is a **proxy** that sits between your
 client and free AI providers (Gemini, OpenRouter, Groq, and more). When one candidate hits its
 rate limit, the proxy automatically falls back to the next — so your app keeps working instead of
 erroring out.
 
-It speaks **both the OpenAI API and the Anthropic API**, so any tool or library that
-already talks to either works unchanged — just point it at hermes-router instead.
+It speaks the **OpenAI API**, so any tool or library that already talks to OpenAI works
+unchanged — just point it at hermes-router instead.
 
 ```
   Your app ──────► hermes-router ──► Gemini → OpenRouter → Groq → … (tries each until one works)
- (OpenAI SDK or    localhost:8319
-  Anthropic SDK)
+ (OpenAI SDK)      localhost:8319
 ```
 
-**Highlights:** OpenAI **and** Anthropic API compatible · **key affinity** & catalog
+**Highlights:** OpenAI API compatible · **key affinity** & catalog
 **fallback** · full-catalog **selection** (cheapest capable model; **session affinity** when
 clients send a session id) ·
 **local models** (Ollama / LM Studio) with cloud fallback · tool calling · embeddings ·
 response caching (incl. optional **semantic** cache) · **per-access-key budgets** ·
 **built-in web dashboard** (just open `http://localhost:8319/`) · **usage analytics**
 (`/v1/usage`) with **spend tracking** · circuit breaker for unhealthy providers ·
-Prometheus `/metrics` · **runs as a reboot-surviving service** (`hr service`) · toggle
+**runs as a reboot-surviving service** (`hr service`) · toggle
 optional features with `hr features` · one structured `auth.json` for all your keys.
 
 ## Documentation
@@ -41,19 +37,18 @@ The docs read in order, from zero experience to a running, monitored agent:
 
 **Set it up:**
 
-- **[Deployment](documentation/deployment.md)** — Windows/macOS/Linux, Docker, Hugging Face Spaces, **surviving reboots**
+- **[Deployment](documentation/deployment.md)** — Windows/macOS/Linux, **surviving reboots**
 - **[Providers](documentation/providers.md)** — free & paid providers, sign-up links, capabilities
 - **[Configuration](documentation/configuration.md)** — `auth.json`, all `.env` settings, **core features vs. add-ons** (`hr features`)
 
 **Build with it:**
 
-- **[Usage](documentation/usage.md)** — OpenAI SDK, Anthropic SDK, tool use, embeddings
+- **[Usage](documentation/usage.md)** — OpenAI SDK, tool use, embeddings
 - 🤖 **[Build your first AI agent](documentation/build-an-agent.md)** — chatbot → memory → tools, copy-paste
 
-**Operate & extend:**
+**Operate:**
 
-- **[Monitoring](documentation/monitoring.md)** — **web dashboard** (`/dashboard`), `hr status`, Prometheus `/metrics`, `/v1/status` (tokens, spend)
-- **[VS Code Extension](documentation/vscode-extension.md)** — monitor & manage the proxy, and use it as a model in Copilot Chat
+- **[Monitoring](documentation/monitoring.md)** — **web dashboard** (`/dashboard`), `hr status`, `/v1/status` (tokens, spend)
 
 ---
 
@@ -111,7 +106,7 @@ system-wide — `install.sh` only symlinks the `hr` command onto your PATH.
 (see **[Providers](documentation/providers.md)**).
 
 > **Platform note:** the router runs on **Linux, macOS, and Windows**. The one-liner and
-> `hr` CLI below are for Linux/macOS (and WSL2). On **Windows** use Docker, WSL2, or run
+> `hr` CLI below are for Linux/macOS (and WSL2). On **Windows** use WSL2 or run
 > `python router.py` directly — see **[Deployment](documentation/deployment.md)**.
 
 ### One-liner install
@@ -161,9 +156,7 @@ resp = client.chat.completions.create(
 print(resp.choices[0].message.content)
 ```
 
-The Anthropic SDK works the same way (point `base_url` at `http://localhost:8319`), and the
-router also serves embeddings and tool calls — see **[Usage](documentation/usage.md)** for
-all of it.
+The router also serves embeddings and tool calls — see **[Usage](documentation/usage.md)**.
 
 ---
 

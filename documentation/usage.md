@@ -1,7 +1,7 @@
 # Using hermes-router from your app
 
-hermes-router speaks **both the OpenAI API and the Anthropic API**. Point any client
-that already talks to either at the proxy and it works unchanged.
+hermes-router speaks the **OpenAI API**. Point any OpenAI-compatible client at the proxy
+and it works unchanged.
 
 `api_key` is any value from `PROXY_API_KEYS` (default `sk-router-1`; set your own in
 `.env` — see [configuration.md](configuration.md)).
@@ -29,52 +29,11 @@ Streaming (`stream=True`) and tool calling (`tools=[...]`) both work.
 > on — capacity scales with keys × **models** × providers. See
 > [Configuration](/configuration/#multiple-models-per-provider).
 
-## Anthropic SDK
+## Tool use
 
-Already built on the Anthropic SDK? Point its `base_url` at hermes-router — no code
-changes. The proxy accepts Anthropic's `/v1/messages` format (and the `x-api-key`
-header), translates it, and routes across **all** your free providers:
-
-```python
-import anthropic
-
-client = anthropic.Anthropic(api_key="sk-router-1", base_url="http://localhost:8319")
-msg = client.messages.create(
-    model="claude-3-5-sonnet-20241022",   # model name is ignored — the proxy picks
-    max_tokens=100,
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(msg.content[0].text)
-```
-
-Streaming (`client.messages.stream(...)`) works too.
-
-> The `model` you pass is **ignored** — hermes-router selects to the cheapest capable free
-> provider, so an Anthropic-SDK app transparently gets the same multi-provider fallback.
-> (Use the `openai`/`anthropic` paid providers if you specifically want those models.)
-
-### Tool use
-
-Anthropic `tools`, `tool_use`, and `tool_result` are translated to/from OpenAI function
-calling in both streaming and non-streaming mode — full round-trips work:
-
-```python
-tools = [{
-    "name": "get_weather",
-    "description": "Get the current weather for a city",
-    "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}, "required": ["city"]},
-}]
-msg = client.messages.create(
-    model="claude-3-5-sonnet-20241022", max_tokens=300, tools=tools,
-    messages=[{"role": "user", "content": "What's the weather in Tokyo?"}],
-)
-# msg.stop_reason == "tool_use", with a tool_use block ready to run
-```
-
-When a request carries tools, the proxy **automatically routes only to providers whose
-model supports tool calling** (detected at startup), so a request never lands on a
-model that would silently ignore the tools. Override detection per provider with
-`<PROVIDER>_SUPPORTS_TOOLS=1` / `=0` (see [configuration.md](configuration.md)).
+Pass OpenAI-format `tools` on `/v1/chat/completions`. When a request carries tools, the proxy
+**routes only to tool-capable candidates** (detected at startup). Override detection per provider
+with `<PROVIDER>_SUPPORTS_TOOLS=1` / `=0` (see [configuration.md](configuration.md)).
 
 ## Embeddings
 

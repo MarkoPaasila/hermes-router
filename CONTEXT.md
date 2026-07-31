@@ -20,18 +20,14 @@ _Avoid_: Dashboard (for terminal `hr status` output)
 
 **Dashboard**:
 The proxy's browser UI at `/dashboard` (and `/`).
-_Avoid_: Using dashboard for `hr status` or the VS Code extension panel
-
-**Extension**:
-The official hermes-router VS Code extension (monitor/manage the proxy and use it as a Copilot Chat model).
-_Avoid_: Hermes Agent; "the extension" when Hermes Agent could be meant
+_Avoid_: Using dashboard for `hr status`
 
 **Hermes Agent**:
 A separate third-party VS Code extension (not hermes-router). Call it **Hermes Agent (third-party)** when contrasting session-id or client behavior.
 _Avoid_: Hermes; the extension (ambiguous)
 
 **Client**:
-Anything that sends requests to the proxy (an application, SDK, Copilot Chat, curl, or the Extension acting as a model provider).
+Anything that sends requests to the proxy (an application, SDK, Copilot Chat, curl, or similar).
 _Avoid_: Caller; App (as the only general noun — fine in app-specific examples)
 
 ### Selection & catalog
@@ -190,7 +186,7 @@ _Avoid_: Token cap, Budget, Rate limit (different concepts)
 
 **Response cache**:
 Serving a prior answer for a request so the proxy need not call a provider again. Default behavior is exact-match, in-memory, namespaced by access key.
-_Avoid_: Cache alone when exact vs semantic vs persistent matters
+_Avoid_: Cache alone when exact vs semantic matters
 
 **Exact match**:
 A response-cache hit when the request is identical (within the access-key namespace).
@@ -199,10 +195,6 @@ _Avoid_: Semantic cache (for identical hits)
 **Semantic cache**:
 An add-on that allows response-cache hits for similar prompts, not only identical ones.
 _Avoid_: Calling this the default response cache
-
-**Persistent cache**:
-An add-on that mirrors the response cache to disk so it survives restarts. Durability, not a different hit algorithm.
-_Avoid_: Treating persistent as a third kind of similarity matching
 
 **Core**:
 Always-on proxy behavior (auth, credential pool, selection, fallback, circuit breaker, protocol translation, capability probing, guardrails, usage/cost tracking, and related essentials).

@@ -119,9 +119,9 @@ def test_ordered_providers_passes_sticky(monkeypatch):
     assert captured["sticky"] == sticky
 
 
-def test_anthropic_messages_passes_sticky_kwargs(monkeypatch):
+def test_chat_completions_passes_sticky_kwargs(monkeypatch):
     store = router.SessionStickyStore(ttl_s=3600, max_entries=100)
-    store.set("sess-msg", provider="groq", model="llama", key="k1")
+    store.set("sess-chat", provider="groq", model="llama", key="k1")
     monkeypatch.setattr(router, "sticky_store", store)
     captured = {}
 
@@ -141,12 +141,12 @@ def test_anthropic_messages_passes_sticky_kwargs(monkeypatch):
 
     client = router.app.test_client()
     resp = client.post(
-        "/v1/messages",
-        json={"messages": [{"role": "user", "content": "hello"}]},
-        headers={"X-Hermes-Session-Id": "sess-msg"},
+        "/v1/chat/completions",
+        json={"model": "hermes-router", "messages": [{"role": "user", "content": "hello"}]},
+        headers={"X-Hermes-Session-Id": "sess-chat"},
     )
     assert resp.status_code == 200
-    assert captured["session_id"] == "sess-msg"
+    assert captured["session_id"] == "sess-chat"
     assert captured["sticky"]["provider"] == "groq"
     assert captured["sticky"]["model"] == "llama"
     assert captured["sticky"]["key"] == "k1"

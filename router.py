@@ -23,7 +23,7 @@ Quick start:
 """
 
 import atexit
-import json, os, time, threading, logging, hashlib, hmac, re, sqlite3, subprocess, secrets
+import json, os, time, threading, logging, hashlib, hmac, re, subprocess, secrets
 from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
@@ -121,11 +121,6 @@ PROXY_API_KEYS    = _ensure_real_proxy_key()
 ROUTER_MODEL      = os.environ.get("ROUTER_MODEL_ID", "hermes-router")
 CACHE_TTL         = int(os.environ.get("CACHE_TTL_SECONDS", 300))   # 0 = disabled
 CACHE_MAX_SIZE    = int(os.environ.get("CACHE_MAX_SIZE", 100))
-# Persistent cache: mirror the in-memory response/semantic cache to a SQLite file
-# so it survives restarts (opt-in). Use a writable path; on read-only hosts (e.g.
-# HF Spaces) point CACHE_DB_PATH at /tmp/..., like ROUTER_STATE_FILE.
-CACHE_PERSIST     = os.environ.get("CACHE_PERSIST", "0").strip().lower() not in ("0", "", "false", "no", "off")
-CACHE_DB_PATH     = os.environ.get("CACHE_DB_PATH", "./cache.db")
 FAST_ROUTE_TOKENS = int(os.environ.get("FAST_ROUTE_THRESHOLD", 0))  # 0 = disabled
 # Optional startup model discovery. Kept opt-in because some gateways list paid
 # models alongside free ones, and some expose very large catalogs.
@@ -140,11 +135,6 @@ FILTER_SPECIALIZED_MODELS = os.environ.get("FILTER_SPECIALIZED_MODELS", "0").str
 # provider); falls back to exact match when off or unavailable.
 SEMANTIC_CACHE     = os.environ.get("SEMANTIC_CACHE", "0").strip().lower() not in ("0", "", "false", "no", "off")
 SEMANTIC_THRESHOLD = float(os.environ.get("SEMANTIC_CACHE_THRESHOLD", "0.95"))
-# Cost display: USD is always the canonical figure. Set COST_FX_RATE (e.g. 83) and
-# COST_CURRENCY (e.g. INR) to ALSO surface a converted amount in /v1/usage etc.
-COST_CURRENCY      = os.environ.get("COST_CURRENCY", "USD").strip().upper() or "USD"
-try:    COST_FX_RATE = float(os.environ.get("COST_FX_RATE", 0) or 0)
-except (TypeError, ValueError): COST_FX_RATE = 0.0
 # Keys use key affinity (preferred key when ready, else first ready in deque order).
 _raw_rotation = os.environ.get("ROTATION_MODE", "").strip()
 if _raw_rotation:
@@ -1200,12 +1190,8 @@ def _cost(model: str, prompt_toks, completion_toks) -> float:
 
 
 def _cost_obj(usd: float) -> dict:
-    """Serialize a USD amount for JSON output, adding a converted figure when
-    COST_FX_RATE is set (e.g. {"usd": 0.0123, "inr": 1.02})."""
-    out = {"usd": round(float(usd or 0), 6)}
-    if COST_FX_RATE > 0 and COST_CURRENCY != "USD":
-        out[COST_CURRENCY.lower()] = round(float(usd or 0) * COST_FX_RATE, 4)
-    return out
+    """Serialize a USD amount for JSON output."""
+    return {"usd": round(float(usd or 0), 6)}
 
 
 _apply_price_overrides()
@@ -2352,16 +2338,9 @@ class ResponseCache:
     Identical requests (same model + messages) return a cached copy,
     saving free-tier quota for novel queries.
     Set CACHE_TTL_SECONDS=0 to disable.
-
-    Optionally backed by a SQLite file (CACHE_PERSIST=1) that mirrors the
-    in-memory LRU, so the cache survives restarts. The DB is a durable mirror —
-    write-through on set, delete on eviction — so it stays bounded at max_size
-    and the runtime data structure (and bounded semantic scan) are unchanged.
-    All DB access is fail-soft: an error logs and degrades to in-memory only.
     """
 
-    def __init__(self, ttl: int = 300, max_size: int = 100,
-                 persist: bool = False, db_path: str = "./cache.db"):
+    def __init__(self, ttl: int = 300, max_size: int = 100):
         self.ttl      = ttl
         self.max_size = max_size
         self.lock     = threading.Lock()
@@ -2369,51 +2348,6 @@ class ResponseCache:
         self.hits          = 0
         self.misses        = 0
         self.semantic_hits = 0
-        self._db = None
-        if persist and ttl > 0:
-            self._init_db(db_path)
-
-    def _init_db(self, db_path: str):
-        """Open the SQLite mirror, prune expired rows, and preload the most-recent
-        fresh entries (≤ max_size) into memory so hits/semantic work after restart."""
-        try:
-            self._db = sqlite3.connect(db_path, check_same_thread=False)
-            self._db.execute("CREATE TABLE IF NOT EXISTS cache "
-                             "(hash TEXT PRIMARY KEY, data TEXT, ts REAL, ns TEXT, embedding TEXT)")
-            cutoff = time.time() - self.ttl
-            self._db.execute("DELETE FROM cache WHERE ts < ?", (cutoff,))
-            self._db.commit()
-            rows = self._db.execute(
-                "SELECT hash, data, ts, ns, embedding FROM cache "
-                "ORDER BY ts DESC LIMIT ?", (self.max_size,)).fetchall()
-            for h, data, ts, ns, emb in reversed(rows):   # oldest-first → LRU order
-                self._store[h] = (json.loads(data), ts, ns,
-                                  json.loads(emb) if emb else None)
-            log.info(f"Cache: persistent (SQLite {db_path}) — preloaded {len(rows)} entr"
-                     f"{'y' if len(rows)==1 else 'ies'}")
-        except Exception as e:
-            log.warning(f"Cache: could not open persistent store {db_path}: {e} — in-memory only")
-            self._db = None
-
-    def _db_upsert(self, key, data, ts, ns, emb):
-        if self._db is None:
-            return
-        try:
-            self._db.execute("INSERT OR REPLACE INTO cache VALUES (?,?,?,?,?)",
-                             (key, json.dumps(data, default=str), ts, ns,
-                              json.dumps(emb) if emb is not None else None))
-            self._db.commit()
-        except Exception as e:
-            log.warning(f"Cache: persist write failed: {e}")
-
-    def _db_delete(self, key):
-        if self._db is None:
-            return
-        try:
-            self._db.execute("DELETE FROM cache WHERE hash = ?", (key,))
-            self._db.commit()
-        except Exception as e:
-            log.warning(f"Cache: persist delete failed: {e}")
 
     def _hash(self, payload: dict, ns: str = "") -> str:
         # Hash the entire request (minus "stream", which doesn't change the
@@ -2437,7 +2371,6 @@ class ResponseCache:
                     self.hits += 1
                     return data
                 del self._store[key]
-                self._db_delete(key)          # expired → drop from mirror too
             self.misses += 1
         return None
 
@@ -2448,11 +2381,9 @@ class ResponseCache:
         ts  = time.time()
         with self.lock:
             if key not in self._store and len(self._store) >= self.max_size:
-                old, _ = self._store.popitem(last=False)  # evict oldest
-                self._db_delete(old)
+                self._store.popitem(last=False)  # evict oldest
             self._store[key] = (data, ts, ns, embedding)
             self._store.move_to_end(key)
-            self._db_upsert(key, data, ts, ns, embedding)
 
     def semantic_lookup(self, query_emb: list, ns: str = "") -> dict | None:
         """Return the cached response whose stored prompt embedding is most similar
@@ -2485,17 +2416,12 @@ class ResponseCache:
             return len(self._store)
 
     @property
-    def persistent(self) -> bool:
-        return self._db is not None
-
-    @property
     def hit_rate(self) -> float:
         total = self.hits + self.misses
         return round(self.hits / total, 3) if total else 0.0
 
 
-cache = ResponseCache(ttl=CACHE_TTL, max_size=CACHE_MAX_SIZE,
-                      persist=CACHE_PERSIST, db_path=CACHE_DB_PATH)
+cache = ResponseCache(ttl=CACHE_TTL, max_size=CACHE_MAX_SIZE)
 
 # ── Per-key budgets & rate limits ("virtual keys" lite) ─────────────────────────
 # Each PROXY_API_KEYS entry can carry a requests-per-minute ceiling and per-UTC-day
@@ -3079,258 +3005,6 @@ def _anthropic_streaming_generator(resp: requests.Response):
                 yield b"data: [DONE]\n\n"
 
 
-# ── Anthropic INBOUND translation (accept the Anthropic SDK's /v1/messages) ───
-# The mirror image of the helpers above: these let a client using the Anthropic
-# SDK talk to the router. An incoming Anthropic request is converted to OpenAI
-# format, routed through the normal pipeline, and the response is converted back.
-
-_OPENAI_TO_ANTHROPIC_STOP = {"stop": "end_turn", "length": "max_tokens",
-                             "tool_calls": "tool_use", "content_filter": "end_turn"}
-
-
-def _anthropic_request_to_openai(body: dict) -> dict:
-    """Convert an Anthropic /v1/messages request into an OpenAI chat payload.
-    The model is deliberately NOT preserved — the router picks a model per
-    provider — so an Anthropic-SDK client transparently gets multi-provider
-    failover instead of being pinned to whatever model string it sent.
-
-    Tool use is mapped both ways: Anthropic `tools`/`tool_choice`, assistant
-    `tool_use` content blocks, and user `tool_result` blocks become the OpenAI
-    equivalents (function tools, message `tool_calls`, and `role:"tool"`
-    messages)."""
-    messages = []
-    system = body.get("system")
-    if isinstance(system, list):   # Anthropic allows system as a list of text blocks
-        system = "\n".join(b.get("text", "") for b in system
-                           if isinstance(b, dict) and b.get("type") == "text")
-    if system:
-        messages.append({"role": "system", "content": system})
-
-    for m in body.get("messages", []):
-        role    = m.get("role", "user")
-        content = m.get("content", "")
-        if isinstance(content, str):
-            messages.append({"role": role, "content": content})
-            continue
-        # List content: text / image / tool_use (assistant calls) / tool_result (user returns).
-        text_parts, image_parts, tool_calls, tool_msgs = [], [], [], []
-        for b in content:
-            if not isinstance(b, dict):
-                continue
-            bt = b.get("type")
-            if bt == "text":
-                text_parts.append(b.get("text", ""))
-            elif bt == "image":
-                # Anthropic image block → OpenAI image_url block (base64 or url source).
-                # Without this, a vision request from the Anthropic SDK loses its image
-                # silently — the model answers as if only the text part existed.
-                src = b.get("source") or {}
-                if src.get("type") == "base64" and src.get("data"):
-                    media = src.get("media_type", "image/png")
-                    image_parts.append({"type": "image_url",
-                                        "image_url": {"url": f"data:{media};base64,{src['data']}"}})
-                elif src.get("type") == "url" and src.get("url"):
-                    image_parts.append({"type": "image_url", "image_url": {"url": src["url"]}})
-            elif bt == "tool_use":
-                tool_calls.append({"id": b.get("id"), "type": "function",
-                                   "function": {"name": b.get("name", ""),
-                                                "arguments": json.dumps(b.get("input", {}))}})
-            elif bt == "tool_result":
-                rc = b.get("content", "")
-                if isinstance(rc, list):
-                    rc = "".join(x.get("text", "") for x in rc
-                                 if isinstance(x, dict) and x.get("type") == "text")
-                tool_msgs.append({"role": "tool", "tool_call_id": b.get("tool_use_id"),
-                                  "content": rc if isinstance(rc, str) else json.dumps(rc)})
-        # OpenAI carries tool results as standalone role:"tool" messages, not nested.
-        if tool_msgs:
-            messages.extend(tool_msgs)
-            if any(text_parts):
-                messages.append({"role": role, "content": "".join(text_parts)})
-        elif image_parts:
-            # Images present → OpenAI's multimodal content shape: a list of text/image_url
-            # blocks, not a plain string.
-            parts = [{"type": "text", "text": t} for t in text_parts if t] + image_parts
-            msg = {"role": role, "content": parts}
-            if tool_calls:
-                msg["tool_calls"] = tool_calls
-            messages.append(msg)
-        else:
-            msg = {"role": role, "content": "".join(text_parts) or None}
-            if tool_calls:
-                msg["tool_calls"] = tool_calls
-            messages.append(msg)
-
-    payload: dict = {"model": ROUTER_MODEL, "messages": messages}
-    if body.get("stream"):
-        payload["stream"] = True
-    for field in ("max_tokens", "temperature", "top_p"):
-        if body.get(field) is not None:
-            payload[field] = body[field]
-    if body.get("stop_sequences"):
-        payload["stop"] = body["stop_sequences"]
-    if body.get("tools"):
-        payload["tools"] = [{"type": "function", "function": {
-            "name": t.get("name", ""), "description": t.get("description", ""),
-            "parameters": t.get("input_schema", {})}}
-            for t in body["tools"] if isinstance(t, dict) and t.get("name")]
-    tc = body.get("tool_choice")
-    if isinstance(tc, dict):
-        ttype = tc.get("type")
-        if ttype == "auto":
-            payload["tool_choice"] = "auto"
-        elif ttype == "any":
-            payload["tool_choice"] = "required"
-        elif ttype == "tool" and tc.get("name"):
-            payload["tool_choice"] = {"type": "function", "function": {"name": tc["name"]}}
-    return payload
-
-
-def _openai_response_to_anthropic(data: dict) -> dict:
-    """Convert an OpenAI chat-completion response to Anthropic Messages format,
-    including assistant tool calls (-> tool_use content blocks)."""
-    choice  = (data.get("choices") or [{}])[0]
-    message = choice.get("message") or {}
-    finish  = choice.get("finish_reason") or "stop"
-    usage   = data.get("usage") or {}
-
-    blocks = []
-    if message.get("content"):
-        blocks.append({"type": "text", "text": message["content"]})
-    tool_calls = message.get("tool_calls") or []
-    for tc in tool_calls:
-        fn = tc.get("function") or {}
-        try:
-            args = json.loads(fn.get("arguments") or "{}")
-        except Exception:
-            args = {}
-        blocks.append({"type": "tool_use", "id": tc.get("id"),
-                       "name": fn.get("name"), "input": args})
-    if not blocks:
-        blocks = [{"type": "text", "text": ""}]
-
-    return {
-        "id":            data.get("id", "msg_unknown"),
-        "type":          "message",
-        "role":          "assistant",
-        "model":         data.get("model", ROUTER_MODEL),
-        "content":       blocks,
-        "stop_reason":   "tool_use" if tool_calls else _OPENAI_TO_ANTHROPIC_STOP.get(finish, "end_turn"),
-        "stop_sequence": None,
-        "usage": {
-            "input_tokens":  usage.get("prompt_tokens", 0),
-            "output_tokens": usage.get("completion_tokens", 0),
-        },
-    }
-
-
-def _sse(event: str, data: dict) -> str:
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
-
-
-def _openai_stream_to_anthropic(gen):
-    """Translate an OpenAI-format SSE stream (bytes, as yielded by the routing
-    pipeline) into the Anthropic Messages SSE event sequence the Anthropic SDK
-    expects: message_start → (content_block_start → content_block_delta* →
-    content_block_stop)* → message_delta → message_stop.
-
-    Handles both text deltas (text_delta) and streamed tool calls
-    (tool_use blocks with input_json_delta). Anthropic allows only one content
-    block open at a time, so we close the current block before opening the next
-    and give each OpenAI tool-call index its own Anthropic block."""
-    msg_id   = f"msg_{int(time.time())}"
-    model    = ROUTER_MODEL
-    finish   = "stop"
-    started  = False           # message_start emitted?
-    saw_tool = False
-    next_index  = 0            # next Anthropic content-block index to allocate
-    open_kind   = None         # None | "text" | "tool"
-    open_index  = None         # Anthropic index of the currently open block
-    tool_blocks = {}           # OpenAI tool-call index -> Anthropic block index
-
-    def message_start():
-        return _sse("message_start", {"type": "message_start", "message": {
-            "id": msg_id, "type": "message", "role": "assistant", "model": model,
-            "content": [], "stop_reason": None, "stop_sequence": None,
-            "usage": {"input_tokens": 0, "output_tokens": 0}}})
-
-    buf = ""
-    for chunk in gen:
-        if isinstance(chunk, (bytes, bytearray)):
-            chunk = chunk.decode("utf-8", errors="replace")
-        buf += chunk
-        while "\n" in buf:
-            line, buf = buf.split("\n", 1)
-            line = line.strip()
-            if not line.startswith("data:"):
-                continue
-            data = line[5:].strip()
-            if not data or data == "[DONE]":
-                continue
-            try:
-                obj = json.loads(data)
-            except Exception:
-                continue
-            model  = obj.get("model") or model
-            choice = (obj.get("choices") or [{}])[0]
-            delta  = choice.get("delta") or {}
-            if choice.get("finish_reason"):
-                finish = choice["finish_reason"]
-
-            if not started:
-                started = True
-                yield message_start()
-
-            # ---- text delta ----
-            piece = delta.get("content")
-            if piece:
-                if open_kind != "text":
-                    if open_kind is not None:
-                        yield _sse("content_block_stop", {"type": "content_block_stop", "index": open_index})
-                    open_index, open_kind = next_index, "text"
-                    next_index += 1
-                    yield _sse("content_block_start", {"type": "content_block_start",
-                        "index": open_index, "content_block": {"type": "text", "text": ""}})
-                yield _sse("content_block_delta", {"type": "content_block_delta",
-                    "index": open_index, "delta": {"type": "text_delta", "text": piece}})
-
-            # ---- tool-call deltas ----
-            for tc in (delta.get("tool_calls") or []):
-                saw_tool = True
-                oai_idx = tc.get("index", 0)
-                fn = tc.get("function") or {}
-                if oai_idx not in tool_blocks:            # first chunk for this tool call
-                    if open_kind is not None:
-                        yield _sse("content_block_stop", {"type": "content_block_stop", "index": open_index})
-                    open_index, open_kind = next_index, "tool"
-                    next_index += 1
-                    tool_blocks[oai_idx] = open_index
-                    yield _sse("content_block_start", {"type": "content_block_start",
-                        "index": open_index, "content_block": {
-                            "type": "tool_use", "id": tc.get("id") or f"toolu_{msg_id}_{oai_idx}",
-                            "name": fn.get("name") or "", "input": {}}})
-                if fn.get("arguments"):
-                    yield _sse("content_block_delta", {"type": "content_block_delta",
-                        "index": tool_blocks[oai_idx],
-                        "delta": {"type": "input_json_delta", "partial_json": fn["arguments"]}})
-
-    if not started:
-        yield message_start()
-    if open_kind is None:        # no content at all — emit an empty text block
-        open_index = 0
-        yield _sse("content_block_start", {"type": "content_block_start",
-            "index": 0, "content_block": {"type": "text", "text": ""}})
-    yield _sse("content_block_stop", {"type": "content_block_stop", "index": open_index})
-    stop_reason = "tool_use" if saw_tool else _OPENAI_TO_ANTHROPIC_STOP.get(finish, "end_turn")
-    yield _sse("message_delta", {"type": "message_delta",
-        "delta": {"stop_reason": stop_reason, "stop_sequence": None}, "usage": {"output_tokens": 0}})
-    yield _sse("message_stop", {"type": "message_stop"})
-
-
-def _anthropic_error(message: str) -> dict:
-    """Anthropic-format error envelope."""
-    return {"type": "error", "error": {"type": "api_error", "message": message}}
-
 # ── Complexity-aware provider ordering ────────────────────────────────────────
 
 # Accurate token counting via tiktoken when available. The encoder is loaded
@@ -3751,15 +3425,14 @@ def forward_embeddings(provider: dict, key: str, payload: dict) -> requests.Resp
 app = Flask(__name__)
 # Cap request bodies so a buggy client can't exhaust memory (Flask returns 413)
 app.config["MAX_CONTENT_LENGTH"] = _int_env("MAX_REQUEST_BYTES", 10 * 1024 * 1024)
-START_TIME = time.time()   # for uptime in /metrics
+START_TIME = time.time()   # for uptime in /v1/status
 
 
 def _caller_token() -> str:
-    """The API key the caller presented (Bearer, or Anthropic's x-api-key)."""
+    """The API key the caller presented (Bearer, or x-api-key)."""
     header = request.headers.get("Authorization", "").strip()
     token  = header[7:].strip() if header[:7].lower() == "bearer " else header
     if not token:
-        # The Anthropic SDK sends the key via x-api-key, not Authorization.
         token = request.headers.get("x-api-key", "").strip()
     return token
 
@@ -4897,7 +4570,6 @@ function renderCache() {
     ['Enabled',       c.enabled ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'],
     ['TTL',           c.ttl_s != null ? c.ttl_s + 's' : '—'],
     ['Size',          `${fmt.num(c.size)} / ${fmt.num(c.max_size)}`],
-    ['Persistent',    c.persistent ? '<span class="pill pill-ok">yes</span>' : '<span class="pill pill-grey">no</span>'],
     ['Hits',          fmt.num(c.hits)],
     ['Misses',        fmt.num(c.misses)],
     ['Hit rate',      fmt.pct((c.hit_rate||0)*100)],
@@ -5718,9 +5390,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                       *, _rate_retry: bool = False,
                       _session_id: str | None = None,
                       _sticky: dict | None = None):
-    """Core selection + fallback cascade, shared by /v1/chat/completions and the
-    Anthropic-compatible /v1/messages. Takes an OpenAI-format payload and returns
-    one of:
+    """Core selection + fallback cascade for /v1/chat/completions.
+    Takes an OpenAI-format payload and returns one of:
         ("json",   data_dict)            non-streaming success (OpenAI format)
         ("stream", generator, provider)  streaming success; generator yields
                                          OpenAI-format SSE regardless of upstream
@@ -6353,53 +6024,6 @@ def chat():
     return jsonify(result[1]), result[2]
 
 
-@app.route("/v1/messages", methods=["POST"])
-def anthropic_messages():
-    """Anthropic Messages API endpoint — lets the Anthropic SDK use the router
-    plug-and-play. The request is translated to OpenAI format, routed through the
-    same multi-provider pipeline as /v1/chat/completions, and translated back."""
-    err = _auth_check()
-    if err:
-        return err
-
-    body = request.get_json(force=True, silent=True)
-    if not isinstance(body, dict) or "messages" not in body:
-        return jsonify(_anthropic_error("request body must be a JSON object with a 'messages' field")), 400
-
-    token  = _caller_token()
-    gate   = _admit_request(token)
-    if gate:
-        # Translate the 429 to Anthropic's error shape for SDK callers.
-        return jsonify(_anthropic_error("quota exceeded")), 429
-
-    streaming = bool(body.get("stream", False))
-    payload   = _anthropic_request_to_openai(body)
-    t_start   = time.time()
-    _session_id, _sticky = _sticky_for_request(request.headers, body)
-    result    = _route_completion(payload, streaming, _cache_ns(),
-                                _session_id=_session_id, _sticky=_sticky)
-    _record_request_tokens(token, payload, result)
-
-    entry = _log_completion(token, "messages", payload, result, time.time() - t_start)
-
-    if result[0] == "json":
-        return jsonify(_openai_response_to_anthropic(result[1])), 200
-    if result[0] == "stream":
-        _, gen, name = result
-
-        def _finalize():
-            try:
-                # Read usage from the inner OpenAI-format gen (_streaming_with_usage),
-                # not from the Anthropic translator wrapper.
-                yield from _openai_stream_to_anthropic(gen)
-            finally:
-                _patch_stream_log_tokens(entry, gen)
-
-        return Response(stream_with_context(_finalize()),
-                        content_type="text/event-stream", headers={"X-Provider": name})
-    return jsonify(_anthropic_error(result[1].get("error", {}).get("message", "error"))), result[2]
-
-
 @app.route("/v1/embeddings", methods=["POST"])
 def embeddings():
     err = _auth_check()
@@ -6607,9 +6231,6 @@ def _features_snapshot() -> dict:
         {"name": "semantic_cache", "title": "Semantic cache", "kind": "flag",
          "enabled": SEMANTIC_CACHE, "env": "SEMANTIC_CACHE", "on": "1", "off": "0",
          "desc": "Also serve cached answers for similar (not just identical) prompts."},
-        {"name": "persistent_cache", "title": "Persistent cache", "kind": "flag",
-         "enabled": cache.persistent, "env": "CACHE_PERSIST", "on": "1", "off": "0",
-         "desc": "Mirror the cache to SQLite so it survives restarts."},
         {"name": "fast_routing", "title": "Fast selection", "kind": "flag",
          "enabled": FAST_ROUTE_TOKENS > 0, "env": "FAST_ROUTE_THRESHOLD", "on": "200", "off": "0",
          "desc": "Short requests prefer low-latency providers on ties."},
@@ -6622,12 +6243,6 @@ def _features_snapshot() -> dict:
         {"name": "token_caps", "title": "Adaptive token caps", "kind": "flag",
          "enabled": TOKEN_CAPS_ENABLED, "env": "TOKEN_CAPS", "on": "1", "off": "0",
          "desc": "Track per-model input/output ceilings from /models metadata and classified 413/token-limit 400s."},
-        {"name": "metrics_auth", "title": "Metrics auth", "kind": "flag",
-         "enabled": bool(_int_env("METRICS_REQUIRE_AUTH", 0)), "env": "METRICS_REQUIRE_AUTH",
-         "on": "1", "off": "0", "desc": "Require an access key on /metrics."},
-        {"name": "cost_currency", "title": "Cost currency conversion", "kind": "flag",
-         "enabled": COST_FX_RATE > 0, "env": "COST_FX_RATE", "on": "83", "off": "0",
-         "desc": "Show a second currency (e.g. INR) alongside USD spend."},
         {"name": "key_budgets", "title": "Per-access-key budgets", "kind": "config",
          "enabled": KEY_LIMITS_ON, "manage": "hr limit set <key> --rpm/--req-day/--tokens-day/--cost-day",
          "desc": "Per-access-key RPM / daily request / token / cost ceilings (operator budgets, not upstream rate limits)."},
@@ -7002,7 +6617,6 @@ def status():
             "ttl_s":      CACHE_TTL,
             "size":       cache.size,
             "max_size":   CACHE_MAX_SIZE,
-            "persistent": cache.persistent,
             "hits":       cache.hits,
             "misses":     cache.misses,
             "hit_rate":   cache.hit_rate,
@@ -7142,66 +6756,12 @@ def logs():
     })
 
 
-@app.route("/metrics")
-def metrics():
-    """Prometheus text-format metrics for scraping (Grafana, etc.). Exposes only
-    counts and timings — never request content — so it's unauthenticated like
-    /health. Set METRICS_REQUIRE_AUTH=1 to require the proxy key instead."""
-    if _int_env("METRICS_REQUIRE_AUTH", 0):
-        err = _auth_check()
-        if err:
-            return err
-
-    out: list[str] = []
-
-    def emit(name, mtype, help_, samples):
-        out.append(f"# HELP {name} {help_}")
-        out.append(f"# TYPE {name} {mtype}")
-        for labels, val in samples:
-            tag = ("{" + ",".join(f'{k}="{v}"' for k, v in labels.items()) + "}") if labels else ""
-            out.append(f"{name}{tag} {val}")
-
-    emit("hermes_router_uptime_seconds", "gauge", "Seconds since the router started",
-         [({}, round(time.time() - START_TIME))])
-    emit("hermes_router_providers", "gauge", "Number of configured providers",
-         [({}, len(PROVIDERS))])
-
-    req, errs, lat, brk = [], [], [], []
-    for p in PROVIDERS:
-        name = p["name"]
-        s = stats.summary(name)
-        req.append(({"provider": name}, s["total_requests"]))
-        errs.append(({"provider": name}, s["errors"]))
-        if s["avg_latency_ms"] is not None:
-            lat.append(({"provider": name}, s["avg_latency_ms"]))
-        brk.append(({"provider": name}, 1 if stats.breaker_open(name) else 0))
-    emit("hermes_router_requests_total", "counter", "Total requests routed per provider", req)
-    emit("hermes_router_errors_total", "counter", "Total errored requests per provider", errs)
-    emit("hermes_router_avg_latency_ms", "gauge", "Mean successful-request latency in ms per provider", lat)
-    emit("hermes_router_circuit_breaker_open", "gauge", "1 if the provider's circuit breaker is open, else 0", brk)
-
-    emit("hermes_router_cache_hits_total", "counter", "Response-cache hits", [({}, cache.hits)])
-    emit("hermes_router_cache_misses_total", "counter", "Response-cache misses", [({}, cache.misses)])
-    emit("hermes_router_cache_size", "gauge", "Entries currently in the response cache", [({}, cache.size)])
-    emit("hermes_router_semantic_cache_hits_total", "counter", "Semantic-cache hits", [({}, cache.semantic_hits)])
-
-    emit("hermes_router_tokens_total", "counter", "Total tokens served per provider (non-streaming)",
-         [({"provider": n}, v) for n, v in _provider_tokens.items()])
-    emit("hermes_router_cost_usd_total", "counter", "Estimated USD cost served per provider",
-         [({"provider": n}, round(v, 6)) for n, v in _provider_cost.items()])
-    emit("hermes_router_key_requests_total", "counter", "Total requests per proxy key (by key tail)",
-         [({"key": k[-6:]}, key_usage.snapshot(k)["req_total"]) for k in PROXY_API_KEYS])
-
-    return Response("\n".join(out) + "\n", content_type="text/plain; version=0.0.4")
-
-
 if __name__ == "__main__":
     log.info(f"hermes-router starting on {HOST}:{PORT}")
     log.info(f"Providers: {[p['name'] for p in PROVIDERS]}")
     _embed = {p["name"]: p["embed_model"] for p in PROVIDERS if p.get("embed_model")}
     log.info(f"Embeddings (/v1/embeddings): {_embed if _embed else 'no embed-capable providers'}")
-    log.info(f"Cache: {'enabled' if CACHE_TTL > 0 else 'disabled'} (TTL={CACHE_TTL}s, max={CACHE_MAX_SIZE}"
-             f"{', persistent' if cache.persistent else ''})")
+    log.info(f"Cache: {'enabled' if CACHE_TTL > 0 else 'disabled'} (TTL={CACHE_TTL}s, max={CACHE_MAX_SIZE})")
     log.info(f"Fast routing: {'enabled' if FAST_ROUTE_TOKENS > 0 else 'disabled'} (threshold={FAST_ROUTE_TOKENS} tokens)")
     log.info("Key selection: key affinity")
     log.info(f"Dashboard: http://{'localhost' if HOST in ('0.0.0.0','') else HOST}:{PORT}/dashboard")

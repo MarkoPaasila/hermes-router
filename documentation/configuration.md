@@ -10,7 +10,7 @@ hermes-router splits its behavior into two groups:
 
 - **Core features** — always on; they *are* the proxy. Auth, the credential pool + key affinity
   selection, fallback, the circuit breaker, catalog selection, protocol translation
-  (OpenAI/Anthropic/Codex), capability probing, token counting, request guardrails, and
+  (OpenAI/Anthropic-provider/Codex outbound), capability probing, token counting, request guardrails, and
   usage/cost tracking.
 - **Add-ons** — optional behaviors you turn on when you want them. Each is backed by an
   environment variable (or some `auth.json` config), and unset = off (except the response
@@ -20,7 +20,7 @@ hermes-router splits its behavior into two groups:
 
 ```bash
 hr features list                      # core features + every add-on, with on/off
-hr features enable persistent_cache   # writes the backing var to .env
+hr features enable semantic_cache     # writes the backing var to .env
 hr features disable semantic_cache
 hr restart                            # apply
 ```
@@ -29,18 +29,18 @@ hr restart                            # apply
 |---|---|---|---|
 | `response_cache` | `CACHE_TTL_SECONDS` | **on** | Serve identical requests from an in-memory TTL+LRU cache |
 | `semantic_cache` | `SEMANTIC_CACHE` | off | Also serve cached answers for *similar* prompts |
-| `persistent_cache` | `CACHE_PERSIST` | off | Mirror the cache to SQLite so it survives restarts |
 | `fast_routing` | `FAST_ROUTE_THRESHOLD` | off | Short requests prefer low-latency providers on ties |
 | `model_discovery` | `AUTO_DISCOVER_MODELS` | off | Refresh provider model lists from `/models` at startup |
 | `filter_specialized_models` | `FILTER_SPECIALIZED_MODELS` | off | Drop TTS/STT/image-gen/OCR/video/embedding/moderation/rerank IDs from discovery |
-| `metrics_auth` | `METRICS_REQUIRE_AUTH` | off | Require the access key on `/metrics` |
-| `cost_currency` | `COST_FX_RATE` | off | Show a second currency (e.g. ₹) alongside USD spend |
+| `token_caps` | `TOKEN_CAPS` | **on** | Adaptive per-model input/output ceilings |
 | `key_budgets` | `auth.json` / `PROXY_LIMIT_*` | off | Per-key RPM / daily request / token / cost ceilings — manage with `hr limit` |
 | `local_model` | `LOCAL_BASE_URL` / `LOCAL_MODEL` | off | Route to a model on your own machine — manage with `hr model set local` |
+| `request_log` | `REQUEST_LOG_SIZE` | **on** | In-memory ring buffer of recent requests |
+| `dashboard` | — | **on** | Browser UI at `/dashboard` |
 
 `hr features enable/disable` toggles the simple **flag** add-ons by writing their variable to
-`.env`. The last two are richer config, so `hr features` shows their status and points you to
-the command that manages them. The live state is also in `/v1/status` under `features`.
+`.env`. Config-kind add-ons show status and point you to the command that manages them. The live
+state is also in `/v1/status` under `features`.
 
 ## Where your keys live
 
@@ -67,12 +67,11 @@ subscription) logins are stored separately under `codex_accounts` (via
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `8319` | Port to listen on |
-| `HOST` | `0.0.0.0` | Bind address. Set `127.0.0.1` to listen on localhost only (recommended on a shared/VPS host — reach it via localhost or an SSH tunnel). Keep `0.0.0.0` for Docker. |
+| `HOST` | `0.0.0.0` | Bind address. Set `127.0.0.1` to listen on localhost only (recommended on a shared/VPS host — reach it via localhost or an SSH tunnel). |
 | `PROXY_API_KEYS` | *(auto-generated)* | Comma-separated keys your app uses to authenticate — and the key needed to open the web dashboard. If left unset (or on the `.env.example` placeholder), the proxy generates a real random key on first boot and saves it back to `.env`, logging it once. Add more from the dashboard's **Access Keys** page, or set your own here. |
 | `ROUTER_AUTH_FILE` | `./auth.json` | Where keys are stored |
 | `CACHE_TTL_SECONDS` | `300` | Response cache lifetime (`0` disables). Entries are namespaced per API key, so different `PROXY_API_KEYS` never share a cached answer — safe for multi-tenant use |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `METRICS_REQUIRE_AUTH` | `0` | Require the access key on `/metrics` (`1` to enable) |
 | `REASONING_TOKEN_RESERVE` | `4096` | Extra output budget added for reasoning models so hidden chain-of-thought doesn't eat the answer (`0` disables) |
 
 ### Advanced settings
@@ -84,8 +83,6 @@ Sensible defaults — most users never touch these.
 | `MAX_REQUEST_BYTES` | `10485760` (10 MB) | Max request body size; larger requests get `413` (guards against memory exhaustion) |
 | `WORKER_THREADS` | `16` | Waitress worker threads (concurrency). The HTTP connection pool scales with this |
 | `CACHE_MAX_SIZE` | `100` | Max entries in the response cache (LRU eviction) |
-| `CACHE_PERSIST` | `0` | If `1`, mirror the cache to a SQLite file so it survives restarts (opt-in). The DB mirrors the in-memory LRU, so it stays bounded by `CACHE_MAX_SIZE` — raise that to persist more |
-| `CACHE_DB_PATH` | `./cache.db` | SQLite file for the persistent cache. On read-only hosts (e.g. HF Spaces) point it at `/tmp/cache.db` |
 | `SEMANTIC_CACHE` | `0` | If `1`, also serve cached answers for *similar* prompts (needs an embedding provider; falls back to exact match otherwise) |
 | `SEMANTIC_CACHE_THRESHOLD` | `0.95` | Cosine-similarity cutoff for a semantic hit (`1.0` = identical; lower = looser matching) |
 | `FAST_ROUTE_THRESHOLD` | `0` | If >0, requests under this many tokens prefer low-latency providers first (`0` disables) |
@@ -96,7 +93,7 @@ Sensible defaults — most users never touch these.
 | `UNSUITABLE_MODEL_CAP_S` | `3600` | Max cool-down seconds (exponential backoff caps here) |
 | `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery, e.g. `OPENROUTER_EXCLUDE_MODELS=some/model:free` |
 | `ROUTER_MODEL_ID` | `hermes-router` | The model name clients send (the proxy maps it to each provider's real model) |
-| `ROUTER_STATE_FILE` | `./router_state.json` | Where provider ratings/capabilities are cached between restarts (use `/tmp/...` on read-only hosts like HF Spaces) |
+| `ROUTER_STATE_FILE` | `./router_state.json` | Where provider ratings/capabilities are cached between restarts |
 | `ROUTER_STATE_TTL_HOURS` | `24` | How long the cached probe state is trusted before re-probing (`0` = re-probe every start) |
 | `BREAKER_WINDOW` | `8` | Recent outcomes the circuit breaker weighs per provider |
 | `BREAKER_MIN_SAMPLES` | `4` | Minimum samples before the breaker can trip |
@@ -192,13 +189,10 @@ Caps appear under each provider in `/v1/status` as `token_caps` (includes confid
 
 The proxy estimates **spend** from a built-in price table (USD per 1M tokens, input/output).
 Free providers and subscription plans (Codex, Kimi coding) are **$0**. Estimated cost shows per
-provider and per key in `/v1/usage`, `/v1/status`, `hr status`, the VS Code dashboard, and
-`/metrics` (`hermes_router_cost_usd_total`). USD is always the canonical figure.
+provider and per key in `/v1/usage`, `/v1/status`, `hr status`, and the web dashboard (USD).
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `COST_CURRENCY` | `USD` | A second currency to *also* display (e.g. `INR`) — requires `COST_FX_RATE` |
-| `COST_FX_RATE` | `0` | USD→`COST_CURRENCY` multiplier (e.g. `83`); `0` shows USD only |
 | `MODEL_PRICES_FILE` | *(unset)* | JSON file of price overrides — `{"model-substr": [input, output]}` (USD per 1M tokens) — merged over the built-in table |
 
 Prices are **best-effort estimates** and drift over time; correct them with `MODEL_PRICES_FILE`.

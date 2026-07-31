@@ -84,7 +84,7 @@ input**, for the same reason as tool-calling: sending an image to a text-only mo
 round-trip on a guaranteed rejection.
 
 This works whether your client talks to the proxy in **OpenAI format** (`image_url` content blocks)
-or **Anthropic format** (`image` content blocks via `/v1/messages`) — both are translated correctly
+including OpenAI `image_url` content blocks — vision-capable candidates are selected automatically
 so the image actually reaches the model, regardless of which SDK you're using.
 
 Same safety net as tool-calling: if no known vision-capable candidate exists among your configured
@@ -114,4 +114,4 @@ probing under the hood, see the **[Architecture section of the README](../README
 
 ---
 
-**Next:** [Deployment](deployment.md) — run the proxy on your OS (Windows, macOS, Linux, Docker, or a free cloud Space).
+**Next:** [Deployment](deployment.md) — run the proxy on your OS (Windows, macOS, Linux).

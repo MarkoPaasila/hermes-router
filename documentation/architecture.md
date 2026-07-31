@@ -117,13 +117,6 @@ entries are **namespaced by the caller's API key**, so two different `PROXY_API_
 a cached answer for the same prompt — safe to expose to multiple users. Disable with
 `CACHE_TTL_SECONDS=0`.
 
-**Persistent cache** (opt-in, `CACHE_PERSIST=1`): the cache is also mirrored to a SQLite file
-(`CACHE_DB_PATH`, default `./cache.db`) so it **survives restarts** — the proxy keeps saving quota
-on prompts it answered before a redeploy. The DB is a durable mirror of the in-memory LRU
-(write-through on store, deleted on eviction), so it stays bounded by `CACHE_MAX_SIZE` — raise that
-to persist more — and expired rows are pruned on startup. All DB access is fail-soft: an error
-degrades to the in-memory cache without breaking a request.
-
 **Semantic cache** (opt-in, `SEMANTIC_CACHE=1`) goes a step further: on an exact-match miss it
 embeds the prompt (reusing the router's own embeddings pipeline) and returns a cached answer
 whose stored prompt is *similar* above `SEMANTIC_CACHE_THRESHOLD` (cosine). It's a bounded linear
@@ -141,7 +134,7 @@ unaffected. This makes the proxy safe to share with a team. See
 
 **Cost awareness.** Spend is estimated from a built-in per-model price table (free providers and
 subscription plans are `$0`) and surfaced per provider and per key in `/v1/usage`, `/v1/status`,
-and `/metrics` — with an optional second currency (`COST_FX_RATE`). See
+and the dashboard (USD). See
 [Configuration](configuration.md#cost--spend-awareness).
 
 ### Accurate token counting
@@ -181,17 +174,16 @@ upstream connection cleanly when the stream ends or the client disconnects.
 
 ## Protocol translation
 
-Your app always speaks one format; the proxy adapts to whatever the chosen provider needs.
+Clients speak OpenAI Chat Completions; the proxy adapts to whatever the chosen provider needs.
 
 | Provider type | Wire format | How the proxy handles it |
 |---|---|---|
 | Most providers | OpenAI Chat Completions | Pass-through (the router's native format) |
-| Anthropic | Messages API (`/v1/messages`) | Two-way translation incl. tools & streaming |
+| Anthropic (provider) | Messages API outbound | Request/response translation incl. tools & streaming |
 | Codex (ChatGPT) | **Responses API** over OAuth | Two-way translation + OAuth token lifecycle |
 
-- **OpenAI ⇄ Anthropic** — `/v1/messages` is accepted for Anthropic-SDK apps, translated to
-  OpenAI format, routed through the same pipeline, and translated back (including `tool_use` /
-  `tool_result` blocks and streaming).
+- **Anthropic as a provider** — when the catalog picks Anthropic, the proxy translates the
+  OpenAI-format request to Anthropic Messages and translates the reply back.
 - **Codex (ChatGPT subscription)** — authenticates with OAuth, not an API key. Accounts are
   imported with `hr auth import-codex`; the proxy mints fresh access tokens from the refresh
   token, sends requests to the ChatGPT backend in Responses-API format, and translates the SSE
@@ -203,37 +195,31 @@ Your app always speaks one format; the proxy adapts to whatever the chosen provi
 | Endpoint | Auth | Purpose |
 |---|---|---|
 | `POST /v1/chat/completions` | access key | OpenAI chat completions (streaming + tools) |
-| `POST /v1/messages` | access key | Anthropic Messages API (translated) |
 | `POST /v1/embeddings` | access key | OpenAI embeddings (stable provider order) |
 | `GET /v1/models` | access key | Advertises the `hermes-router` model id |
 | `GET /v1/status` | access key | Per-provider health, latency, keys, key-affinity mode, cache |
 | `GET /health` | none | Liveness check for uptime monitors |
-| `GET /metrics` | optional | Prometheus metrics (set `METRICS_REQUIRE_AUTH=1` to lock) |
 
 ## Observability
 
-`hr status` renders a live dashboard (provider health, latency, key cooldowns, cache) from
-`/v1/status`. `/metrics` exposes Prometheus counters and gauges for Grafana — counts
-and timings only, never request content. Rate headroom appears on the dashboard **Providers**
-(provider-wide buckets) and **Models** (combined capabilities + per-model headroom) pages. See [Monitoring](monitoring.md).
+`hr status` renders a live terminal summary (provider health, latency, key cooldowns, cache) from
+`/v1/status`. The web dashboard at `/dashboard` shows the same picture interactively. Rate
+headroom appears on the dashboard **Providers** (provider-wide buckets) and **Models**
+(combined capabilities + per-model headroom) pages. See [Monitoring](monitoring.md).
 
 ## Ways to run and connect
 
-The same `router.py` engine runs everywhere; you choose how to launch it and how to drive it.
+The same `router.py` engine runs everywhere; you choose how to launch it.
 
 **Run it:**
 
 - **`hr` CLI** *(Linux/macOS/WSL)* — `hr setup`, `hr auth add`, `hr status`, `hr restart`. The
-  friendly day-to-day way to manage a local router. See [Deployment](deployment.md#path-2-linux--macos-the-hr-way).
-- **Docker image** — the prebuilt multi-arch [`shafiq735/hermes-router`](https://hub.docker.com/r/shafiq735/hermes-router)
-  runs the same on Windows, macOS, and Linux: `docker run -p 8319:8319 …`. See [Deployment](deployment.md#path-1-docker-easiest-any-os).
-- **Hugging Face Space** — host it in the cloud for free. See [Deployment](deployment.md#path-4-hugging-face-space-host-it-online).
+  friendly day-to-day way to manage a local router. See [Deployment](deployment.md).
+- **Native Python** — `python router.py` (or `hr start`) on any OS with Python 3.10+.
 
 **Connect to it:**
 
-- **Any OpenAI or Anthropic SDK** — point `base_url` at the proxy and you're done. See [Usage](usage.md).
-- **VS Code extension** — monitor the provider catalog, manage the router, *and* use hermes-router
-  as a model inside Copilot Chat (including agent mode). See [VS Code Extension](vscode-extension.md).
+- **Any OpenAI SDK** — point `base_url` at the proxy and you're done. See [Usage](usage.md).
 
 ## Design principles
 
@@ -250,4 +236,4 @@ The same `router.py` engine runs everywhere; you choose how to launch it and how
 
 ---
 
-**Next:** [VS Code Extension](vscode-extension.md) — monitor and manage the router, and use it as a model inside Copilot Chat.
+**Next:** [Monitoring](monitoring.md) — web dashboard, `hr status`, and usage endpoints.

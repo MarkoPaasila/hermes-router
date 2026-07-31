@@ -189,7 +189,7 @@ boils down to one theme: **keep it simple**.
   retrieve facts — the RAG pattern (see *embedding* and *RAG* in **[concepts.md](concepts.md)**).
 - **Frameworks (optional):** once you understand the loop, tools like LangChain can save
   boilerplate — but you now know what they're doing under the hood.
-- **More usage patterns:** **[usage.md](usage.md)** (Anthropic SDK, embeddings, streaming).
+- **More usage patterns:** **[usage.md](usage.md)** (embeddings, streaming, tools).
 
 ## Sources
 
