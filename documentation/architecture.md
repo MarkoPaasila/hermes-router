@@ -31,9 +31,9 @@ Every request flows through the same pipeline:
    the calling key (see [Response cache](#response-cache)).
 3. **Rate the request** — a 1–5 complexity score is computed from length and content, with no
    extra API call.
-4. **Order the catalog** — every configured `(provider, model)` is scored 1–5 for capability;
-   the proxy prefers the *cheapest* candidate that can handle the request, skips unhealthy
-   ones, and promotes a session-affinity match to the front when present.
+4. **Order the catalog** — every configured `(provider, model)` has a GI score (0–100);
+   the proxy prefers the *cheapest* candidate that meets the complexity→min-GI threshold, skips
+   unhealthy ones, and promotes a session-affinity match to the front when present.
 5. **Try and fall back** — it sends to the first candidate, preferring the affine key when
    set; on rate-limit or error it cascades to the next catalog entry, clearing stickiness when
    leaving the affine `(provider, model)`.
@@ -75,9 +75,10 @@ just fallback. See [Configuration](configuration.md#multiple-models-per-provider
 
 ### Catalog selection
 
-Requests are scored for difficulty and models for capability (both 1–5, higher = more capable).
-The proxy builds a **full catalog** of every configured `(provider, model)` pair and picks the
-cheapest candidate that can handle the request. Tool requests are only sent to models that
+Requests are scored for complexity (1–5) and models for **general intelligence ranking**
+(GI, 0–100). Each complexity level maps to a minimum GI; the proxy builds a **full catalog** of
+every configured `(provider, model)` pair and picks the cheapest candidate that clears the bar.
+Tool requests are only sent to models that
 support tool calling (detected at startup). Optional **fast routing**
 (`FAST_ROUTE_THRESHOLD`) sends short requests to low-latency providers first.
 
@@ -89,12 +90,13 @@ gets a fresh catalog pick. The Hermes Agent extension does not yet forward sessi
 endpoints.
 
 **Per-model scoring.** When a provider lists several models, each **(provider, model)** pair is its
-own catalog candidate, scored on *its own* rating and tool/reasoning capability — not the primary's.
+own catalog candidate, scored on *its own* GI and tool/reasoning support — not the primary's.
 So with `GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-pro`, an easy turn goes to `flash-lite` while
 a hard or tool-using turn can pick `gemini-2.5-pro`, instead of the extra models only being used for
-rate-limit fallback. Within equal ratings, a provider's models keep their **listed order**
-(cheapest first). Tool/reasoning support is detected per model, so models of different classes can
-safely share one list. Each model's capability shows in `/v1/status` under `model_caps`.
+rate-limit fallback. Within equal price, lower GI overshoot wins; a provider's models keep their
+**listed order** as a final tie-break. Tool/reasoning support is detected per model, so models of
+different classes can safely share one list. Each model's GI shows in `/v1/status` under
+`model_caps` (`gi`, `gi_source`).
 
 **Local models & fast preference.** A model running on your own machine (Ollama / LM Studio /
 llama.cpp) can join the pool as the `local` provider — free, private, fast (see
@@ -142,7 +144,7 @@ and the dashboard (USD). See
 Request size is measured with `tiktoken` (the `o200k_base` encoder, loaded lazily) for accurate
 routing and large-payload skipping, with a `characters ÷ 4` fallback when tiktoken is unavailable.
 
-### Capability probing
+### Feature probing
 
 At startup the proxy probes each provider once to learn its real model, whether it supports
 **tool calling**, and whether it's a **reasoning model**. Results are cached to

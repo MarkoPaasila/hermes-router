@@ -18,7 +18,7 @@ splits it into pages, refreshed every 5 seconds:
 
 - **Overview** — a plain-language status card, the endpoint/model to point your client at, a
   setup checklist, and summary stats (requests, tokens, spend, cache hit-rate, error rate)
-- **Providers** — health cards (worst-first) plus a detailed table (capability, latency, keys,
+- **Providers** — health cards (worst-first) plus a detailed table (GI, latency, keys,
   breaker state, cost, rate headroom), and a **provider-wide rate headroom** panel for the
   adaptive upstream rate-limit headroom
 - **Provider Keys** — add a key for any provider and see live per-key request counts and daily

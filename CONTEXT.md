@@ -33,11 +33,11 @@ _Avoid_: Caller; App (as the only general noun — fine in app-specific examples
 ### Selection & catalog
 
 **Selection**:
-The act of choosing which `(provider, model)` candidate should handle a request (by complexity, capability, cost, and session affinity).
+The act of choosing which `(provider, model)` candidate should handle a request (by complexity, general intelligence ranking, cost, and session affinity).
 _Avoid_: Routing, smart routing, dispatch (as names for this act)
 
 **Fallback**:
-Moving to the next candidate when the current one cannot serve the request — including rate-limits, errors, timeouts, and capability skips. Rate-limits are expected capacity exhaustion, not failure.
+Moving to the next candidate when the current one cannot serve the request — including rate-limits, errors, timeouts, and GI / below-threshold skips. Rate-limits are expected capacity exhaustion, not failure.
 _Avoid_: Failover (implies the prior attempt "failed"; rate-limits are not failures)
 
 **Cascade**:
@@ -154,25 +154,25 @@ _Avoid_: TBF, token-bucket filter (as user-facing names)
 How hard a request is, scored 1–5 where **1 = easiest** and **5 = hardest**.
 _Avoid_: Difficulty (synonym clutter); inverting the scale in user copy
 
-**Capability**:
-How strong a model is, scored 1–5 where **1 = weakest** and **5 = strongest**.
-_Avoid_: Rating (as the user-facing name); inverting the scale in user copy
+**General intelligence ranking (GI)**:
+How strong a model is for general chat/reasoning, scored **0–100** where higher = stronger. Defaults from the LMSYS + Artificial Analysis snapshot (`gi_rankings.json`); dashboard overrides win. Unknown models score **0** until overridden.
+_Avoid_: Capability or Rating (as the user-facing name for this score); inverting the scale in user copy
 
 **Failure**:
-An unexpected upstream health problem (network error or 5xx) — not a rate-limit, bad request, capability skip, or model-not-found. Failures can cool a provider key and feed the circuit breaker.
+An unexpected upstream health problem (network error or 5xx) — not a rate-limit, bad request, GI / below-threshold skip, or model-not-found. Failures can cool a provider key and feed the circuit breaker.
 _Avoid_: Calling rate-limits or ordinary fallback reasons "failures"
 
 **Circuit breaker**:
 A per-provider guard that temporarily pulls a provider out of rotation after repeated failures, then re-probes it.
 _Avoid_: Using circuit breaker language for rate-limits or budgets
 
-**Capability probing**:
+**Feature probing**:
 Startup checks that learn what a configured model can do (e.g. tool calling, reasoning), cached for reuse across restarts.
-_Avoid_: Model discovery (for this); Probe alone when discovery could be meant
+_Avoid_: Model discovery (for this); Probe alone when discovery could be meant; Capability probing (prefer this name)
 
 **Model discovery**:
 An add-on that refreshes which model ids a provider offers (from its `/models` list) and may add them to the catalog.
-_Avoid_: Capability probing; Discovery alone when probing could be meant
+_Avoid_: Feature probing; Discovery alone when probing could be meant
 
 **Reasoning model**:
 A model the proxy treats as using hidden chain-of-thought tokens before the visible answer (detected by probing or override), so it may reserve extra output budget. Still a normal model, not a separate candidate kind.
@@ -197,7 +197,7 @@ An add-on that allows response-cache hits for similar prompts, not only identica
 _Avoid_: Calling this the default response cache
 
 **Core**:
-Always-on proxy behavior (auth, credential pool, selection, fallback, circuit breaker, protocol translation, capability probing, guardrails, usage/cost tracking, and related essentials).
+Always-on proxy behavior (auth, credential pool, selection, fallback, circuit breaker, protocol translation, feature probing, guardrails, usage/cost tracking, and related essentials).
 _Avoid_: Smart routing, failover (as labels inside core — use Selection and Fallback)
 
 **Add-on**:

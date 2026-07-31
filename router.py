@@ -36,6 +36,7 @@ from token_caps import (
 )
 from session_sticky import SessionStickyStore, resolve_session_id
 from cascade_trail import CascadeTrail, http_reason
+import gi_ranking
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -289,54 +290,10 @@ BREAKER_COOLDOWN    = int(os.environ.get("BREAKER_COOLDOWN", 60))       # second
 # Providers known for low-latency inference — promoted for short requests
 _FAST_PROVIDERS = {"groq", "cerebras", "sambanova", "mistral"}
 
-# ── Selection: capability scores (wire key still "rating") ────────────────────
-# 1=weakest … 5=strongest (higher = more capable). See CONTEXT.md / ADR-0001.
-# Recommended base model: set ROUTER_BASE_MODEL_PROVIDER + ROUTER_BASE_MODEL
-# e.g. ROUTER_BASE_MODEL_PROVIDER=openai  ROUTER_BASE_MODEL=gpt-4o-mini
-CAPABILITY_SCALE_VERSION = 2  # v1 was inverted (1=strongest); migrate persisted ratings
-KNOWN_MODEL_RATINGS: dict = {
-    # 5 — Outstanding
-    "gpt-5.3-codex": 5, "gpt-5-codex": 5, "gpt-5.5": 5, "gpt-4o": 5, "o1": 5, "o3": 5,
-    "claude-opus-4": 5, "claude-opus": 5, "gemini-2.5-pro": 5,
-    "nemotron-3-ultra": 5,
-    "gpt-4.5": 5, "claude-3-7": 5, "gemini-2.0-ultra": 5,
-    "deepseek-r2": 5, "qwen3-235b": 5, "qwen3-72b": 5,
-    # 4 — Best
-    "gemini-2.5-flash": 4, "gemini-2.0-flash": 4,
-    "llama-3.3-70b": 4, "llama-3.1-70b": 4,
-    "mistral-large": 4, "mistral-medium": 4,
-    "command-r-plus": 4, "command-a": 4, "nvidia/nemotron-3-super": 4, "nemotron": 4,
-    "big-pickle": 4,
-    "deepseek-v4-flash": 4, "deepseek-v4": 4,  # capable but slow cold-start → "best", not first-choice
-    "deepseek-v3": 4, "deepseek-v2": 4,
-    "claude-sonnet": 4, "claude-3-5": 4, "grok-2": 4,
-    "qwen2.5-72b": 4, "qwen-72b": 4, "qwen3-32b": 4,
-    "phi-4": 4, "phi-4-reasoning": 4,
-    "mixtral-8x22b": 4, "wizardlm-2-8x22b": 4,
-    "yi-large": 4, "moonshot-v1": 4,
-    "llama-4-maverick": 4, "llama-4-scout": 4,
-    # 3 — Good
-    "gemini-2.5-flash-lite": 3, "gemini-1.5-flash": 3,
-    "gpt-4o-mini": 3, "gpt-oss-120b": 3,
-    "mistral-small": 3, "glm-4.5-flash": 3, "glm-4.7-flash": 3,
-    "llama-3.1-8b-instant": 3,
-    "qwen2.5-32b": 3, "qwen3-14b": 3, "qwen3-8b": 3,
-    "phi-3.5": 3, "phi-3-medium": 3,
-    "mixtral-8x7b": 3, "wizardlm-2-7b": 3,
-    "yi-medium": 3, "yi-6b": 3,
-    # 2 — Fair
-    "command-r7b": 2, "command-r7b-12-2024": 2,
-    "llama-3.2-3b": 2, "mistral-7b": 2,
-    "qwen2.5-7b": 2, "qwen3-4b": 2, "phi-3-mini": 2,
-    "phi-3.5-mini": 2, "yi-mini": 2,
-}
-_RATING_PATTERNS: list = [
-    (5, ["pro-exp", "ultra", "opus", "o3", "o1-pro", "405b", "671b", "r1-zero"]),
-    (4, ["70b", "large", "plus", "pro", "turbo", "super", "sonnet", "72b", "32b", "maverick", "scout", "phi-4", "wizardlm"]),
-    (3, ["flash", "small", "mini", "medium", "120b", "8b-instant", "glm-4", "14b", "22b", "mixtral", "qwen", "yi-m", "phi-3"]),
-    (2, ["7b", "8b", "lite", "fast", "r7b", "nano", "3b", "phi-3-mini", "phi-3.5-mini", "yi-mini", "4b"]),
-    (1, ["micro", "tiny", "1b"]),
-]
+# ── Selection: general intelligence ranking (GI, 0–100) ───────────────────────
+# Higher = stronger. Complexity maps to a minimum GI threshold; pick cheapest
+# eligible. See CONTEXT.md / ADR-0002. Snapshot: gi_rankings.json.
+CAPABILITY_SCALE_VERSION = 2  # legacy probe-state migration only (old rating field)
 _COMPLEXITY_LABELS = {1: "trivial", 2: "simple", 3: "standard", 4: "complex", 5: "critical"}
 
 # Approximate list prices (USD per 1M tokens) as (input, output), for cost
@@ -365,31 +322,9 @@ MODEL_PRICES: dict = {
     "kimi-k2":          (0.60, 2.50),
 }
 
-# Tie-breakers for equally priced/capable models. Lower is better. Ratings still
-# carry the broad capability class; this table nudges known strong model families
-# ahead when multiple candidates cost the same (common for free/subscription pools).
-MODEL_QUALITY_RANKS: dict = {
-    "big-pickle": 5,
-    "gpt-5": 10, "gpt-4o": 15, "o3": 15, "o1": 20,
-    "claude-opus": 10, "claude-sonnet": 20,
-    "gemini-2.5-pro": 15, "gemini-2.5-flash": 35,
-    "nemotron-3-ultra": 20, "nemotron-3-super": 35,
-    "deepseek-v4": 30, "deepseek-v3": 40,
-    "llama-4": 35, "llama-3.3-70b": 45,
-    "mistral-large": 40, "mistral-medium": 55,
-    "command-a": 45, "gpt-oss-120b": 55,
-}
-PROVIDER_QUALITY_RANKS: dict = {
-    "opencode": 10, "codex": 15, "openai": 20, "anthropic": 25,
-    "gemini": 30, "openrouter": 35, "cerebras": 40, "nvidia": 45,
-    "groq": 50, "mistral": 55, "cohere": 60, "sambanova": 65,
-    "kimi": 70, "zai": 75, "naga": 80, "github_models": 85,
-    "huggingface": 90, "local": 95,
-}
 _provider_state: dict = {}   # populated at startup by _initialize_ratings()
-# Per-(provider, model) capability — rating + tool/reasoning support. Keyed by
-# (provider_name, model). Lets selection treat each model in a provider's
-# comma-separated list as its own candidate, instead of inheriting the primary's.
+# Per-(provider, model) feature probe state (tools/reasoning). Keyed by
+# (provider_name, model). GI strength comes from gi_ranking, not this dict.
 _model_state: dict = {}
 
 
@@ -1215,15 +1150,9 @@ def _trigger_restart(delay_s: float = 1.2) -> None:
 
 # ── Smart routing helpers ─────────────────────────────────────────────────────
 
-def _rate_model(model_name: str) -> int:
-    mn = model_name.lower()
-    for key in sorted(KNOWN_MODEL_RATINGS, key=len, reverse=True):
-        if key in mn:
-            return KNOWN_MODEL_RATINGS[key]
-    for rating, patterns in _RATING_PATTERNS:
-        if any(p in mn for p in patterns):
-            return rating
-    return 3
+def _rate_model(model_name: str) -> float:
+    """Effective GI for a model id (snapshot/default only — no provider override)."""
+    return gi_ranking.resolve_gi("", model_name)[0]
 
 
 def _apply_price_overrides():
@@ -1245,7 +1174,7 @@ def _apply_price_overrides():
 
 def _price_model(model: str) -> tuple:
     """(input, output) USD per 1M tokens for a model; (0, 0) if unpriced/free.
-    Longest-substring match, mirroring _rate_model."""
+    Longest-substring match, mirroring GI snapshot matching."""
     mn = (model or "").lower()
     for key in sorted(MODEL_PRICES, key=len, reverse=True):
         if key in mn:
@@ -1257,17 +1186,6 @@ def _price_rank(model: str) -> float:
     """Single sortable price estimate. Unknown/free/subscription models are 0."""
     pin, pout = _price_model(model)
     return float(pin or 0.0) + float(pout or 0.0)
-
-
-def _quality_rank(provider_name: str, model: str) -> int:
-    """Lower is better. Used only after cost/tier tie-breaks, so it never makes a
-    known-expensive model beat a cheaper capable one."""
-    mn = (model or "").lower()
-    for key in sorted(MODEL_QUALITY_RANKS, key=len, reverse=True):
-        if key in mn:
-            return MODEL_QUALITY_RANKS[key]
-    # Fall back to capability (higher=stronger → lower sort key), then provider rank.
-    return (6 - _rate_model(model)) * 100 + PROVIDER_QUALITY_RANKS.get(provider_name, 99)
 
 
 def _cost(model: str, prompt_toks, completion_toks) -> float:
@@ -1293,13 +1211,18 @@ def _model_env_suffix(model: str) -> str:
 
 
 def _model_caps(name: str, model: str) -> dict:
-    """Per-(provider, model) capability with optimistic defaults. Rating is always
-    derivable (pattern-based, free); tools default to capable when unknown (mirrors
-    _supports_tools' stance) and reasoning defaults to off."""
+    """Per-(provider, model) GI + feature probes. GI from gi_ranking; tools default
+    capable when unknown; reasoning defaults to off."""
     st = _model_state.get((name, model))
     if st:
-        return st
-    return {"rating": _rate_model(model), "supports_tools": True, "reasoning": False}
+        out = dict(st)
+        gi, src = gi_ranking.resolve_gi(name, model)
+        out["gi"] = gi
+        out["gi_source"] = src
+        out.pop("rating", None)
+        return out
+    gi, src = gi_ranking.resolve_gi(name, model)
+    return {"gi": gi, "gi_source": src, "supports_tools": True, "reasoning": False}
 
 
 def _model_supports_tools(name: str, model: str) -> bool:
@@ -1319,7 +1242,7 @@ def _promote_tools_support(name: str, model: str) -> None:
         return
     if st is None:
         _model_state[(name, model)] = {
-            "rating": _rate_model(model), "supports_tools": True, "reasoning": False}
+            "supports_tools": True, "reasoning": False}
     else:
         st = dict(st)
         st["supports_tools"] = True
@@ -1475,7 +1398,7 @@ def _discover_models_with_catalog(provider: dict, key: str, free_only: bool = Fa
             filtered = [m for m in filtered if _is_free_model_id(m)]
         catalog = list(dict.fromkeys(catalog))
         filtered = list(dict.fromkeys(filtered))
-        sort_key = lambda m: (_price_rank(m), _quality_rank(provider["name"], m), m.lower())
+        sort_key = lambda m: (_price_rank(m), -_rate_model(m), m.lower())
         catalog.sort(key=sort_key)
         filtered.sort(key=sort_key)
         return filtered, catalog
@@ -1731,15 +1654,15 @@ def classify_complexity(messages: list) -> int:
 def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
                        prefer_local: bool = False, sticky: dict | None = None) -> list:
     """
-    Rank every configured (provider, model) for this complexity: cheapest capable
-    model first, then better same-price models, then too-weak as last resort. Never blocks. Returns
-    a flat list of candidate dicts {"provider": <provider>, "model": <model str>}.
+    Rank every configured (provider, model) for this complexity: cheapest model
+    that clears the min GI threshold first, then too-weak as last resort. Never
+    blocks. Returns a flat list of candidate dicts
+    {"provider": <provider>, "model": <model str>}.
 
-    Each model in a provider's comma-separated list is its own candidate, scored on
-    its OWN capability (wire key "rating") — so e.g. gemini-2.5-pro can be picked for a
-    hard request while gemini-2.5-flash-lite handles easy ones, instead of the extra models
-    only being rate-limit fallback. Within equal capability, a provider's models keep their
-    listed order (list_index tie-break), so cheapest-first ordering still holds.
+    Each model in a provider's comma-separated list is its own candidate, scored
+    on its OWN GI — so e.g. gemini-2.5-pro can be picked for a hard request while
+    gemini-2.5-flash-lite handles easy ones. Within equal price/GI overshoot, a
+    provider's models keep their listed order (list_index tie-break).
 
     When FAST_ROUTE_THRESHOLD is set and the request is shorter than it, low-latency
     providers win ties. With prefer_local (the `:fast` preference), a configured local
@@ -1749,19 +1672,20 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
     catalog, that candidate is moved to the front after scoring.
     """
     fast_first = FAST_ROUTE_TOKENS > 0 and 0 < est_tokens < FAST_ROUTE_TOKENS
+    min_gi = gi_ranking.min_gi_for_complexity(complexity)
 
     def _key(cand):
         p      = cand["provider"]
         model  = cand["model"]
         name   = p["name"]
-        rating = _model_caps(name, model)["rating"]
+        gi     = _model_caps(name, model)["gi"]
         avail  = _provider_state.get(name, {}).get("available", True)
         fast   = 0 if (fast_first and name in _FAST_PROVIDERS) else 1
         # `:fast` preference: a short/casual turn prefers the local model first.
         local_first = 0 if (prefer_local and name == "local" and complexity <= 3) else 1
-        # Health-aware terms — tier/sort_within stay FIRST so capability matching
+        # Health-aware terms — tier/sort_within stay FIRST so GI matching
         # is never overridden by health (a healthy weak model must not outrank the
-        # correct-capability one). When every candidate is healthy these two terms
+        # correct-GI one). When every candidate is healthy these two terms
         # are constant (0), leaving the existing tie order untouched.
         breaker_open = 1 if stats.breaker_open(name) else 0  # open breakers sink within tier
         health       = stats.health_bucket(name)             # 0 healthy / 1 degraded / 2 bad
@@ -1771,17 +1695,16 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         if _peek_key:
             _rate_score = 1.0 - rate_limiter.headroom(name, _peek_key, model)
         price   = _price_rank(model)
-        quality = _quality_rank(name, model)
-        if rating >= complexity:
+        if gi >= min_gi:
             tier        = 0
-            sort_within = rating - complexity   # 0 = perfect match, larger = overkill
+            sort_within = gi - min_gi   # 0 = on the bar, larger = overkill
         else:
             tier        = 1
-            sort_within = complexity - rating   # too weak — closest first
+            sort_within = min_gi - gi   # too weak — closest first
         # local_first leads the key so a preferred local model sorts ahead of all
         # others on easy turns; it's a constant 1 otherwise, leaving order unchanged.
-        # list_index trails so a provider's listed model order breaks capability ties.
-        return (local_first, tier, price, quality, sort_within, breaker_open, health,
+        # list_index trails so a provider's listed model order breaks GI ties.
+        return (local_first, tier, price, sort_within, breaker_open, health,
                 _rate_score, 0 if avail else 1, fast, cand["list_index"])
 
     candidates = [{"provider": p, "model": m, "list_index": i}
@@ -1800,7 +1723,7 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
 
 
 def _env_flag(name: str, suffix: str, model: str):
-    """Read a capability override env var, preferring the per-model form
+    """Read a feature-probe override env var, preferring the per-model form
     <PROVIDER>_<MODEL>_<SUFFIX> over the provider-wide <PROVIDER>_<SUFFIX>.
     Returns True/False if set, else None (= not overridden → probe)."""
     val = os.environ.get(f"{name.upper()}_{_model_env_suffix(model)}_{suffix}")
@@ -1812,9 +1735,9 @@ def _env_flag(name: str, suffix: str, model: str):
 
 
 def _resolve_caps(p: dict, key: str, model: str, ok: bool) -> dict:
-    """Capability for one (provider, model): rating (free, pattern-based) plus
-    tool/reasoning support. An env override (per-model first, then provider-wide)
-    wins; otherwise probe the model when the provider is reachable.
+    """Feature probes for one (provider, model). GI is resolved separately via
+    gi_ranking. An env override (per-model first, then provider-wide) wins;
+    otherwise probe the model when the provider is reachable.
 
     _probe_tools returns None when the probe itself was inconclusive (network
     error / non-200, often a free-tier RPM cap already hit by earlier probes in
@@ -1832,7 +1755,7 @@ def _resolve_caps(p: dict, key: str, model: str, ok: bool) -> dict:
         supports_tools = True if probed is None else probed
     er = _env_flag(name, "REASONING", model)
     reasoning = er if er is not None else (_probe_reasoning(p, key, model) if ok else False)
-    return {"rating": _rate_model(model), "supports_tools": supports_tools, "reasoning": reasoning}
+    return {"supports_tools": supports_tools, "reasoning": reasoning}
 
 
 def _migrate_capability_scale(doc: dict) -> dict:
@@ -1917,10 +1840,10 @@ def _initialize_ratings(providers: list, pool_ref):
         name  = p["name"]
         key   = pool_ref.first_key(name)
         if not key:
-            new_state[name] = {"rating": _rate_model(p["model"]), "model": p["model"],
+            new_state[name] = {"model": p["model"],
                                 "available": False, "latency_ms": 0, "overridden": False}
             for m in (p.get("models") or [p["model"]]):
-                new_model_state[(name, m)] = {"rating": _rate_model(m),
+                new_model_state[(name, m)] = {
                                               "supports_tools": False, "reasoning": False}
             continue
         _refresh_discovered_models(p, key, pool_ref)
@@ -1938,12 +1861,16 @@ def _initialize_ratings(providers: list, pool_ref):
                 p["models"][0] = actual
                 p["models"] = list(dict.fromkeys(p["models"]))
             pool_ref.rename_model(name, original, actual)
-        # Per-model capabilities for the whole list (primary = models[0] = actual).
+        # Per-model feature probes for the whole list (primary = models[0] = actual).
         # Reuse a cached entry when present so adding one model doesn't re-probe all.
         for m in (p.get("models") or [actual]):
             caps = cached_models.get((name, m)) or _resolve_caps(p, key, m, caps_probe_ok)
+            # Drop legacy rating field from cached probe state — GI is separate.
+            if isinstance(caps, dict) and "rating" in caps:
+                caps = {k: v for k, v in caps.items() if k != "rating"}
             new_model_state[(name, m)] = caps
-            log.info(f"[ratings]   {name}/{m}: capability={caps['rating']} "
+            gi, gi_src = gi_ranking.resolve_gi(name, m)
+            log.info(f"[ratings]   {name}/{m}: gi={gi:.1f} ({gi_src}) "
                      f"tools={'yes' if caps['supports_tools'] else 'no'} "
                      f"reasoning={'yes' if caps['reasoning'] else 'no'}")
         # Provider-level fields mirror the primary model's caps (back-compat).
@@ -1951,7 +1878,7 @@ def _initialize_ratings(providers: list, pool_ref):
         available = ok or probe_status in ("rate_limited", "http", "timeout")
         log.info(f"[ratings]   {name}: {'✓' if available else '✗'} model={actual} {latency:.0f}ms "
                  f"status={probe_status}")
-        new_state[name] = {"rating": prim["rating"], "model": actual, "available": available,
+        new_state[name] = {"model": actual, "available": available,
                             "latency_ms": round(latency, 1), "overridden": overridden,
                             "original_model": original, "supports_tools": prim["supports_tools"],
                             "reasoning": prim["reasoning"], "probe_status": probe_status}
@@ -2238,7 +2165,9 @@ def _configured_rate_group_ids() -> set[str]:
     return ids
 
 
-# Background: validate providers, fix models, assign ratings
+# Background: load GI snapshot/overrides, then validate providers / feature probes
+gi_ranking.load_snapshot()
+gi_ranking.load_overrides()
 threading.Thread(target=_initialize_ratings, args=(PROVIDERS, pool), daemon=True).start()
 
 # ── Per-provider stats ─────────────────────────────────────────────────────────
@@ -3766,14 +3695,12 @@ th.sortable.sorted-desc::after{content:'↓'}
 .pill-warn{background:rgba(250,204,21,.12);color:var(--yellow)}
 .pill-grey{background:rgba(136,146,164,.12);color:var(--muted)}
 
-/* ── capability bar (higher = stronger; wire field still "rating") ── */
-.rating-bar{display:flex;gap:3px;align-items:center}
-.rating-pip{width:9px;height:9px;border-radius:2px;background:var(--border)}
-.r1 .rating-pip.active{background:var(--red)}
-.r2 .rating-pip.active{background:var(--yellow)}
-.r3 .rating-pip.active{background:var(--accent)}
-.r4 .rating-pip.active{background:#22d3ee}
-.r5 .rating-pip.active{background:var(--green)}
+/* ── GI bar (0–100; higher = stronger) ── */
+.gi-bar{display:inline-flex;align-items:center;gap:6px}
+.gi-track{width:48px;height:6px;border-radius:99px;background:var(--border);overflow:hidden}
+.gi-fill{height:100%;border-radius:99px;background:var(--accent)}
+.gi-num{font-size:11px;font-variant-numeric:tabular-nums}
+.gi-src{font-size:10px;color:var(--muted)}
 
 /* ── progress bar ── */
 .prog-track{background:var(--surface2);border-radius:99px;height:5px;min-width:80px;overflow:hidden}
@@ -3867,6 +3794,7 @@ th.sortable.sorted-desc::after{content:'↓'}
     </div>
     <div class="panel-body">
       <div id="rl-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
+      <div id="rl-detail-gi" class="hidden" style="padding:8px 12px;border-top:1px solid var(--border);font-size:12px"></div>
       <div id="rl-detail-body"></div>
     </div>
   </div>
@@ -3977,7 +3905,7 @@ th.sortable.sorted-desc::after{content:'↓'}
           <div class="panel-body">
             <table>
               <thead><tr>
-                <th>Provider</th><th>Model</th><th>Capability</th>
+                <th>Provider</th><th>Model</th><th>GI</th>
                 <th class="right">Requests</th><th class="right">Errors</th>
                 <th class="right">Err %</th><th class="right">Avg Latency</th>
                 <th class="right">Tokens</th><th class="right">Cost (USD)</th>
@@ -4119,7 +4047,7 @@ th.sortable.sorted-desc::after{content:'↓'}
             </label>
           </div>
           <div class="page-intro" style="padding:12px 14px 0">
-            Per-model capabilities and authoritative rate headroom. Click a row for all key buckets.
+            Per-model general intelligence (GI) and authoritative rate headroom. Click a row for details.
           </div>
           <div class="panel-body">
             <table>
@@ -4127,7 +4055,7 @@ th.sortable.sorted-desc::after{content:'↓'}
                 <th class="sortable" data-sort="model" onclick="sortRateLimits('model','model')">Model</th>
                 <th class="sortable" data-sort="provider" onclick="sortRateLimits('model','provider')">Provider</th>
                 <th>Key</th>
-                <th class="sortable" data-sort="rating" onclick="sortRateLimits('model','rating')">Capability</th>
+                <th class="sortable" data-sort="gi" onclick="sortRateLimits('model','gi')">GI</th>
                 <th>Tools</th><th>Reasoning</th>
                 <th class="sortable" data-sort="binding" onclick="sortRateLimits('model','binding')">Limiting factor</th>
                 <th class="sortable sorted-asc" data-sort="headroom" onclick="sortRateLimits('model','headroom')">Headroom</th>
@@ -4356,12 +4284,17 @@ function el(tag, cls, html) {
 }
 
 function ratingPips(r) {
-  if (!r) return '<span class="muted">—</span>';
-  const cls = ['','r1','r2','r3','r4','r5'][r] || 'r1';
-  const labels = ['','Weakest','Fair','Good','Strong','Strongest'];
-  let h = `<div class="rating-bar ${cls}" title="Capability ${r}/5 — ${labels[r]||''}">`;
-  for (let i=1;i<=5;i++) h += `<div class="rating-pip ${i<=r?'active':''}"></div>`;
-  return h + '</div>';
+  return giBadge(r, null);
+}
+
+function giBadge(gi, src) {
+  if (gi == null || gi === '' || !isFinite(Number(gi))) return '<span class="muted">—</span>';
+  const pct = Math.max(0, Math.min(100, Number(gi)));
+  const srcLabel = src ? ` <span class="gi-src">(${esc(src)})</span>` : '';
+  return `<span class="gi-bar" title="General intelligence ${pct.toFixed(1)}/100${src ? ' · ' + src : ''}">
+    <span class="gi-track"><span class="gi-fill" style="width:${pct}%"></span></span>
+    <span class="gi-num">${pct.toFixed(0)}</span>${srcLabel}
+  </span>`;
 }
 
 function statusPill(s, breaker) {
@@ -4559,7 +4492,7 @@ function renderProviders() {
     tr.innerHTML = `
       <td><strong>${name}</strong></td>
       <td class="muted mono" style="max-width:160px;overflow:hidden;text-overflow:ellipsis" title="${p.model||''}">${p.model||'—'}</td>
-      <td>${ratingPips(p.rating)}</td>
+      <td>${giBadge(p.gi, p.gi_source)}</td>
       <td class="right">${fmt.num(req)}</td>
       <td class="right ${err>0?'':'muted'}">${fmt.num(err)}</td>
       <td class="right" style="color:${erp>10?'var(--red)':erp>3?'var(--yellow)':'var(--muted)'}">${req?fmt.pct(erp):'—'}</td>
@@ -5050,13 +4983,13 @@ function _collectCombinedModelRows(showOrphans) {
   Object.entries(prov).forEach(([name, p]) => {
     const caps = p.model_caps;
     const entries = (caps && caps.length)
-      ? caps.map(mc => ({model: mc.model, rating: mc.rating, tools: mc.supports_tools, reasoning: mc.reasoning}))
-      : (p.model ? [{model: p.model, rating: p.rating, tools: p.supports_tools, reasoning: p.reasoning}] : []);
+      ? caps.map(mc => ({model: mc.model, gi: mc.gi, gi_source: mc.gi_source, tools: mc.supports_tools, reasoning: mc.reasoning}))
+      : (p.model ? [{model: p.model, gi: p.gi, gi_source: p.gi_source, tools: p.supports_tools, reasoning: p.reasoning}] : []);
     entries.forEach(e => {
       if (!e.model) return;
       const k = _modelRowKey(name, e.model);
       byKey.set(k, {
-        provider: name, model: e.model, rating: e.rating,
+        provider: name, model: e.model, gi: e.gi, gi_source: e.gi_source,
         tools: e.tools, reasoning: e.reasoning, orphan: false, groups: [],
       });
     });
@@ -5070,7 +5003,7 @@ function _collectCombinedModelRows(showOrphans) {
     if (!row) {
       if (!showOrphans) continue;
       row = {
-        provider: g.provider, model: g.model || '', rating: null,
+        provider: g.provider, model: g.model || '', gi: null, gi_source: null,
         tools: null, reasoning: null, orphan: true, groups: [],
       };
       byKey.set(k, row);
@@ -5087,7 +5020,7 @@ function _collectCombinedModelRows(showOrphans) {
 function _modelSortValue(row, key) {
   if (key === 'model') return row.model || '';
   if (key === 'provider') return row.provider || '';
-  if (key === 'rating') return row.rating == null ? null : row.rating;
+  if (key === 'gi' || key === 'rating') return row.gi == null ? null : row.gi;
   if (key === 'binding') return row.binding || null;
   if (key === 'headroom') return row.headroom == null ? null : row.headroom;
   return null;
@@ -5139,7 +5072,7 @@ function renderCombinedModels() {
       <td><strong class="mono">${esc(row.model || '—')}</strong></td>
       <td class="muted">${esc(row.provider)}</td>
       <td>${_modelKeyDots(row.provider, row.groups)}</td>
-      <td>${row.rating != null ? ratingPips(row.rating) : '<span class="muted">—</span>'}</td>
+      <td>${row.gi != null ? giBadge(row.gi, row.gi_source) : '<span class="muted">—</span>'}</td>
       <td>${tools}</td>
       <td>${reasoning}</td>
       <td>${row.binding || '<span class="muted">—</span>'}</td>
@@ -5395,6 +5328,32 @@ function renderRateDetail(groups) {
     }
   }
 
+  const giBox = document.getElementById('rl-detail-gi');
+  if (giBox) {
+    if (selectedModelRow) {
+      giBox.classList.remove('hidden');
+      const row = _collectCombinedModelRows(true).find(r =>
+        r.provider === selectedModelRow.provider && r.model === selectedModelRow.model);
+      const gi = row && row.gi != null ? row.gi : '';
+      const src = row && row.gi_source ? row.gi_source : '';
+      const clearBtn = src === 'override'
+        ? `<button class="btn" type="button" onclick="clearGiOverride()">Clear override</button>`
+        : '';
+      giBox.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <strong>GI</strong> ${giBadge(gi === '' ? null : gi, src || null)}
+          <label class="muted">Set <input id="rl-gi-input" type="number" min="0" max="100" step="0.1"
+            value="${gi === '' ? '' : Number(gi).toFixed(1)}"
+            style="width:72px;margin-left:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px"></label>
+          <button class="btn" type="button" onclick="saveGiOverride()">Save</button>
+          ${clearBtn}
+        </div>`;
+    } else {
+      giBox.classList.add('hidden');
+      giBox.innerHTML = '';
+    }
+  }
+
   if (selectedModelRow) {
     document.getElementById('rl-detail-title').textContent =
       (selectedModelRow.model || '—') + ' · ' + selectedModelRow.provider;
@@ -5440,6 +5399,59 @@ function renderRateDetail(groups) {
   body.querySelectorAll('[data-rl-clear]').forEach(btn => {
     btn.addEventListener('click', () => clearRateGroup(btn.getAttribute('data-rl-clear')));
   });
+}
+
+async function saveGiOverride() {
+  if (!selectedModelRow || !apiKey) return;
+  const input = document.getElementById('rl-gi-input');
+  const gi = Number(input && input.value);
+  if (!isFinite(gi) || gi < 0 || gi > 100) {
+    alert('GI must be a number between 0 and 100');
+    return;
+  }
+  try {
+    const r = await fetch('/v1/config/gi-override', {
+      method: 'PUT',
+      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        provider: selectedModelRow.provider,
+        model: selectedModelRow.model,
+        gi,
+      }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      alert((data.error && data.error.message) || ('Save failed: HTTP ' + r.status));
+      return;
+    }
+    await refresh();
+    await refreshRateLimits();
+  } catch (e) {
+    alert('Save failed: ' + e);
+  }
+}
+
+async function clearGiOverride() {
+  if (!selectedModelRow || !apiKey) return;
+  try {
+    const r = await fetch('/v1/config/gi-override', {
+      method: 'DELETE',
+      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        provider: selectedModelRow.provider,
+        model: selectedModelRow.model,
+      }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      alert((data.error && data.error.message) || ('Clear failed: HTTP ' + r.status));
+      return;
+    }
+    await refresh();
+    await refreshRateLimits();
+  } catch (e) {
+    alert('Clear failed: ' + e);
+  }
 }
 
 async function clearRateGroup(id) {
@@ -6477,7 +6489,7 @@ def embeddings():
 # view + friendly toggle, so behavior is unchanged whether or not you use it.
 CORE_FEATURES = [
     "auth", "credential_pool", "key_rotation", "failover", "circuit_breaker",
-    "smart_routing", "protocol_translation", "capability_probing", "token_counting",
+    "smart_routing", "protocol_translation", "feature_probing", "token_counting",
     "request_guardrails", "usage_cost_tracking",
 ]
 
@@ -6666,6 +6678,61 @@ def config_exclude_model():
         "model": model,
         "blocked": blocked,
         "excluded": excluded,
+    })
+
+
+@app.route("/v1/config/gi-override", methods=["PUT"])
+def config_gi_override_put():
+    """Set a manual GI override. Body: {provider, model, gi} with gi in 0–100."""
+    err = _auth_check()
+    if err:
+        return err
+    body = request.get_json(force=True, silent=True) or {}
+    provider = (body.get("provider") or "").strip()
+    model = (body.get("model") or "").strip()
+    if not provider:
+        return jsonify({"error": {"message": "missing 'provider'",
+                                  "type": "invalid_request_error"}}), 400
+    if not model:
+        return jsonify({"error": {"message": "missing 'model'",
+                                  "type": "invalid_request_error"}}), 400
+    if "gi" not in body:
+        return jsonify({"error": {"message": "missing 'gi'",
+                                  "type": "invalid_request_error"}}), 400
+    try:
+        score = gi_ranking.set_override(provider, model, body["gi"])
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": {"message": str(e),
+                                  "type": "invalid_request_error"}}), 400
+    except OSError as e:
+        return jsonify({"error": {"message": f"failed to persist override: {e}",
+                                  "type": "server_error"}}), 500
+    return jsonify({
+        "provider": provider, "model": model, "gi": score, "gi_source": "override",
+    })
+
+
+@app.route("/v1/config/gi-override", methods=["DELETE"])
+def config_gi_override_delete():
+    """Clear a manual GI override. Body: {provider, model}."""
+    err = _auth_check()
+    if err:
+        return err
+    body = request.get_json(force=True, silent=True) or {}
+    provider = (body.get("provider") or "").strip()
+    model = (body.get("model") or "").strip()
+    if not provider or not model:
+        return jsonify({"error": {"message": "provider and model are required",
+                                  "type": "invalid_request_error"}}), 400
+    try:
+        cleared = gi_ranking.clear_override(provider, model)
+    except OSError as e:
+        return jsonify({"error": {"message": f"failed to persist override: {e}",
+                                  "type": "server_error"}}), 500
+    gi, src = gi_ranking.resolve_gi(provider, model)
+    return jsonify({
+        "provider": provider, "model": model, "cleared": cleared,
+        "gi": gi, "gi_source": src,
     })
 
 
@@ -6886,20 +6953,23 @@ def status():
             "tokens": _provider_tokens.get(p["name"], 0),
             "cost_usd": round(_provider_cost.get(p["name"], 0.0), 6),
         }
-        # Surface the internal routing signals (rating + probe latency + model)
+        # Surface routing signals (GI + probe latency + model)
         # so dashboards can show them. Added only when known, so un-probed
         # providers still fall back to the dashboard's "?"/"—" placeholders.
         st = _provider_state.get(p["name"], {})
-        if st.get("rating") is not None:
-            entry["rating"] = st["rating"]
+        _models = p.get("models") or [p.get("model", "")]
+        if _models and _models[0]:
+            _gi, _gi_src = gi_ranking.resolve_gi(p["name"], _models[0])
+            entry["gi"] = _gi
+            entry["gi_source"] = _gi_src
         if st.get("latency_ms"):
             entry["latency_ms"] = st["latency_ms"]
         if st.get("model"):
             entry["model"] = st["model"]
         if p.get("models"):
             entry["models"] = p["models"]
-            # Per-model capability breakdown (rating + tool/reasoning support), so
-            # dashboards can show why a non-primary model gets picked for hard turns.
+            # Per-model GI + tool/reasoning support, so dashboards can show why
+            # a non-primary model gets picked for hard turns.
             entry["model_caps"] = [
                 {"model": m, **_model_caps(p["name"], m)} for m in p["models"]]
         if "available" in st:
@@ -6912,7 +6982,6 @@ def status():
             entry["skip_if_tokens_over"] = p["skip_if_tokens_over"]
         if p.get("max_output_tokens"):
             entry["max_output_tokens"] = p["max_output_tokens"]
-        _models = p.get("models") or [p.get("model", "")]
         _tc = {}
         for _m in _models:
             _snap = token_caps.snapshot(p["name"], _m)

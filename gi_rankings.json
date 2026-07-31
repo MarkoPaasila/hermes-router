@@ -1,0 +1,436 @@
+{
+  "version": 1,
+  "generated_at": "2026-07-31T19:59:56Z",
+  "sources": [
+    "seed"
+  ],
+  "note": "Initial seed mapped from legacy capability buckets. Replace via scripts/refresh_gi_rankings.py with LMSYS + Artificial Analysis medians.",
+  "models": {
+    "gpt-5.3-codex": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gpt-5-codex": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gpt-5.5": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gpt-4o": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "o1": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "o3": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "claude-opus-4": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "claude-opus": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gemini-2.5-pro": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "nemotron-3-ultra": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gpt-4.5": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "claude-3-7": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gemini-2.0-ultra": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "deepseek-r2": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "qwen3-235b": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "qwen3-72b": {
+      "gi": 90.0,
+      "sources": {
+        "seed": 90.0
+      }
+    },
+    "gemini-2.5-flash": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "gemini-2.0-flash": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "llama-3.3-70b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "llama-3.1-70b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "mistral-large": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "mistral-medium": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "command-r-plus": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "command-a": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "nvidia/nemotron-3-super": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "nemotron": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "big-pickle": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "deepseek-v4-flash": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "deepseek-v4": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "deepseek-v3": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "deepseek-v2": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "claude-sonnet": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "claude-3-5": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "grok-2": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "qwen2.5-72b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "qwen-72b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "qwen3-32b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "phi-4": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "phi-4-reasoning": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "mixtral-8x22b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "wizardlm-2-8x22b": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "yi-large": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "moonshot-v1": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "llama-4-maverick": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "llama-4-scout": {
+      "gi": 72.0,
+      "sources": {
+        "seed": 72.0
+      }
+    },
+    "gemini-2.5-flash-lite": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "gemini-1.5-flash": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "gpt-4o-mini": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "gpt-oss-120b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "mistral-small": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "glm-4.5-flash": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "glm-4.7-flash": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "llama-3.1-8b-instant": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "qwen2.5-32b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "qwen3-14b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "qwen3-8b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "phi-3.5": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "phi-3-medium": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "mixtral-8x7b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "wizardlm-2-7b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "yi-medium": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "yi-6b": {
+      "gi": 50.0,
+      "sources": {
+        "seed": 50.0
+      }
+    },
+    "command-r7b": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "command-r7b-12-2024": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "llama-3.2-3b": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "mistral-7b": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "qwen2.5-7b": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "qwen3-4b": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "phi-3-mini": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "phi-3.5-mini": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    },
+    "yi-mini": {
+      "gi": 30.0,
+      "sources": {
+        "seed": 30.0
+      }
+    }
+  }
+}

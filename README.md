@@ -83,8 +83,9 @@ flows through it like this:
   cool-downs are only for health **failures** (network/5xx). Key usage counts are visible in
   `/v1/status` and the web dashboard.
 - **Selection** — each request is scored 1–5 for **complexity** (1=easiest … 5=hardest), and each
-  `(provider, model)` catalog entry is scored 1–5 for **capability** (1=weakest … 5=strongest).
-  The proxy picks the *cheapest* candidate that can still handle the request. With a session id,
+  `(provider, model)` catalog entry gets a **general intelligence ranking (GI)** from 0–100
+  (higher = stronger; snapshot defaults + dashboard overrides). Complexity maps to a minimum GI;
+  the proxy picks the *cheapest* candidate that clears that bar. With a session id,
   **session affinity** reuses the same `(provider, model, key)` until fallback leaves it. Tool
   requests only go to tool-capable models.
 - **Fallback** — if a candidate cannot serve (rate-limit, error, timeout), the proxy **cascades**

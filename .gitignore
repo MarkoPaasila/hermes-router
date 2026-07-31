@@ -6,6 +6,7 @@ auth.json
 router_state.json
 token_caps_state.json
 rate_limits_state.json
+gi_overrides.json
 
 # Opt-in TBF learning telemetry (RATE_BUCKET_CSV_ENABLED)
 rate_bucket_events.csv

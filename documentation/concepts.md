@@ -76,5 +76,5 @@ capacity exhaustion — and exactly what hermes-router falls back around by swit
 
 ### Fallback
 Moving to the next catalog candidate when the current one cannot serve the request — including
-rate-limits, errors, timeouts, and capability skips. Rate-limits are not failures.
+rate-limits, errors, timeouts, and GI / below-threshold skips. Rate-limits are not failures.
 

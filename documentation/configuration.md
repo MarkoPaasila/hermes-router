@@ -10,7 +10,7 @@ hermes-router splits its behavior into two groups:
 
 - **Core features** — always on; they *are* the proxy. Auth, the credential pool + key affinity
   selection, fallback, the circuit breaker, catalog selection, protocol translation
-  (OpenAI/Anthropic-provider/Codex outbound), capability probing, token counting, request guardrails, and
+  (OpenAI/Anthropic-provider/Codex outbound), feature probing, token counting, request guardrails, and
   usage/cost tracking.
 - **Add-ons** — optional behaviors you turn on when you want them. Each is backed by an
   environment variable (or some `auth.json` config), and unset = off (except the response
@@ -230,16 +230,27 @@ machine. It's keyless (cloud providers remain the fallback). See
 | `GEMINI_EMBED_MODEL` | `gemini-embedding-001` | Embedding model (empty disables this provider for `/v1/embeddings`) |
 | `<PROVIDER>_EMBED_MODEL` | *(gemini/mistral/cohere set)* | Same pattern for embeddings; set empty to disable |
 
-### Per-provider capability overrides
+### Per-provider feature overrides
 
 The proxy auto-probes each provider at startup, but you can force the result:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `<PROVIDER>_SUPPORTS_TOOLS` | *(auto-probed)* | Force tool-capability on/off (`1`/`0`) |
+| `<PROVIDER>_SUPPORTS_TOOLS` | *(auto-probed)* | Force tool support on/off (`1`/`0`) |
 | `<PROVIDER>_REASONING` | *(auto-probed)* | Force reasoning-model on/off (`1`/`0`) |
 | `<PROVIDER>_SKIP_TOKENS_OVER` | *(per provider)* | Skip this provider when an estimated request exceeds this many tokens (`0` = never). With `TOKEN_CAPS=1`, this is an outer fence — per-model learned caps may only tighten further. |
 | `<PROVIDER>_MAX_OUTPUT_TOKENS` | *(per provider)* | Clamp `max_tokens` down to this provider's output ceiling (`0` = no clamp). With `TOKEN_CAPS=1`, this is an outer fence — per-model learned caps may only tighten further. |
+
+### General intelligence ranking
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GI_RANKINGS_FILE` | `./gi_rankings.json` | Checked-in snapshot of default GI scores (0–100) |
+| `GI_OVERRIDES_FILE` | `./gi_overrides.json` | Dashboard overrides (set/clear from the Models modal) |
+
+Rebuild the snapshot with `scripts/refresh_gi_rankings.py` from LMSYS Arena and Artificial
+Analysis JSON exports (median of min–max-normalized scores). Unknown models score **0** until
+you assign an override.
 
 ## Model overrides
 
@@ -269,14 +280,13 @@ Free-tier rate limits are almost always **per-model**, so each model is its own 
 bucket. When the first model hits its limit (429), the proxy **falls back to the next model
 on the same key** before cascading to the next provider — multiplying free throughput along a
 new axis (keys × models × providers), with no extra signups. Each model is **also a first-class
-routing candidate**, scored on its own rating and capability — so the proxy can pick the right
+routing candidate**, scored on its own GI and tool/reasoning support — so the proxy can pick the right
 model in the list for each request (e.g. a stronger model for a hard or tool-using turn), not just
-fall over to it. Within equal cost/capability buckets, the proxy prefers known stronger model
-families, then falls back to your listed order.
+fall over to it. Within equal cost, lower GI overshoot wins; listed order breaks remaining ties.
 
 > **Mixing model classes is fine.** Tool-calling and reasoning are detected **per model** at
 > startup, so you can safely list models of different classes (e.g.
-> `gemini-2.5-flash-lite,gemini-2.5-pro`) — each is routed and gated on its own capability. Force a
+> `gemini-2.5-flash-lite,gemini-2.5-pro`) — each is routed and gated on its own GI and features. Force a
 > result per model with `<PROVIDER>_<MODEL>_SUPPORTS_TOOLS` / `_REASONING` (model id upper-cased,
 > non-alphanumerics → `_`, e.g. `GEMINI_GEMINI_2_5_PRO_SUPPORTS_TOOLS=1`); the provider-wide
 > `<PROVIDER>_SUPPORTS_TOOLS` / `_REASONING` still applies as the default for all its models.

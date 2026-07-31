@@ -1,6 +1,6 @@
 # Invert complexity and capability so higher means more
 
-**Status:** accepted (implemented)
+**Status:** accepted (implemented); capability half **superseded** by [ADR-0002](0002-general-intelligence-ranking.md) (GI 0–100). Complexity scale from this ADR remains.
 
 Shipping code and docs scored request complexity **1 = hardest … 5 = easiest** and model capability **1 = strongest … 5 = weakest** (catalog match: `rating <= complexity`). We decided the ubiquitous language is the opposite: **Complexity 1 = easiest … 5 = hardest**, **Capability 1 = weakest … 5 = strongest**, so “higher” always means “more.” `CONTEXT.md` is the target; code, docs, and UI renumber together.
 

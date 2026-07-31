@@ -7,8 +7,8 @@ language. For the technical version (scoring formulas, code paths), see the
 **[Architecture section of the README](../README.md#architecture)**.
 
 **The short version:** every request gets a **complexity** score, every model gets a
-**capability** score, and the proxy sends it to the cheapest model that can still do the job —
-skipping anything that can't, and cascading to the next option automatically when needed.
+**general intelligence ranking (GI)**, and the proxy sends it to the cheapest model that clears
+the complexity→GI threshold — cascading to the next option automatically when needed.
 
 ## Chat completion selection
 
@@ -17,13 +17,14 @@ This is the core of the proxy, used by every chat request.
 - Your message gets a **complexity score from 1 (easiest) to 5 (hardest)** just from reading it —
   no extra AI call. Words like "implement," "design," or "debug" push it toward "hard"; something
   like "what year was X" or "yes or no" pushes it toward "easy."
-- Every configured model has a **capability from 1 (weakest) to 5 (strongest)**, based on
-  its name (e.g. `gemini-2.5-pro` scores higher than `gemini-2.5-flash-lite`).
+- Every configured model has a **general intelligence ranking from 0–100** (higher = stronger),
+  from the LMSYS + Artificial Analysis snapshot (`gi_rankings.json`), with optional dashboard
+  overrides. Unknown models default to **0** (bottom of pack) until you assign a score.
 - The proxy builds a **full catalog** of every configured `(provider, model)` **candidate** and
-  picks the **cheapest model that's still capable enough** for the request — across the whole
-  catalog, not one provider at a time. A trivial question never gets sent to your most powerful
-  (and often priciest or slowest) model, and a hard question is never left with a model too weak
-  to handle it.
+  picks the **cheapest model that meets the minimum GI** for the request's complexity — across the
+  whole catalog, not one provider at a time. A trivial question never gets sent to your most
+  powerful (and often priciest or slowest) model, and a hard question is never left with a model
+  too weak to handle it.
 - If the chosen model is rate-limited, down, or errors — the proxy **falls back** along the
   **cascade** (ordered try-list). Your client just gets an answer; it never sees the failed attempt.
 - Models that return **404** or a **model-not-found / not-supported** style **400** are cooled as
@@ -41,7 +42,7 @@ as its own catalog candidate — easy requests land on `flash-lite`, hard ones c
 
 When your client sends a **session id**, the proxy remembers the winning
 `(provider, model, key)` for that conversation and reuses it on later turns until **fallback**
-forces the cascade to leave that candidate (real upstream 429 / Retry-After, error, capability
+forces the cascade to leave that candidate (real upstream 429 / Retry-After, error, GI
 skip, etc.). Learned rate-limit **headroom estimates** do not abandon the affine candidate —
 the session is allowed to bump into limits so learning can happen. That keeps multi-turn chats on
 the same upstream account and model instead of bouncing around the catalog every message.
@@ -70,7 +71,7 @@ the weather — instead of just answering in text. See **[concepts.md](concepts.
 Not every model can do this. When your request includes `tools`, the proxy **only considers
 models known to support tool calling** — skipping ones that would just ignore the tool and
 answer conversationally instead of calling it. This is detected automatically per model at
-startup (see [configuration.md](configuration.md#per-provider-capability-overrides) to override a
+startup (see [configuration.md](configuration.md#per-provider-feature-overrides) to override a
 result manually with `<PROVIDER>_SUPPORTS_TOOLS`).
 
 **Safety net:** if the proxy can't confirm *any* candidate supports tools (e.g. every provider is
