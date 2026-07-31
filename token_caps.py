@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from pathlib import Path
@@ -13,6 +14,23 @@ CUT_FACTOR = 0.9
 RAISE_FACTOR = 1.05
 NEAR_CAP_RATIO = 0.85
 MIN_CAP = 256
+CONF_METADATA = 0.3
+CONF_FAILURE_BUMP = 0.4
+CONF_SUCCESS_BUMP = 0.1
+_LEGACY_SOURCE_CONF = {"learned": 0.85, "mixed": 0.6, "metadata": 0.3}
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+TOKEN_CAPS_HARD_CONFIDENCE = _float_env("TOKEN_CAPS_HARD_CONFIDENCE", 0.7)
 
 _INPUT_FIELDS = (
     "context_length", "max_model_len", "max_input_tokens", "max_position_embeddings",
@@ -105,12 +123,27 @@ def _min_cap(env_bound: int, tracker_val: int | None) -> int | None:
     return min(candidates)
 
 
+def _clamp_conf(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _legacy_confidence(source: str | None, has_cap: bool) -> float:
+    if not has_cap:
+        return 0.0
+    return float(_LEGACY_SOURCE_CONF.get(source or "learned", 0.0))
+
+
 class TokenCapTracker:
-    def __init__(self, state_file: Path, enabled: bool = True):
+    def __init__(self, state_file: Path, enabled: bool = True,
+                 hard_confidence: float | None = None):
         self.state_file = Path(state_file)
         self.enabled = enabled
+        self.hard_confidence = (
+            TOKEN_CAPS_HARD_CONFIDENCE if hard_confidence is None
+            else float(hard_confidence)
+        )
         self._lock = threading.Lock()
-        # (provider, model) -> {max_input, max_output, source, updated_at}
+        # (provider, model) -> caps + per-side confidence + source
         self._caps: dict[tuple[str, str], dict] = {}
 
     def _entry(self, provider: str, model: str) -> dict:
@@ -119,10 +152,16 @@ class TokenCapTracker:
             self._caps[key] = {
                 "max_input": None,
                 "max_output": None,
+                "input_confidence": 0.0,
+                "output_confidence": 0.0,
                 "source": "metadata",
                 "updated_at": time.time(),
             }
         return self._caps[key]
+
+    def _bump_confidence(self, e: dict, kind: str, delta: float) -> None:
+        field = "input_confidence" if kind == "input" else "output_confidence"
+        e[field] = _clamp_conf(float(e.get(field) or 0.0) + delta)
 
     def effective_input_cap(self, provider: str, model: str, env_bound: int) -> int | None:
         with self._lock:
@@ -142,6 +181,33 @@ class TokenCapTracker:
                     raw = e.get("max_output")
             return _min_cap(env_bound, raw)
 
+    def hard_input_cap(self, provider: str, model: str, env_bound: int) -> int | None:
+        """Learned/metadata input cap only when confidence is high enough to hard-skip.
+
+        Env fence is always returned when set (caller may also apply env separately).
+        """
+        with self._lock:
+            raw = None
+            conf = 0.0
+            if self.enabled:
+                e = self._caps.get((provider, model))
+                if e and e.get("max_input"):
+                    conf = float(e.get("input_confidence") or 0.0)
+                    if conf >= self.hard_confidence:
+                        raw = e.get("max_input")
+            return _min_cap(env_bound, raw)
+
+    def hard_output_cap(self, provider: str, model: str, env_bound: int) -> int | None:
+        with self._lock:
+            raw = None
+            if self.enabled:
+                e = self._caps.get((provider, model))
+                if e and e.get("max_output"):
+                    conf = float(e.get("output_confidence") or 0.0)
+                    if conf >= self.hard_confidence:
+                        raw = e.get("max_output")
+            return _min_cap(env_bound, raw)
+
     def seed_from_metadata(
         self,
         provider: str,
@@ -154,7 +220,10 @@ class TokenCapTracker:
         changed = False
         with self._lock:
             e = self._entry(provider, model)
-            for field, val in (("max_input", max_input), ("max_output", max_output)):
+            for field, conf_field, val in (
+                ("max_input", "input_confidence", max_input),
+                ("max_output", "output_confidence", max_output),
+            ):
                 if val is None or val <= 0:
                     continue
                 cur = e.get(field)
@@ -164,6 +233,8 @@ class TokenCapTracker:
                 if cur != val:
                     e[field] = int(val)
                     changed = True
+                # Metadata alone is low confidence; never lower an already-higher score.
+                e[conf_field] = max(float(e.get(conf_field) or 0.0), CONF_METADATA)
             if changed:
                 if e.get("source") == "learned":
                     e["source"] = "mixed"
@@ -191,6 +262,7 @@ class TokenCapTracker:
             e[field] = new_cap
             src = e.get("source")
             e["source"] = "mixed" if src == "metadata" else "learned"
+            self._bump_confidence(e, kind, CONF_FAILURE_BUMP)
             e["updated_at"] = time.time()
             log.info(
                 f"[token-cap] cut {provider}/{model} {field} "
@@ -228,6 +300,7 @@ class TokenCapTracker:
             e[field] = new_cap
             if e.get("source") == "metadata":
                 e["source"] = "mixed"
+            self._bump_confidence(e, kind, CONF_SUCCESS_BUMP)
             e["updated_at"] = time.time()
             changed = True
             log.info(
@@ -244,6 +317,8 @@ class TokenCapTracker:
             return {
                 "max_input": e.get("max_input"),
                 "max_output": e.get("max_output"),
+                "input_confidence": float(e.get("input_confidence") or 0.0),
+                "output_confidence": float(e.get("output_confidence") or 0.0),
                 "source": e.get("source"),
                 "updated_at": e.get("updated_at"),
             }
@@ -263,10 +338,21 @@ class TokenCapTracker:
                 if not isinstance(val, dict) or "::" not in key:
                     continue
                 provider, model = key.split("::", 1)
+                source = val.get("source") or "learned"
+                max_in = val.get("max_input")
+                max_out = val.get("max_output")
+                in_conf = val.get("input_confidence")
+                out_conf = val.get("output_confidence")
+                if in_conf is None:
+                    in_conf = _legacy_confidence(source, max_in is not None)
+                if out_conf is None:
+                    out_conf = _legacy_confidence(source, max_out is not None)
                 self._caps[(provider, model)] = {
-                    "max_input": val.get("max_input"),
-                    "max_output": val.get("max_output"),
-                    "source": val.get("source") or "learned",
+                    "max_input": max_in,
+                    "max_output": max_out,
+                    "input_confidence": _clamp_conf(in_conf),
+                    "output_confidence": _clamp_conf(out_conf),
+                    "source": source,
                     "updated_at": val.get("updated_at") or time.time(),
                 }
 
@@ -276,6 +362,8 @@ class TokenCapTracker:
                 f"{p}::{m}": {
                     "max_input": e.get("max_input"),
                     "max_output": e.get("max_output"),
+                    "input_confidence": float(e.get("input_confidence") or 0.0),
+                    "output_confidence": float(e.get("output_confidence") or 0.0),
                     "source": e.get("source"),
                     "updated_at": e.get("updated_at"),
                 }

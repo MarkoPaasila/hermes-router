@@ -45,16 +45,16 @@ Every request flows through the same pipeline:
 Every provider can hold many keys (from `auth.json` first, then `.env`). Keys are tracked in a
 thread-safe pool with **sticky-until-fail** selection: the router keeps using the same key for a
 `(provider, model)` until that key errors or is rate-limited, then tries the next ready key in
-stable deque order. **Upstream rate limits** are enforced by the adaptive token-bucket filter
-(TBF): it learns caps from response headers and 429s, attempts candidates even when headroom
-looks thin, and fails over only when a debit cannot be admitted; it honors `Retry-After` as a
-hold on that (key, model) scope. Header snaps are authoritative for that model bucket (success
+stable deque order. **Upstream rate limits** are tracked by the adaptive token-bucket filter
+(TBF): it learns caps from response headers and 429s, **force-admits** when estimates look
+empty (explore-into-limit), ranks by headroom for new sessions / after bumps, and cascades on
+real `Retry-After` holds or upstream 429s. Header snaps are authoritative for that model bucket (success
 AIMD nudges are skipped while pinned). New buckets start at half fill; failed upstream attempts
 after admit release the reservation. Header updates carry request-start time so older in-flight
 responses cannot overwrite newer state. Each TBF group keeps a **full-grid ledger** — all ten
-`[R,T]×[M,H,D,W,Mo]` buckets are always on (never auto-deactivated). The **minute** window is
-the fast learner (success nudges and header sync); longer windows are stable priors moved by 429
-evidence and accumulated provider-wide soft ticks. The credential pool's
+`[R,T]×[M,H,D,W,Mo]` buckets are always on (never auto-deactivated). Hard 429s cut a **single**
+ladder-attributed bucket then reclamp the chain; minute windows are the fast learner, longer
+windows grow slowly on success and drop on attributed 429s. The credential pool's
 per-key cool-downs are only for **health** failures (network errors / 5xx via `mark_key_down`),
 not for rate limits.
 

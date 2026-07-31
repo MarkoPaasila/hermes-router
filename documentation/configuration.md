@@ -136,18 +136,21 @@ It starts from conservative built-in defaults and adjusts caps up or down based 
 `x-ratelimit-*` response headers and 429 signals. Learned limits persist across
 restarts in `rate_limits_state.json`.
 
-> Two scopes are tracked per key, and each always maintains the full **`[R,T]×[M,H,D,W,Mo]`** grid (ten buckets). **Model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). Header-synced caps stay pinned (no success AIMD nudge until a non-header 429). Header applies use request-start observation time so stale responses cannot overwrite newer state. Failed upstream calls after admit release the R+T reservation on both scopes. New buckets start at `RATE_BUCKET_INITIAL_FILL` of cap (default `0.5`). Caps are initialized from built-in defaults, env overrides, or `auth.json`: **explicit values win**; any missing window is scaled linearly from minute (`Cap(W)=Cap(M)×(T_W/T_M)`); ordering stays **Mo≥…≥M** with explicit values sticky. Long windows are **never auto-deactivated** — all ten buckets stay binding for debit and ranking. **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers). When a provider-wide group is first created, its caps start at **10×** the model/base defaults for that provider (`RATE_PROVIDER_CAP_MULTIPLIER`, default `10`). Each request debits the **same absolute amount** from both scopes, so headroom **percentages** diverge because the caps differ. On a 429, if model headroom was ≥ 90% before the attempt, provider-wide gets one extra soft cut (surprise path, at most once per 60 s per provider-wide group). Provider-wide 429s also apply a tiny soft tick **`ε × (T_M/T_window)`** to every PW bucket (`RATE_LEARN_PW_TICK_EPS`, default `0.05`); longer windows move less per tick but accumulate. Success AIMD nudges apply to **minute** buckets only — H/D/W/Mo are stable priors adjusted by 429 evidence and PW ticks. `RATE_HEADROOM_THRESHOLD` is a ranking / “thin headroom” log signal only — **not** a hard skip before attempting. Persisted provider-wide caps are loaded as-is and are **not** re-multiplied on restart.
+> Two scopes are tracked per key, and each always maintains the full **`[R,T]×[M,H,D,W,Mo]`** grid (ten buckets). **Model** groups are authoritative (learn from `x-ratelimit-*` headers and hard 429 cuts; `Retry-After` holds that model only). Header-synced caps stay pinned (no success AIMD nudge until a non-header 429). Header applies use request-start observation time so stale responses cannot overwrite newer state. Failed upstream calls after admit release the R+T reservation on both scopes. New buckets start at `RATE_BUCKET_INITIAL_FILL` of cap (default `0.5`). Caps are initialized from built-in defaults, env overrides, or `auth.json`: **explicit values win**; any missing window is scaled linearly from minute (`Cap(W)=Cap(M)×(T_W/T_M)`); ordering stays **Mo≥…≥M** with explicit values sticky. Long windows are **never auto-deactivated** — all ten buckets stay on for debit and ranking. **Routing never hard-skips on empty TBF estimates** (explore-into-limit / force-admit); headroom only ranks new-session and post-bump picks. Optional sleep only when refill wait is **&lt; `RATE_ADMIT_WAIT_S`** (default 60s); `Retry-After` still holds and cascades. Hard model 429s cut **one** ladder-attributed bucket, then **reclamp** so adjacent windows satisfy `C_short ≤ C_long ≤ C_short×(T_long/T_short)`. Minute windows nudge on the normal success streak; longer windows nudge slower (`RATE_LEARN_LONG_*`). **Provider-wide** groups are a shared-ceiling estimate (debited by all models on the key; softer 429 cuts; faster success recovery; never overwritten by response headers). When a provider-wide group is first created, its caps start at **10×** the model/base defaults for that provider (`RATE_PROVIDER_CAP_MULTIPLIER`, default `10`). Each request debits the **same absolute amount** from both scopes, so headroom **percentages** diverge because the caps differ. On a 429, if model headroom was ≥ 90% before the attempt, provider-wide gets one extra soft cut (surprise path, at most once per 60 s per provider-wide group). Provider-wide 429s also apply a tiny soft tick **`ε × (T_M/T_window)`** to every PW bucket (`RATE_LEARN_PW_TICK_EPS`, default `0.05`); longer windows move less per tick but accumulate. `RATE_HEADROOM_THRESHOLD` is a ranking / “thin headroom” log signal only — **not** a hard skip before attempting. Persisted provider-wide caps are loaded as-is and are **not** re-multiplied on restart.
 
 | Env var | Default | Description |
 |---|---|---|
 | `RATE_STATE_FILE` | `./rate_limits_state.json` | Path to learned-limits state file |
-| `RATE_SHORT_WAIT_MS` | `500` | Max ms to sleep when a bucket is nearly empty before failing over |
+| `RATE_ADMIT_WAIT_S` | `60` | Max seconds to sleep for a thin bucket before force-admit (explore) |
 | `RATE_HEADROOM_THRESHOLD` | `0.05` | Fraction of cap below which headroom is logged as “thin” (ranking signal only — not a hard skip) |
+| `RATE_LEARN_CLEAR_HEADROOM` | `0.5` | Ladder 429: shorter window treated as clear (not violated) at/above this headroom |
+| `RATE_LEARN_LONG_STREAK` | `40` | Successes before nudging H/D/W/Mo caps |
+| `RATE_LEARN_LONG_NUDGE_PCT` | `2` | Percent nudge for long-window success streaks |
 | `RATE_LEARN_PW_TICK_EPS` | `0.05` | Provider-wide soft-tick fraction at the minute window; scaled per bucket as `ε × (T_M/T_window)` on every PW 429 |
 | `RATE_PROVIDER_CAP_MULTIPLIER` | `10` | Multiplier applied to base caps when creating a new provider-wide TBF group |
 | `RATE_BUCKET_INITIAL_FILL` | `0.5` | Fraction of cap for new buckets when tokens are not set explicitly |
-| `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a cap up |
-| `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase cap on a success streak |
+| `RATE_LEARN_SUCCESS_STREAK` | `20` | Consecutive successes before nudging a minute-window cap up |
+| `RATE_LEARN_NUDGE_PCT` | `5` | Percent to increase minute-window cap on a success streak |
 | `RATE_LEARN_CUT_FACTOR` | `0.8` | Multiplier applied to observed rate on 429 |
 | `RATE_LEARN_CUT_FACTOR_PROVIDER` | `0.95` | Provider-wide soft cut vs observed rate on 429 |
 | `RATE_LEARN_SOFT_CUT_FACTOR` | `0.9` | Provider-wide soft cut vs current cap when history is thin |
@@ -170,16 +173,20 @@ the file always appends across restarts.
 
 hermes-router tracks effective input/output token ceilings per `(provider, model)`.
 It seeds from `/models` metadata when available and tightens from classified
-413 / token-limit 400 responses (gentle raises on near-cap successes).
+413 / token-limit 400 responses (gentle raises on near-cap successes). Each side
+has an explicit **confidence** (`input_confidence` / `output_confidence`, 0–1).
+Routing **hard-skips** a learned cap only when confidence ≥ `TOKEN_CAPS_HARD_CONFIDENCE`
+(default `0.7`); low-confidence guesses are explorable so a real limit error can
+raise confidence. `{PROVIDER}_SKIP_TOKENS_OVER` / `{PROVIDER}_MAX_OUTPUT_TOKENS`
+remain always-on outer fences.
 
 | Var | Default | Notes |
 |---|---|---|
 | `TOKEN_CAPS` | `1` | `0` disables adaptive caps (static env/defaults only) |
 | `TOKEN_CAPS_STATE_FILE` | `./token_caps_state.json` | Persisted learned/metadata caps |
+| `TOKEN_CAPS_HARD_CONFIDENCE` | `0.7` | Minimum confidence to hard-skip / hard-clamp on a learned cap |
 
-`{PROVIDER}_SKIP_TOKENS_OVER` and `{PROVIDER}_MAX_OUTPUT_TOKENS` remain provider-wide
-outer fences — learned values may only tighten further inside them. Caps appear under
-each provider in `/v1/status` as `token_caps`.
+Caps appear under each provider in `/v1/status` as `token_caps` (includes confidences).
 
 ### Cost / spend awareness
 

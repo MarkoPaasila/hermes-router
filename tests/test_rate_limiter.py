@@ -326,6 +326,7 @@ def test_bucketgroup_on_429_cuts_caps():
     rpm = g.buckets.get("RPM")
     if rpm:
         original_cap = rpm.cap
+        rpm.tokens = 0.0
         rpm._period_consumed = 10.0
         g.on_429({})
         assert rpm.cap < original_cap
@@ -830,7 +831,7 @@ def test_on_429_asymmetric_cuts(tmp_path):
     mg = rl.get_group("groq", "key-abc12345", "llama")
     for g in (pw, mg):
         g.buckets["RPM"].cap = 100.0
-        g.buckets["RPM"].tokens = 50.0
+        g.buckets["RPM"].tokens = 20.0  # headroom 0.2 → ladder blames M
         g.buckets["RPM"]._period_consumed = 10.0
     rl.on_429("groq", "key-abc12345", "llama", {})
     assert mg.buckets["RPM"].cap == pytest.approx(8.0)    # 10 * 0.8
@@ -1235,8 +1236,81 @@ def test_on_success_nudges_only_minute_windows():
         b._consecutive_successes = RATE_LEARN_SUCCESS_STREAK - 1
     before = {n: b.cap for n, b in g.buckets.items()}
     changes = g.on_success(100.0)
-    changed = {n for n, _ in changes}
-    assert changed <= {"RPM", "TPM"}
-    assert "TPM" in changed or "RPM" in changed
-    for n in ("TPH", "TPD", "TPW", "TPMo", "RPH", "RPD", "RPW", "RPMo"):
-        assert g.buckets[n].cap == pytest.approx(before[n])
+    nudged = {n for n, c in changes if c.event == "nudge"}
+    assert nudged <= {"RPM", "TPM"}
+    assert "TPM" in nudged or "RPM" in nudged
+    # Long windows do not success-nudge at the minute streak; clamp may lift them
+    # to preserve Cap(long) ≥ Cap(short) after an M nudge.
+    for n, c in changes:
+        if n not in ("RPM", "TPM"):
+            assert c.event == "clamp"
+
+
+def test_on_success_long_window_nudges_after_long_streak():
+    from rate_limiter import (
+        BucketGroup, _load_caps_for, RATE_LEARN_LONG_STREAK, RATE_LEARN_LONG_NUDGE_PCT,
+    )
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    for b in g.buckets.values():
+        b._header_pinned = False
+        b._consecutive_successes = RATE_LEARN_LONG_STREAK - 1
+    before = g.buckets["TPH"].cap
+    changes = g.on_success(100.0)
+    nudged = {n for n, c in changes if c.event == "nudge"}
+    assert "TPH" in nudged or "TPM" in nudged
+    assert g.buckets["TPH"].cap >= before
+
+
+def test_ladder_429_clear_m_cuts_hour_only():
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    for b in g.buckets.values():
+        b.tokens = b.cap
+        b._period_consumed = 5.0
+    # M clearly free; leave H as the blamed long window via ladder (all clear → Mo
+    # — set H slightly lower headroom among long so R/T pick prefers H if we
+    # only clear M... with all clear blame is Mo. Force M clear and H not clear.
+    g.buckets["RPM"].tokens = g.buckets["RPM"].cap
+    g.buckets["TPM"].tokens = g.buckets["TPM"].cap
+    g.buckets["RPH"].tokens = 0.0
+    g.buckets["TPH"].tokens = g.buckets["TPH"].cap
+    before = {n: b.cap for n, b in g.buckets.items()}
+    changes = g.on_429({})
+    cut = {n for n, c in changes if c.event == "cut"}
+    assert cut == {"RPH"}
+    assert g.buckets["RPM"].cap == pytest.approx(before["RPM"])
+    assert g.buckets["TPM"].cap == pytest.approx(before["TPM"])
+    assert g.buckets["RPH"].cap < before["RPH"]
+
+
+def test_ladder_429_low_m_cuts_minute_only():
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    for b in g.buckets.values():
+        b.tokens = b.cap
+        b._period_consumed = 5.0
+    g.buckets["RPM"].tokens = 0.0
+    before = {n: b.cap for n, b in g.buckets.items()}
+    changes = g.on_429({})
+    cut = {n for n, c in changes if c.event == "cut"}
+    assert cut == {"RPM"}
+    assert g.buckets["RPH"].cap <= before["RPH"]  # may clamp-pull with RPM cut
+
+
+def test_reclamp_upper_bounds_long_from_short():
+    from rate_limiter import BucketGroup, reclamp_bucket_caps
+    g = BucketGroup(provider_name="openrouter", caps={"TPM": 1000.0, "TPH": 1_000_000.0})
+    # Force illegal upper: TPH >> TPM*60
+    g.buckets["TPM"].cap = 1000.0
+    g.buckets["TPH"].cap = 1_000_000.0
+    reclamp_bucket_caps(g.buckets)
+    assert g.buckets["TPH"].cap <= g.buckets["TPM"].cap * 60 + 1e-6
+
+
+def test_force_consume_admits_when_empty():
+    from rate_limiter import BucketGroup, _load_caps_for
+    g = BucketGroup(provider_name="openrouter", caps=_load_caps_for("openrouter"))
+    g.buckets["RPM"].tokens = 0.0
+    ok, wait, _ = g.consume(1.0, 10.0, force=True)
+    assert ok is True
+    assert wait == 0.0

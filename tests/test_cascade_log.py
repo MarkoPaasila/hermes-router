@@ -18,6 +18,7 @@ def _stub_common(monkeypatch):
     monkeypatch.setattr(router, "SEMANTIC_CACHE", False)
     monkeypatch.setattr(router, "_estimated_tokens", lambda m: 10)
     monkeypatch.setattr(router, "_effective_input_cap_for", lambda *a, **k: None)
+    monkeypatch.setattr(router, "_hard_input_cap_for", lambda *a, **k: None)
     monkeypatch.setattr(router.stats, "breaker_open", lambda n: False)
     monkeypatch.setattr(router, "_completion_has_output", lambda d: True)
     monkeypatch.setattr(router, "_strip_response", lambda d: None)
@@ -57,7 +58,7 @@ def test_token_cap_skip_then_success(monkeypatch):
     monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: ordered)
     _stub_common(monkeypatch)
     monkeypatch.setattr(
-        router, "_effective_input_cap_for",
+        router, "_hard_input_cap_for",
         lambda provider, model: 5 if provider["name"] == "prov_a" else None,
     )
     monkeypatch.setattr(router, "_estimated_tokens", lambda m: 100)
@@ -129,12 +130,13 @@ def test_http_429_then_success(monkeypatch):
     assert fields["cascades"] == fields["failed"] + fields["skipped"]
 
 
-def test_rate_headroom_skip_classified_as_skipped(monkeypatch):
+def test_rate_hold_skip_classified_as_skipped(monkeypatch):
     ordered, a, b = _two_candidates()
     monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: ordered)
     _stub_common(monkeypatch)
 
-    def fake_check(name, key, model, req_count=1.0, token_count=1.0):
+    def fake_check(name, key, model, req_count=1.0, token_count=1.0, force=False):
+        # Simulate Retry-After hold: deny even when force=True.
         if name == "prov_a":
             return False, 60.0
         return True, 0.0
@@ -164,7 +166,7 @@ def test_rate_headroom_skip_classified_as_skipped(monkeypatch):
         streaming=False, ns="test-cascade-rl")
     assert result[0] == "json"
     fields = router._req_ctx.cascade.as_log_fields()
-    assert any(s["outcome"] == "skipped" and s["reason"] == "rate_headroom"
+    assert any(s["outcome"] == "skipped" and s["reason"] == "rate_hold"
                for s in fields["cascade"])
     assert fields["cascade"][-1]["outcome"] == "success"
 
@@ -234,7 +236,7 @@ def test_embeddings_success_after_headroom_skip_counts_skipped(monkeypatch):
     monkeypatch.setattr(router, "_add_provider_tokens", lambda *a, **k: None)
     monkeypatch.setattr(router.key_usage, "add_tokens", lambda *a, **k: None)
 
-    def fake_check(name, key, model, req_count=1.0, token_count=1.0):
+    def fake_check(name, key, model, req_count=1.0, token_count=1.0, force=False):
         if name == "emb_a":
             return False, 60.0
         return True, 0.0
@@ -278,6 +280,6 @@ def test_embeddings_success_after_headroom_skip_counts_skipped(monkeypatch):
     e = router.request_log.snapshot(limit=5)[-1]
     assert e["status"] == "success"
     assert e["skipped"] >= 1
-    assert any(s["reason"] == "rate_headroom" for s in e["cascade"])
+    assert any(s["reason"] == "rate_hold" for s in e["cascade"])
     assert e["cascade"][-1]["outcome"] == "success"
     assert e["cascades"] == e["failed"] + e["skipped"]

@@ -39,7 +39,9 @@ as its own catalog candidate — easy requests land on `flash-lite`, hard ones c
 
 When your client sends a **session id**, the router remembers the winning
 `(provider, model, key)` for that conversation and reuses it on later turns until it has to
-**cascade away** (rate limit, error, capability skip, etc.). That keeps multi-turn chats on the
+**cascade away** (real upstream 429 / Retry-After, error, capability skip, etc.). TBF **estimates**
+do not abandon a sticky model — the session is allowed to bump into limits so learning can
+happen. That keeps multi-turn chats on the
 same upstream account and model instead of bouncing around the catalog every message.
 
 **Session id resolution** (first non-empty wins; the router never invents an id):

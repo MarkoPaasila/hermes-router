@@ -152,3 +152,62 @@ def test_classify_ambiguous_uses_heuristics():
     body = "too many tokens"
     assert classify_token_limit_error(400, body, est_tokens=12000, requested_max_tokens=256) == "input"
     assert classify_token_limit_error(400, body, est_tokens=100, requested_max_tokens=100000) == "output"
+
+
+def test_metadata_seed_sets_low_confidence(tracker):
+    tracker.seed_from_metadata("groq", "llama", max_input=8000, max_output=4096)
+    snap = tracker.snapshot("groq", "llama")
+    assert snap["input_confidence"] == pytest.approx(0.3)
+    assert snap["output_confidence"] == pytest.approx(0.3)
+    assert tracker.hard_input_cap("groq", "llama", 0) is None
+    assert tracker.hard_output_cap("groq", "llama", 0) is None
+
+
+def test_failure_raises_confidence_to_hard(tracker):
+    tracker.seed_from_metadata("groq", "llama", max_input=10000)
+    tracker.on_token_limit_failure("groq", "llama", "input", observed_tokens=9000)
+    snap = tracker.snapshot("groq", "llama")
+    assert snap["input_confidence"] == pytest.approx(0.7)
+    expected = max(MIN_CAP, int(9000 * CUT_FACTOR))
+    assert tracker.hard_input_cap("groq", "llama", 0) == expected
+    assert tracker.hard_input_cap("groq", "llama", 1000) == 1000
+
+
+def test_success_near_cap_bumps_confidence(tracker):
+    tracker.seed_from_metadata("groq", "llama", max_input=1000)
+    used = int(1000 * NEAR_CAP_RATIO)
+    tracker.on_success_near_cap("groq", "llama", "input", used_tokens=used)
+    assert tracker.snapshot("groq", "llama")["input_confidence"] == pytest.approx(0.4)
+    assert tracker.hard_input_cap("groq", "llama", 0) is None
+
+
+def test_migrate_legacy_source_to_confidence(tmp_path):
+    path = tmp_path / "caps.json"
+    path.write_text(
+        '{"models":{'
+        '"a::m1":{"max_input":100,"source":"learned","updated_at":1},'
+        '"a::m2":{"max_input":100,"source":"mixed","updated_at":1},'
+        '"a::m3":{"max_input":100,"source":"metadata","updated_at":1}'
+        "}}"
+    )
+    t = TokenCapTracker(state_file=path, enabled=True)
+    t.load()
+    assert t.snapshot("a", "m1")["input_confidence"] == pytest.approx(0.85)
+    assert t.hard_input_cap("a", "m1", 0) == 100
+    assert t.snapshot("a", "m2")["input_confidence"] == pytest.approx(0.6)
+    assert t.hard_input_cap("a", "m2", 0) is None
+    assert t.snapshot("a", "m3")["input_confidence"] == pytest.approx(0.3)
+    assert t.hard_input_cap("a", "m3", 0) is None
+
+
+def test_persist_round_trip_includes_confidence(tmp_path):
+    path = tmp_path / "caps.json"
+    t1 = TokenCapTracker(state_file=path, enabled=True)
+    t1.seed_from_metadata("cerebras", "llama", max_input=8192)
+    t1.on_token_limit_failure("cerebras", "llama", "input", observed_tokens=4000)
+    t1.flush()
+    t2 = TokenCapTracker(state_file=path, enabled=True)
+    t2.load()
+    snap = t2.snapshot("cerebras", "llama")
+    assert snap["input_confidence"] == pytest.approx(0.7)
+    assert t2.hard_input_cap("cerebras", "llama", 0) is not None

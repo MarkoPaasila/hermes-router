@@ -123,6 +123,12 @@ RATE_LEARN_SOFT_FLOOR_FRAC        = _float_env("RATE_LEARN_SOFT_FLOOR_FRAC", 0.5
 # lowest headroom (refill noise otherwise picks an arbitrary sibling window).
 RATE_LEARN_BINDING_HEADROOM       = _float_env("RATE_LEARN_BINDING_HEADROOM", 0.25)
 RATE_LEARN_HEADROOM_TIE_EPS       = _float_env("RATE_LEARN_HEADROOM_TIE_EPS", 0.01)
+# Ladder 429: shorter window is "clear" (not violated) at/above this headroom.
+RATE_LEARN_CLEAR_HEADROOM         = _float_env("RATE_LEARN_CLEAR_HEADROOM", 0.5)
+RATE_LEARN_LONG_STREAK            = _int_env("RATE_LEARN_LONG_STREAK", 40)
+RATE_LEARN_LONG_NUDGE_PCT         = _float_env("RATE_LEARN_LONG_NUDGE_PCT", 2.0)
+# Pre-send sleep for thin buckets only when wait is below this (else force-admit).
+RATE_ADMIT_WAIT_S                 = _float_env("RATE_ADMIT_WAIT_S", 60.0)
 # When lifting for an oversized single request, size the cap to this multiple of
 # the debit so one success does not leave ~0% headroom and soft-lock the next turn.
 RATE_REQUEST_BURST_FACTOR         = _float_env("RATE_REQUEST_BURST_FACTOR", 2.0)
@@ -204,6 +210,82 @@ def expand_full_grid_caps(base: dict[str, float]) -> dict[str, float]:
         if k not in out:
             out[k] = float(v)
     return out
+
+
+def reclamp_bucket_caps(buckets: dict[str, "TokenBucket"]) -> list[tuple[str, CapChange]]:
+    """Enforce per-dimension C_short ≤ C_long ≤ C_short × (T_long/T_short).
+
+    Pinned longer caps are sticky: pull shorter down if inverted; do not raise a
+    pinned longer cap to meet a looser shorter upper bound.
+    """
+    changes: list[tuple[str, CapChange]] = []
+    for dim in ("R", "T"):
+        names = [_limit_name(dim, wk) for wk in _WINDOW_ORDER
+                 if _limit_name(dim, wk) in buckets]
+        if len(names) < 2:
+            continue
+        # Pass 1: longer ≥ shorter (pull shorter down when longer is pinned/tighter)
+        for i in range(1, len(names)):
+            shorter, longer = names[i - 1], names[i]
+            bs, bl = buckets[shorter], buckets[longer]
+            if bl.cap >= bs.cap:
+                continue
+            if bl._header_pinned and not bs._header_pinned:
+                old = bs.cap
+                bs.cap = bs._coerce_cap(bl.cap)
+                bs.tokens = min(bs.tokens, bs.cap)
+                if bs.cap != old:
+                    changes.append((shorter, CapChange(
+                        old_cap=old, event="clamp", reason="order_pull_short")))
+            else:
+                old = bl.cap
+                bl.cap = bl._coerce_cap(bs.cap)
+                bl.tokens = min(bl.tokens, bl.cap)
+                if bl.cap != old:
+                    changes.append((longer, CapChange(
+                        old_cap=old, event="clamp", reason="order_raise_long")))
+        # Pass 2: longer ≤ shorter × ratio (unless longer pinned)
+        for i in range(1, len(names)):
+            shorter, longer = names[i - 1], names[i]
+            bs, bl = buckets[shorter], buckets[longer]
+            _ds, ws = LIMIT_KEYS[shorter]
+            _dl, wl = LIMIT_KEYS[longer]
+            ratio = WINDOWS[wl] / WINDOWS[ws]
+            upper = bs.cap * ratio
+            if bl.cap <= upper + 1e-9:
+                continue
+            if bl._header_pinned:
+                old = bs.cap
+                # Pull shorter up so upper bound fits pinned longer? Prefer pull
+                # longer only when not pinned; when pinned leave longer, raise short floor.
+                need = bl.cap / ratio if ratio > 0 else bs.cap
+                if need > bs.cap and not bs._header_pinned:
+                    bs.cap = bs._coerce_cap(need)
+                    bs.tokens = min(bs.tokens, bs.cap)
+                    if bs.cap != old:
+                        changes.append((shorter, CapChange(
+                            old_cap=old, event="clamp", reason="upper_raise_short")))
+                continue
+            old = bl.cap
+            bl.cap = bl._coerce_cap(upper)
+            bl.tokens = min(bl.tokens, bl.cap)
+            if bl.cap != old:
+                changes.append((longer, CapChange(
+                    old_cap=old, event="clamp", reason="upper_trim_long")))
+    return changes
+
+
+def _ladder_blame_name(dim: str, buckets: dict[str, "TokenBucket"]) -> str | None:
+    """First window with headroom < CLEAR, else the longest present window."""
+    names = [_limit_name(dim, wk) for wk in _WINDOW_ORDER
+             if _limit_name(dim, wk) in buckets and buckets[_limit_name(dim, wk)].active]
+    if not names:
+        return None
+    for n in names:
+        if buckets[n].headroom() < RATE_LEARN_CLEAR_HEADROOM:
+            return n
+    return names[-1]
+
 
 # ── TokenBucket ───────────────────────────────────────────────────────────────
 
@@ -490,8 +572,13 @@ class BucketGroup:
     def _active(self):
         return [b for b in self.buckets.values() if b.active]
 
-    def consume(self, req_count: float, token_count: float) -> tuple[bool, float, list[tuple[str, CapChange]]]:
-        """Check all active buckets. Consume atomically only if all pass."""
+    def consume(self, req_count: float, token_count: float, *,
+                force: bool = False) -> tuple[bool, float, list[tuple[str, CapChange]]]:
+        """Check all active buckets. Consume atomically only if all pass.
+
+        With force=True, ensure_fits then debit even when refill wait remains
+        (explore-into-limit). Retry-After blocked_until still denies.
+        """
         now = time.time()
         changes: list[tuple[str, CapChange]] = []
         if now < self.blocked_until:
@@ -511,16 +598,23 @@ class BucketGroup:
                 changes.append((name, change))
             if b.tokens < amount:
                 max_wait = max(max_wait, b.time_to_refill(amount))
-            else:
-                checks.append((b, amount))
-        if max_wait > 0:
+            checks.append((b, amount))
+        if max_wait > 0 and not force:
             return False, max_wait, changes
         for b, amount in checks:
-            b.tokens -= amount
-            b._period_consumed += amount
-            if b.tokens <= 0:
+            if b.tokens < amount:
+                # Force path: spend remaining (explore); tokens may hit 0.
+                b._period_consumed += amount
+                b.tokens = 0.0
                 b._hit_zero = True
+            else:
+                b.tokens -= amount
+                b._period_consumed += amount
+                if b.tokens <= 0:
+                    b._hit_zero = True
         self._requests_this_period += int(req_count)
+        if changes:
+            changes.extend(reclamp_bucket_caps(self.buckets))
         return True, 0.0, changes
 
     def restore_tokens(self, token_surplus: float) -> None:
@@ -548,11 +642,16 @@ class BucketGroup:
             if not b.active:
                 continue
             _dim, wk = LIMIT_KEYS[name]
-            if wk != "M":
-                continue
-            change = b.on_success(streak=streak, nudge_pct=nudge_pct)
+            if wk == "M":
+                change = b.on_success(streak=streak, nudge_pct=nudge_pct)
+            else:
+                change = b.on_success(
+                    streak=RATE_LEARN_LONG_STREAK,
+                    nudge_pct=RATE_LEARN_LONG_NUDGE_PCT,
+                )
             if change is not None:
                 changes.append((name, change))
+        changes.extend(reclamp_bucket_caps(self.buckets))
         return changes
 
     def on_429(self, headers: dict, apply_retry_after: bool = True, *,
@@ -574,27 +673,34 @@ class BucketGroup:
                                   tick_eps=RATE_LEARN_PW_TICK_EPS)
                 if change is not None:
                     changes.append((name, change))
+            # Soft ticks are window-scaled by design; do not reclamp (would
+            # propagate minute cuts into long upper bounds).
+        elif header_touched:
+            # Headers authoritative for this 429 — no additional ladder spray.
+            changes.extend(reclamp_bucket_caps(self.buckets))
         else:
-            # Snapshot headroom before any cut so RPM exhaustion does not poison TPM.
-            candidates: list[tuple[str, TokenBucket, float]] = []
             for name, b in self.buckets.items():
-                if name in header_touched:
-                    continue
                 if not b.active:
                     b.active = True
                     log.info(f"[rate] bucket {name} re-activated by 429")
-                candidates.append((name, b, b.headroom()))
-            binding = [(n, b, hr) for n, b, hr in candidates
-                       if hr <= RATE_LEARN_BINDING_HEADROOM]
-            if not binding and candidates:
-                min_hr = min(hr for _, _, hr in candidates)
-                # Include near-ties (refill drift across windows is ~1e-6–1e-3).
-                binding = [(n, b, hr) for n, b, hr in candidates
-                           if hr <= min_hr + RATE_LEARN_HEADROOM_TIE_EPS]
-            for name, b, _hr in binding:
+            # Snapshot headroom before cuts; ladder picks one bucket total.
+            candidates: list[tuple[str, TokenBucket, float]] = []
+            for dim in ("R", "T"):
+                blamed = _ladder_blame_name(dim, self.buckets)
+                if not blamed:
+                    continue
+                b = self.buckets[blamed]
+                candidates.append((blamed, b, b.headroom()))
+            if candidates:
+                def _rank(item: tuple[str, TokenBucket, float]):
+                    name, _b, hr = item
+                    _dim, wk = LIMIT_KEYS[name]
+                    return (hr, _WINDOW_ORDER.index(wk))
+                name, b, _hr = min(candidates, key=_rank)
                 change = b.on_429(observed_rate=b._period_consumed, soft=False)
                 if change is not None:
                     changes.append((name, change))
+            changes.extend(reclamp_bucket_caps(self.buckets))
         # Retry-After holds are model-scoped (caller passes apply_retry_after=False
         # for the provider-wide group so one model's 429 cannot block siblings).
         if not apply_retry_after:
@@ -811,14 +917,15 @@ class AdaptiveRateLimiter:
     # ── Public API ────────────────────────────────────────────────────────────
 
     def check_and_consume(self, provider_name: str, key: str, model: str,
-                          req_count: float, token_count: float) -> tuple[bool, float]:
+                          req_count: float, token_count: float, *,
+                          force: bool = False) -> tuple[bool, float]:
         with self._lock:
             pw, mg = self._both_groups_unlocked(provider_name, key, model)
-            pw_ok, pw_wait, pw_changes = pw.consume(req_count, token_count)
+            pw_ok, pw_wait, pw_changes = pw.consume(req_count, token_count, force=force)
             if not pw_ok:
                 self._emit_group_changes(provider_name, key, None, pw, pw_changes)
                 return False, pw_wait
-            mg_ok, mg_wait, mg_changes = mg.consume(req_count, token_count)
+            mg_ok, mg_wait, mg_changes = mg.consume(req_count, token_count, force=force)
             if not mg_ok:
                 pw.restore_tokens(token_count)
                 pw.restore_requests(req_count)

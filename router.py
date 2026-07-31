@@ -28,7 +28,7 @@ from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
-from rate_limiter import AdaptiveRateLimiter, RATE_SHORT_WAIT_MS, RATE_HEADROOM_THRESHOLD, RATE_EXHAUSTED_WAIT_S
+from rate_limiter import AdaptiveRateLimiter, RATE_HEADROOM_THRESHOLD, RATE_EXHAUSTED_WAIT_S, RATE_ADMIT_WAIT_S
 from token_caps import (
     TokenCapTracker,
     classify_token_limit_error,
@@ -1999,8 +1999,21 @@ def _effective_input_cap_for(provider: dict, model: str) -> int | None:
     )
 
 
+def _hard_input_cap_for(provider: dict, model: str) -> int | None:
+    """Env fence and/or high-confidence learned cap — safe to hard-skip on."""
+    return token_caps.hard_input_cap(
+        provider["name"], model, int(provider.get("skip_if_tokens_over") or 0)
+    )
+
+
 def _effective_output_cap_for(provider: dict, model: str) -> int | None:
     return token_caps.effective_output_cap(
+        provider["name"], model, int(provider.get("max_output_tokens") or 0)
+    )
+
+
+def _hard_output_cap_for(provider: dict, model: str) -> int | None:
+    return token_caps.hard_output_cap(
         provider["name"], model, int(provider.get("max_output_tokens") or 0)
     )
 
@@ -2021,7 +2034,9 @@ def _effective_requested_output_for_learning(
 
 
 def _apply_output_token_cap(body: dict, provider: dict, model: str) -> None:
-    out_cap = _effective_output_cap_for(provider, model)
+    # Env fence and high-confidence learned caps only — low-confidence guesses
+    # must not clamp (explore-into-limit).
+    out_cap = _hard_output_cap_for(provider, model)
     if not out_cap:
         return
     for field in ("max_tokens", "max_completion_tokens"):
@@ -4740,6 +4755,7 @@ function renderProviders() {
 // ── live log ──────────────────────────────────────────────────────────────────
 const CASCADE_REASON_LABELS = {
   rate_headroom: 'Rate headroom exhausted',
+  rate_hold: 'Rate limit hold (Retry-After)',
   token_cap: 'Input over token cap',
   no_tools: 'No tool support',
   no_vision: 'No vision support',
@@ -5825,9 +5841,9 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _queue_tool_last_resort()
             continue
 
-        # Skip candidates whose payload ceiling this request would exceed
-        # (e.g. Groq's free TPM) — avoids a guaranteed 413 round-trip. Per-model.
-        cap = _effective_input_cap_for(provider, model)
+        # Skip only on env fences and high-confidence learned caps. Low-confidence
+        # guesses are explorable (bump → learn → raise confidence).
+        cap = _hard_input_cap_for(provider, model)
         if cap and est_tokens >= cap:
             log.info(f"⤳ skipping {name}/{model} (~{est_tokens} tok >= {cap} cap)")
             _crec("skip", name, model, "token_cap")
@@ -5894,17 +5910,21 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                 name, key, model, req_count=1.0, token_count=_est_tokens)
             if not _rl_ok:
-                _wait_ms = _rl_wait * 1000
-                if 0 < _wait_ms <= RATE_SHORT_WAIT_MS:
-                    log.debug(f"  {name}/{model} thin bucket — waiting {_wait_ms:.0f}ms")
+                if 0 < _rl_wait < RATE_ADMIT_WAIT_S:
+                    log.debug(f"  {name}/{model} thin bucket — waiting {_rl_wait*1000:.0f}ms")
                     time.sleep(_rl_wait)
                     _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                         name, key, model, req_count=1.0, token_count=_est_tokens)
                 if not _rl_ok:
+                    # Explore-into-limit: force-admit unless Retry-After still holds.
+                    _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                        name, key, model, req_count=1.0, token_count=_est_tokens,
+                        force=True)
+                if not _rl_ok:
                     if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
                         _best_rl_wait = float(_rl_wait)
-                    log.info(f"  {name}/{model} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
-                    _crec("note", name, model, "skipped", "rate_headroom")
+                    log.info(f"  {name}/{model} rate hold ({_rl_wait:.1f}s) — trying next")
+                    _crec("note", name, model, "skipped", "rate_hold")
                     continue
             _rl_t0 = time.time()
             _req_ctx.attempts += 1
@@ -6415,15 +6435,18 @@ def embeddings():
             _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                 name, key, em, req_count=1.0, token_count=_est_tokens)
             if not _rl_ok:
-                _wait_ms = _rl_wait * 1000
-                if 0 < _wait_ms <= RATE_SHORT_WAIT_MS:
-                    log.debug(f"  {name}/{em} thin bucket — waiting {_wait_ms:.0f}ms")
+                if 0 < _rl_wait < RATE_ADMIT_WAIT_S:
+                    log.debug(f"  {name}/{em} thin bucket — waiting {_rl_wait*1000:.0f}ms")
                     time.sleep(_rl_wait)
                     _rl_ok, _rl_wait = rate_limiter.check_and_consume(
                         name, key, em, req_count=1.0, token_count=_est_tokens)
                 if not _rl_ok:
-                    log.info(f"  {name}/{em} rate headroom exhausted ({_rl_wait:.1f}s to refill) — skipping")
-                    trail.note(name, em, "skipped", "rate_headroom")
+                    _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                        name, key, em, req_count=1.0, token_count=_est_tokens,
+                        force=True)
+                if not _rl_ok:
+                    log.info(f"  {name}/{em} rate hold ({_rl_wait:.1f}s) — trying next")
+                    trail.note(name, em, "skipped", "rate_hold")
                     continue
             _rl_t0 = time.time()
             t0   = _rl_t0

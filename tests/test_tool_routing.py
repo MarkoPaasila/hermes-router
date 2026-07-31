@@ -135,6 +135,7 @@ def test_tool_last_resort_tries_deferred_candidate(monkeypatch):
                         lambda name, model: name != "deferred")
     monkeypatch.setattr(router, "_estimated_tokens", lambda m: 10)
     monkeypatch.setattr(router, "_effective_input_cap_for", lambda *a, **k: None)
+    monkeypatch.setattr(router, "_hard_input_cap_for", lambda *a, **k: None)
     monkeypatch.setattr(router, "SEMANTIC_CACHE", False)
     monkeypatch.setattr(router.stats, "breaker_open", lambda n: False)
 
@@ -142,7 +143,7 @@ def test_tool_last_resort_tries_deferred_candidate(monkeypatch):
     def fake_headroom(name, key, model):
         return 0.0 if name == "capable" else 1.0
 
-    def fake_check(name, key, model, req_count=1.0, token_count=1.0):
+    def fake_check(name, key, model, req_count=1.0, token_count=1.0, force=False):
         if name == "capable":
             return False, 60.0
         return True, 0.0

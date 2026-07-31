@@ -3,6 +3,7 @@ from __future__ import annotations
 
 REASON_LABELS = {
     "rate_headroom": "Rate headroom exhausted",
+    "rate_hold": "Rate limit hold (Retry-After)",
     "token_cap": "Input over token cap",
     "no_tools": "No tool support",
     "no_vision": "No vision support",
@@ -31,6 +32,7 @@ _REASON_PRIORITY = {
     "http_400": 60,
     "http_404": 60,
     "rate_headroom": 40,
+    "rate_hold": 45,
     "keys_cooling": 20,
     "token_cap": 50,
     "no_tools": 50,

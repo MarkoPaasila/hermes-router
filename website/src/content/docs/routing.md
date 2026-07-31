@@ -1,12 +1,10 @@
----
-title: "Routing Features"
-description: "Plain-language guide to how hermes-router decides where each request goes — chat, tools, vision, and embeddings."
----
+# Routing Features
 
 hermes-router doesn't just forward your request to the first provider it finds — it looks at
 *what kind* of request it is and picks a provider that can actually handle it, then falls back
 automatically if that one fails. This page explains each routing feature in plain language. For
-the technical version (scoring formulas, code paths), see **[Architecture](/architecture/)**.
+the technical version (scoring formulas, code paths), see the
+**[Architecture section of the README](../README.md#architecture)**.
 
 **The short version:** every request gets scored for difficulty, every model is scored for
 capability, and the router sends it to the cheapest model that can still do the job — skipping
@@ -41,7 +39,9 @@ as its own catalog candidate — easy requests land on `flash-lite`, hard ones c
 
 When your client sends a **session id**, the router remembers the winning
 `(provider, model, key)` for that conversation and reuses it on later turns until it has to
-**cascade away** (rate limit, error, capability skip, etc.). That keeps multi-turn chats on the
+**cascade away** (real upstream 429 / Retry-After, error, capability skip, etc.). TBF **estimates**
+do not abandon a sticky model — the session is allowed to bump into limits so learning can
+happen. That keeps multi-turn chats on the
 same upstream account and model instead of bouncing around the catalog every message.
 
 **Session id resolution** (first non-empty wins; the router never invents an id):
@@ -63,13 +63,13 @@ that key errors or is exhausted, then the router tries the next ready key for th
 ## Tool-calling routing
 
 **Tool calling** (or "function calling") is how you let the model *do* something — like look up
-the weather — instead of just answering in text. See **[Concepts](/concepts/)** if that's new to you.
+the weather — instead of just answering in text. See **[concepts.md](concepts.md)** if that's new to you.
 
 Not every model can do this. When your request includes `tools`, the router **only considers
 models known to support function calling** — skipping ones that would just ignore the tool and
 answer conversationally instead of calling it. This is detected automatically per model at
-startup (see [Configuration → Per-provider capability overrides](/configuration/#per-provider-capability-overrides)
-to override a result manually with `<PROVIDER>_SUPPORTS_TOOLS`).
+startup (see [configuration.md](configuration.md#per-provider-capability-overrides) to override a
+result manually with `<PROVIDER>_SUPPORTS_TOOLS`).
 
 **Safety net:** if the router can't confirm *any* candidate supports tools (e.g. every provider is
 new/unprobed), it doesn't hard-fail — it falls back to trying all of them rather than refusing the
@@ -91,7 +91,7 @@ providers, the router falls back to trying all of them instead of refusing the r
 ## Embeddings routing
 
 **Embeddings** turn text into a list of numbers representing its *meaning*, used for things like
-"find the most similar document." See **[Concepts](/concepts/)** for the plain-language version.
+"find the most similar document." See **[concepts.md](concepts.md)** for the plain-language version.
 
 This is a separate, simpler routing path — only providers configured with an embedding model
 (currently Gemini, Mistral, Cohere, and OpenAI) are candidates. `POST /v1/embeddings` uses the
@@ -108,8 +108,8 @@ routes text and vision *input* — reading images you send it, not generating ne
 
 This page is the plain-language tour. For the exact scoring formula, the request pipeline
 diagram, and how each of these interacts with failover, the circuit breaker, and capability
-probing under the hood, see **[Architecture — How it works](/architecture/)**.
+probing under the hood, see the **[Architecture section of the README](../README.md#architecture)**.
 
 ---
 
-**Next:** [Deployment](/deployment/) — run the router on your OS (Windows, macOS, Linux, Docker, or a free cloud Space).
+**Next:** [Deployment](deployment.md) — run the router on your OS (Windows, macOS, Linux, Docker, or a free cloud Space).
