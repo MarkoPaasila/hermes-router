@@ -27,6 +27,16 @@ COMPLEXITY_MIN_GI: dict[int, float] = {
 # Substring snapshot keys shorter than this are exact/alias-only (no fuzzy hit).
 MIN_SUBSTRING_KEY_LEN = 4
 
+# Specialty modality tokens: cand with these must not inherit a chat key that lacks them.
+_MODALITY_TOKENS = frozenset({
+    "image",
+    "veo",
+    "live",
+    "omni",
+    "translate",
+    "computer-use",
+})
+
 _QUANT_SUFFIX_RE = re.compile(
     r"[-_]("
     r"q[2-8](?:_[0-9k_m]+)?|"
@@ -35,15 +45,16 @@ _QUANT_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+_FREE_SUFFIX_RE = re.compile(r"[-_]free$", re.IGNORECASE)
+
 _lock = threading.RLock()
 _snapshot: dict[str, float] = {}  # lowercased model key → gi
 _aliases: dict[str, str] = {}  # normalized catalog id → canonical snapshot key
 _overrides: dict[str, float] = {}  # "provider|model" → gi
 _snapshot_loaded = False
 _overrides_loaded = False
-
-
-_FREE_SUFFIX_RE = re.compile(r"[-_]free$", re.IGNORECASE)
+_snapshot_mtime: float | None = None
+_overrides_mtime: float | None = None
 
 
 def normalize_model_id(model: str) -> str:
@@ -63,6 +74,26 @@ def normalize_model_id(model: str) -> str:
             break
         s = s[: m.start()]
     return s.strip("-_")
+
+
+def modality_tokens(model_id: str) -> frozenset[str]:
+    """Specialty modality tokens present as hyphen/underscore-delimited segments."""
+    s = (model_id or "").strip().lower()
+    if not s:
+        return frozenset()
+    found: set[str] = set()
+    for tok in _MODALITY_TOKENS:
+        if re.search(rf"(^|[-_]){re.escape(tok)}([-_]|$)", s):
+            found.add(tok)
+    return frozenset(found)
+
+
+def allows_contained_match(key: str, cand: str) -> bool:
+    """True if key is a substring of cand and cand adds no extra modality tokens."""
+    if not key or key not in cand:
+        return False
+    extra = modality_tokens(cand) - modality_tokens(key)
+    return not extra
 
 
 def rankings_path() -> Path:
@@ -104,6 +135,13 @@ def min_gi_for_complexity(complexity: int) -> float:
     return COMPLEXITY_MIN_GI[5]
 
 
+def _file_mtime(path: Path) -> float | None:
+    try:
+        return path.stat().st_mtime if path.exists() else None
+    except OSError:
+        return None
+
+
 def _score_for_key(key: str) -> float | None:
     """Resolve a snapshot key or alias target to a GI score."""
     if key in _snapshot:
@@ -143,7 +181,7 @@ def _match_snapshot(model: str) -> float | None:
         if len(key) < MIN_SUBSTRING_KEY_LEN:
             continue
         for cand in candidates:
-            if key in cand:
+            if allows_contained_match(key, cand):
                 if best_key is None or len(key) > len(best_key):
                     best_key = key
                 break
@@ -153,15 +191,19 @@ def _match_snapshot(model: str) -> float | None:
 
 
 def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
-    global _snapshot, _aliases, _snapshot_loaded
+    global _snapshot, _aliases, _snapshot_loaded, _snapshot_mtime
+    p = path or rankings_path()
+    mtime = _file_mtime(p)
     with _lock:
-        if _snapshot_loaded and not force:
+        if _snapshot_loaded and not force and mtime is not None and mtime == _snapshot_mtime:
             return
-        p = path or rankings_path()
+        if _snapshot_loaded and not force and mtime is None and _snapshot_mtime is None:
+            return
         _snapshot = {}
         _aliases = {}
         if not p.exists():
             log.warning("[gi] snapshot missing at %s — all models default to 0 unless overridden", p)
+            _snapshot_mtime = None
             _snapshot_loaded = True
             return
         try:
@@ -210,17 +252,22 @@ def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
             log.warning("[gi] could not read snapshot %s: %s", p, e)
             _snapshot = {}
             _aliases = {}
+        _snapshot_mtime = _file_mtime(p)
         _snapshot_loaded = True
 
 
 def load_overrides(path: Path | None = None, *, force: bool = False) -> None:
-    global _overrides, _overrides_loaded
+    global _overrides, _overrides_loaded, _overrides_mtime
+    p = path or overrides_path()
+    mtime = _file_mtime(p)
     with _lock:
-        if _overrides_loaded and not force:
+        if _overrides_loaded and not force and mtime is not None and mtime == _overrides_mtime:
             return
-        p = path or overrides_path()
+        if _overrides_loaded and not force and mtime is None and _overrides_mtime is None:
+            return
         _overrides = {}
         if not p.exists():
+            _overrides_mtime = None
             _overrides_loaded = True
             return
         try:
@@ -247,6 +294,7 @@ def load_overrides(path: Path | None = None, *, force: bool = False) -> None:
         except Exception as e:
             log.warning("[gi] could not read overrides %s: %s", p, e)
             _overrides = {}
+        _overrides_mtime = _file_mtime(p)
         _overrides_loaded = True
 
 
@@ -282,6 +330,8 @@ def set_override(provider: str, model: str, gi: float, path: Path | None = None)
     with _lock:
         _overrides[key] = g
         _persist_overrides(path)
+        global _overrides_mtime
+        _overrides_mtime = _file_mtime(path or overrides_path())
     return g
 
 
@@ -294,6 +344,8 @@ def clear_override(provider: str, model: str, path: Path | None = None) -> bool:
         if existed:
             del _overrides[key]
             _persist_overrides(path)
+            global _overrides_mtime
+            _overrides_mtime = _file_mtime(path or overrides_path())
         return existed
 
 
@@ -311,9 +363,12 @@ def _persist_overrides(path: Path | None = None) -> None:
 def reset_for_tests() -> None:
     """Clear in-memory state (tests only)."""
     global _snapshot, _aliases, _overrides, _snapshot_loaded, _overrides_loaded
+    global _snapshot_mtime, _overrides_mtime
     with _lock:
         _snapshot = {}
         _aliases = {}
         _overrides = {}
         _snapshot_loaded = False
         _overrides_loaded = False
+        _snapshot_mtime = None
+        _overrides_mtime = None

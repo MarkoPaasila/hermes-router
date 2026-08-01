@@ -27,4 +27,8 @@ Capability as a discrete 1–5 score was too coarse, overloaded with “feature 
   leaderboards or LLMs for GI. With `--catalog`, refresh fails if coverage is below 80%.
   Matching also normalizes ids (strip `org/`, `:tag`, trailing `-free`/`_free`, quants)
   and uses longest **contained** snapshot key (never a longer sibling key containing the
-  candidate), ignoring keys shorter than 4 characters.
+  candidate), ignoring keys shorter than 4 characters. Specialty modality tokens
+  (`image`, `veo`, `live`, `omni`, `translate`, `computer-use`) block chat-key inheritance
+  so image/video/live SKUs stay at 0 unless exact or aliased. Snapshot and override files
+  hot-reload when their mtime changes. GI is chat-Arena based; non-chat specialty models
+  correctly default to 0.

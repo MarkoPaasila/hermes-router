@@ -202,3 +202,96 @@ def test_short_substring_keys_do_not_match(tmp_path):
     score, src = gi.resolve_gi("x", "o1")
     assert score == 95.0
     assert src == "snapshot"
+
+
+def test_modality_sku_does_not_inherit_chat_gi(tmp_path):
+    snap = tmp_path / "gi_rankings.json"
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {
+            "gemini-3-pro": {"gi": 75.0},
+            "gemini-2.5-flash": {"gi": 72.0},
+        },
+    }))
+    gi.load_snapshot(force=True)
+    for mid in (
+        "gemini-3-pro-image",
+        "gemini-3-pro-image-preview",
+        "gemini-2.5-computer-use-preview-10-2025",
+        "gemini-3.1-flash-live-preview",
+        "gemini-omni-flash-preview",
+        "gemini-3.5-live-translate-preview",
+        "veo-3.1-generate-preview",
+    ):
+        score, src = gi.resolve_gi("gemini", mid)
+        assert src == "default", mid
+        assert score == 0.0, mid
+    # Plain chat ids still match
+    assert gi.resolve_gi("gemini", "gemini-3-pro") == (75.0, "snapshot")
+    assert gi.resolve_gi("gemini", "gemini-3-pro-preview") == (75.0, "snapshot")
+
+
+def test_alias_maps_latest_and_near_miss_ids(tmp_path):
+    snap = tmp_path / "gi_rankings.json"
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {
+            "gemini-3.1-flash-lite-preview": {"gi": 32.0},
+            "gemini-3.5-flash": {"gi": 76.0},
+            "gemini-3.5-flash-lite": {"gi": 68.0},
+            "gemini-3.1-pro-preview": {"gi": 75.0},
+            "laguna-xs.2": {"gi": 40.0},
+        },
+        "aliases": {
+            "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
+            "gemini-flash-latest": "gemini-3.5-flash",
+            "gemini-flash-lite-latest": "gemini-3.5-flash-lite",
+            "gemini-pro-latest": "gemini-3.1-pro-preview",
+            "laguna-xs-2.1": "laguna-xs.2",
+        },
+    }))
+    gi.load_snapshot(force=True)
+    assert gi.resolve_gi("gemini", "gemini-3.1-flash-lite") == (32.0, "snapshot")
+    assert gi.resolve_gi("gemini", "gemini-flash-latest") == (76.0, "snapshot")
+    assert gi.resolve_gi("gemini", "gemini-flash-lite-latest") == (68.0, "snapshot")
+    assert gi.resolve_gi("gemini", "gemini-pro-latest") == (75.0, "snapshot")
+    assert gi.resolve_gi("openrouter", "poolside/laguna-xs-2.1:free") == (40.0, "snapshot")
+
+
+def test_snapshot_reloads_when_file_mtime_changes(tmp_path):
+    snap = tmp_path / "gi_rankings.json"
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {"gpt-4o": {"gi": 50.0}},
+    }))
+    gi.load_snapshot(force=True)
+    assert gi.resolve_gi("x", "gpt-4o") == (50.0, "snapshot")
+
+    # Rewrite with a newer mtime so hot-reload picks it up
+    import time
+    time.sleep(0.05)
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {"gpt-4o": {"gi": 90.0}},
+    }))
+    # resolve_gi → _ensure_loaded should reload without force=True
+    assert gi.resolve_gi("x", "gpt-4o") == (90.0, "snapshot")
+
+
+def test_overrides_reload_when_file_mtime_changes(tmp_path):
+    snap = tmp_path / "gi_rankings.json"
+    snap.write_text(json.dumps({"version": 1, "models": {}}))
+    ov = tmp_path / "gi_overrides.json"
+    ov.write_text(json.dumps({
+        "overrides": {"gemini|flash": {"gi": 33.0}},
+    }))
+    gi.load_snapshot(force=True)
+    gi.load_overrides(force=True)
+    assert gi.resolve_gi("gemini", "flash") == (33.0, "override")
+
+    import time
+    time.sleep(0.05)
+    ov.write_text(json.dumps({
+        "overrides": {"gemini|flash": {"gi": 77.0}},
+    }))
+    assert gi.resolve_gi("gemini", "flash") == (77.0, "override")

@@ -109,7 +109,7 @@ def deterministic_match(catalog_id: str, known_keys: set[str]) -> str | None:
         if len(key) < gi_ranking.MIN_SUBSTRING_KEY_LEN:
             continue
         for cand in candidates:
-            if key in cand:
+            if gi_ranking.allows_contained_match(key, cand):
                 if best is None or len(key) > len(best):
                     best = key
                 break

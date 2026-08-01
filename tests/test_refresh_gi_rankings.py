@@ -62,6 +62,13 @@ def test_deterministic_match_does_not_conflate_lite_or_flash():
     assert refresh.deterministic_match("deepseek-v4", {"deepseek-v4-flash"}) is None
 
 
+def test_deterministic_match_skips_modality_inheritance():
+    keys = {"gemini-3-pro", "gemini-2.5-flash"}
+    assert refresh.deterministic_match("gemini-3-pro-image", keys) is None
+    assert refresh.deterministic_match("gemini-2.5-computer-use-preview", keys) is None
+    assert refresh.deterministic_match("gemini-3-pro-preview", keys) == "gemini-3-pro"
+
+
 def test_filter_llm_proposals_rejects_unknown_keys():
     known = {"deepseek-v3", "gpt-4o"}
     proposals = {
