@@ -3,10 +3,12 @@
 # hr restart — restart the router so config/key changes take effect
 #
 # Use this after `hr auth add` (or any .env change). It restarts cleanly:
-#   • If a systemd service exists, it restarts that.
+#   • If a systemd service exists (user or system unit), it restarts that.
 #   • Otherwise it finds the running router.py process, stops it, and relaunches
 #     it in the background (logging to ./router.log).
 # Either way it then health-checks the router and tells you the result.
+#
+# A full process restart always re-reads gi_rankings.json from disk.
 #
 # Usage:
 #   hr restart
@@ -54,17 +56,36 @@ report_health() {
   esac
 }
 
-# 1) systemd path -----------------------------------------------------------------
-if command -v systemctl >/dev/null 2>&1 \
-   && systemctl cat "${SERVICE}.service" >/dev/null 2>&1; then
-  log "restarting systemd service '${SERVICE}'…"
-  if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-    sudo systemctl restart "$SERVICE" || { err "systemctl restart failed."; exit 1; }
-  else
-    systemctl restart "$SERVICE" || { err "systemctl restart failed."; exit 1; }
+# Prefer a user unit (common for non-root installs) over a system unit.
+# Returns 0 if restarted, 1 on failure, 2 if no unit exists.
+restart_systemd() {
+  command -v systemctl >/dev/null 2>&1 || return 2
+  if systemctl --user cat "${SERVICE}.service" >/dev/null 2>&1; then
+    log "restarting user systemd service '${SERVICE}' (reloads GI snapshot from disk)…"
+    systemctl --user restart "${SERVICE}.service" || return 1
+    return 0
   fi
+  if systemctl cat "${SERVICE}.service" >/dev/null 2>&1; then
+    log "restarting system systemd service '${SERVICE}' (reloads GI snapshot from disk)…"
+    if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+      sudo systemctl restart "${SERVICE}.service" || return 1
+    else
+      systemctl restart "${SERVICE}.service" || return 1
+    fi
+    return 0
+  fi
+  return 2
+}
+
+# 1) systemd path -----------------------------------------------------------------
+restart_systemd
+rc=$?
+if [ "$rc" -eq 0 ]; then
   report_health
   exit 0
+elif [ "$rc" -eq 1 ]; then
+  err "systemctl restart failed."
+  exit 1
 fi
 
 # 2) standalone process path ------------------------------------------------------

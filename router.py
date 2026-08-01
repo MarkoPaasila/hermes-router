@@ -1212,17 +1212,29 @@ def _model_env_suffix(model: str) -> str:
 
 def _model_caps(name: str, model: str) -> dict:
     """Per-(provider, model) GI + feature probes. GI from gi_ranking; tools default
-    capable when unknown; reasoning defaults to off."""
+    capable when unknown; reasoning defaults to off.
+
+    GI is always resolved live (snapshot/overrides) — never from router_state.
+    """
     st = _model_state.get((name, model))
     if st:
-        out = dict(st)
+        out = {k: v for k, v in st.items() if k not in ("gi", "gi_source", "rating")}
         gi, src = gi_ranking.resolve_gi(name, model)
         out["gi"] = gi
         out["gi_source"] = src
-        out.pop("rating", None)
         return out
     gi, src = gi_ranking.resolve_gi(name, model)
     return {"gi": gi, "gi_source": src, "supports_tools": True, "reasoning": False}
+
+
+def _feature_caps_only(entry: dict | None) -> dict:
+    """Probe/feature fields for router_state — never persist snapshot GI scores."""
+    if not isinstance(entry, dict):
+        return {"supports_tools": True, "reasoning": False}
+    out = {k: v for k, v in entry.items() if k not in ("gi", "gi_source", "rating")}
+    out.setdefault("supports_tools", True)
+    out.setdefault("reasoning", False)
+    return out
 
 
 def _model_supports_tools(name: str, model: str) -> bool:
@@ -1244,7 +1256,7 @@ def _promote_tools_support(name: str, model: str) -> None:
         _model_state[(name, model)] = {
             "supports_tools": True, "reasoning": False}
     else:
-        st = dict(st)
+        st = _feature_caps_only(st)
         st["supports_tools"] = True
         _model_state[(name, model)] = st
     ps = _provider_state.get(name)
@@ -1255,9 +1267,12 @@ def _promote_tools_support(name: str, model: str) -> None:
             return
         doc = json.loads(STATE_FILE.read_text())
         key = f"{name}::{model}"
-        entry = dict((doc.get("model_state") or {}).get(key) or _model_state[(name, model)])
+        entry = _feature_caps_only(
+            (doc.get("model_state") or {}).get(key) or _model_state[(name, model)]
+        )
         entry["supports_tools"] = True
         doc.setdefault("model_state", {})[key] = entry
+        _model_state[(name, model)] = _feature_caps_only(entry)
         if name in (doc.get("providers") or {}) and doc["providers"][name].get("model") == model:
             doc["providers"][name]["supports_tools"] = True
         doc.setdefault("scale_version", CAPABILITY_SCALE_VERSION)
@@ -1794,7 +1809,7 @@ def _initialize_ratings(providers: list, pool_ref):
             for k, v in (cached_doc.get("model_state") or {}).items():
                 n, _, m = k.partition("::")
                 if m:
-                    _model_state[(n, m)] = v
+                    _model_state[(n, m)] = _feature_caps_only(v)
             log.info(f"[ratings] Loaded cached state ({len(_provider_state)} providers, "
                      f"{len(_model_state)} models)")
             # Probes cost a real completion per model, so skip them while the state
@@ -1823,7 +1838,10 @@ def _initialize_ratings(providers: list, pool_ref):
                         "last_updated": cached_doc.get("last_updated")
                             or time.strftime("%Y-%m-%dT%H:%M:%S"),
                         "providers": _provider_state,
-                        "model_state": {f"{n}::{m}": v for (n, m), v in _model_state.items()},
+                        "model_state": {
+                            f"{n}::{m}": _feature_caps_only(v)
+                            for (n, m), v in _model_state.items()
+                        },
                         "scale_version": CAPABILITY_SCALE_VERSION,
                     }, indent=2))
                 except Exception:
@@ -1864,10 +1882,9 @@ def _initialize_ratings(providers: list, pool_ref):
         # Per-model feature probes for the whole list (primary = models[0] = actual).
         # Reuse a cached entry when present so adding one model doesn't re-probe all.
         for m in (p.get("models") or [actual]):
-            caps = cached_models.get((name, m)) or _resolve_caps(p, key, m, caps_probe_ok)
-            # Drop legacy rating field from cached probe state — GI is separate.
-            if isinstance(caps, dict) and "rating" in caps:
-                caps = {k: v for k, v in caps.items() if k != "rating"}
+            caps = _feature_caps_only(
+                cached_models.get((name, m)) or _resolve_caps(p, key, m, caps_probe_ok)
+            )
             new_model_state[(name, m)] = caps
             gi, gi_src = gi_ranking.resolve_gi(name, m)
             log.info(f"[ratings]   {name}/{m}: gi={gi:.1f} ({gi_src}) "
@@ -1889,8 +1906,10 @@ def _initialize_ratings(providers: list, pool_ref):
                                            "last_updated_ts": time.time(),
                                            "scale_version": CAPABILITY_SCALE_VERSION,
                                            "providers": new_state,
-                                           "model_state": {f"{n}::{m}": v
-                                                           for (n, m), v in new_model_state.items()}},
+                                           "model_state": {
+                                               f"{n}::{m}": _feature_caps_only(v)
+                                               for (n, m), v in new_model_state.items()
+                                           }},
                                           indent=2))
         log.info("[ratings] State persisted to disk")
     except Exception as e:
@@ -2165,9 +2184,9 @@ def _configured_rate_group_ids() -> set[str]:
     return ids
 
 
-# Background: load GI snapshot/overrides, then validate providers / feature probes
-gi_ranking.load_snapshot()
-gi_ranking.load_overrides()
+# Background: always re-read GI snapshot + manual overrides from disk on process
+# start (snapshot is never persisted in router_state — only gi_overrides.json).
+gi_ranking.reload_scores()
 threading.Thread(target=_initialize_ratings, args=(PROVIDERS, pool), daemon=True).start()
 
 # ── Per-provider stats ─────────────────────────────────────────────────────────

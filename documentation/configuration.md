@@ -254,8 +254,10 @@ ids (strip `org/`, `:tag`, trailing `-free`/`_free`, quants), snapshot `aliases`
 **contained** key (min key length 4) — a base id never inherits a longer `-lite`/`-flash` sibling.
 Specialty modality tokens (`image`, `veo`, `live`, `omni`, `translate`, `computer-use`) block
 inheriting a chat score; those SKUs stay **0** unless exact/aliased (GI is chat-Arena based).
-The proxy hot-reloads `GI_RANKINGS_FILE` / `GI_OVERRIDES_FILE` when file mtime changes.
-Unknown models score **0** until you assign an override.
+The proxy hot-reloads `GI_RANKINGS_FILE` / `GI_OVERRIDES_FILE` when file mtime changes,
+and **always** re-reads both on process start/restart. Snapshot scores are not stored in
+`router_state.json` — only manual overrides in `GI_OVERRIDES_FILE` persist. Unknown models
+score **0** until you assign an override.
 
 ```bash
 python scripts/refresh_gi_rankings.py \

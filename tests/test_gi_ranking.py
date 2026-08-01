@@ -295,3 +295,20 @@ def test_overrides_reload_when_file_mtime_changes(tmp_path):
         "overrides": {"gemini|flash": {"gi": 77.0}},
     }))
     assert gi.resolve_gi("gemini", "flash") == (77.0, "override")
+
+
+def test_reload_scores_forces_fresh_snapshot(tmp_path):
+    snap = tmp_path / "gi_rankings.json"
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {"gpt-4o": {"gi": 40.0}},
+    }))
+    gi.reload_scores()
+    assert gi.resolve_gi("x", "gpt-4o") == (40.0, "snapshot")
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {"gpt-4o": {"gi": 95.0}},
+    }))
+    # Same mtime resolution on some FS can be coarse; force via reload_scores
+    gi.reload_scores()
+    assert gi.resolve_gi("x", "gpt-4o") == (95.0, "snapshot")

@@ -2,6 +2,12 @@
 
 Replaces the old 1–5 Capability score. Scale is 0–100 (higher = stronger).
 Resolution: dashboard override → snapshot → 0 (bottom of pack).
+
+Persistence:
+  • Snapshot scores (`gi_rankings.json`) are read-only defaults. They are re-loaded
+    from disk on every process start/restart (and when the file mtime changes).
+    The proxy never writes snapshot scores into router_state.
+  • Only manual overrides (`gi_overrides.json`) persist operator-set scores.
 """
 from __future__ import annotations
 
@@ -246,7 +252,7 @@ def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
                 "[gi] loaded %d snapshot scores, %d aliases from %s",
                 len(_snapshot),
                 len(_aliases),
-                p,
+                p.resolve() if p.exists() else p,
             )
         except Exception as e:
             log.warning("[gi] could not read snapshot %s: %s", p, e)
@@ -301,6 +307,12 @@ def load_overrides(path: Path | None = None, *, force: bool = False) -> None:
 def _ensure_loaded() -> None:
     load_snapshot()
     load_overrides()
+
+
+def reload_scores() -> None:
+    """Force re-read snapshot + overrides from disk (call on process start)."""
+    load_snapshot(force=True)
+    load_overrides(force=True)
 
 
 def resolve_gi(provider: str, model: str) -> tuple[float, str]:

@@ -13,6 +13,9 @@ Capability as a discrete 1–5 score was too coarse, overloaded with “feature 
 - GI is **0–100** (higher = stronger).
 - Defaults: checked-in `gi_rankings.json` = median of min–max-normalized LMSYS Arena and Artificial Analysis scores (maintainer script; no live fetch in the proxy).
 - Resolve: dashboard override → snapshot → **0**.
+- Snapshot file is re-loaded on every process start/restart (and on file mtime
+  change). Snapshot GI is never written into `router_state.json`.
+- Only manual overrides (`gi_overrides.json`) persist operator-set scores.
 - Complexity maps to a minimum GI (defaults 0/20/40/60/80); selection picks the cheapest candidate that clears the bar.
 - Wire/status field: `gi` + `gi_source`. Drop `MODEL_QUALITY_RANKS`.
 - Feature probing (tools/vision/reasoning) stays separate.
