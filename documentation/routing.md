@@ -18,7 +18,8 @@ This is the core of the proxy, used by every chat request.
   no extra AI call. Words like "implement," "design," or "debug" push it toward "hard"; something
   like "what year was X" or "yes or no" pushes it toward "easy."
 - Every configured model has a **general intelligence ranking from 0–100** (higher = stronger),
-  from the LMSYS + Artificial Analysis snapshot (`gi_rankings.json`), with optional dashboard
+  from the LMSYS (+ optional Artificial Analysis) snapshot (`gi_rankings.json`), with id
+  normalization / aliases and optional dashboard
   overrides. Unknown models default to **0** (bottom of pack) until you assign a score.
 - The proxy builds a **full catalog** of every configured `(provider, model)` **candidate** and
   picks the **cheapest model that meets the minimum GI** for the request's complexity — across the

@@ -22,3 +22,9 @@ Capability as a discrete 1–5 score was too coarse, overloaded with “feature 
 - Legacy 1–5 `rating` values in probe state are not mapped into GI.
 - Operators set/clear scores from the Models modal (`gi_overrides.json`).
 - Docs and `CONTEXT.md` use GI / feature probing instead of Capability for strength.
+- Snapshot may include an `aliases` map (normalized catalog id → canonical key). The refresh
+  script can propose aliases with a maintainer-only LLM (`--llm`); the proxy never calls
+  leaderboards or LLMs for GI. With `--catalog`, refresh fails if coverage is below 80%.
+  Matching also normalizes ids (strip `org/`, `:tag`, trailing `-free`/`_free`, quants)
+  and uses longest **contained** snapshot key (never a longer sibling key containing the
+  candidate), ignoring keys shorter than 4 characters.

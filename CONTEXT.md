@@ -155,7 +155,7 @@ How hard a request is, scored 1–5 where **1 = easiest** and **5 = hardest**.
 _Avoid_: Difficulty (synonym clutter); inverting the scale in user copy
 
 **General intelligence ranking (GI)**:
-How strong a model is for general chat/reasoning, scored **0–100** where higher = stronger. Defaults from the LMSYS + Artificial Analysis snapshot (`gi_rankings.json`); dashboard overrides win. Unknown models score **0** until overridden.
+How strong a model is for general chat/reasoning, scored **0–100** where higher = stronger. Defaults from the LMSYS (+ optional Artificial Analysis) snapshot (`gi_rankings.json`), with id normalization and optional aliases; dashboard overrides win. Unknown models score **0** until overridden.
 _Avoid_: Capability or Rating (as the user-facing name for this score); inverting the scale in user copy
 
 **Failure**:

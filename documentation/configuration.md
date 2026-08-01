@@ -245,12 +245,36 @@ The proxy auto-probes each provider at startup, but you can force the result:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GI_RANKINGS_FILE` | `./gi_rankings.json` | Checked-in snapshot of default GI scores (0–100) |
+| `GI_RANKINGS_FILE` | `./gi_rankings.json` | Checked-in snapshot of default GI scores (0–100), plus optional `aliases` |
 | `GI_OVERRIDES_FILE` | `./gi_overrides.json` | Dashboard overrides (set/clear from the Models modal) |
 
 Rebuild the snapshot with `scripts/refresh_gi_rankings.py` from LMSYS Arena and Artificial
-Analysis JSON exports (median of min–max-normalized scores). Unknown models score **0** until
-you assign an override.
+Analysis JSON exports (median of min–max-normalized scores). Matching uses normalized model
+ids (strip `org/`, `:tag`, trailing `-free`/`_free`, quants), snapshot `aliases`, then longest
+**contained** key (min key length 4) — a base id never inherits a longer `-lite`/`-flash` sibling.
+Unknown models score **0** until you assign an override.
+
+```bash
+python scripts/refresh_gi_rankings.py \
+  --lmsys data/gi_sources/lmsys.json \
+  --aa data/gi_sources/aa.json \
+  --catalog data/gi_sources/catalog.json \
+  --llm \
+  --out gi_rankings.json
+```
+
+- `--catalog` — runtime catalog model ids; writes a `coverage` summary and **exits 1** if
+  coverage is below 80%.
+- `--llm` — propose aliases for unmatched catalog ids via an OpenAI-compatible endpoint
+  (maintainer-only; not used by the proxy). Requires:
+
+| Variable | Purpose |
+|---|---|
+| `GI_ALIAS_LLM_BASE_URL` | API base URL (e.g. `https://api.openai.com/v1`) |
+| `GI_ALIAS_LLM_API_KEY` | Bearer token |
+| `GI_ALIAS_LLM_MODEL` | Chat model id (default `gpt-4o-mini` if unset in script) |
+
+See [`data/gi_sources/README.md`](../data/gi_sources/README.md) for how to obtain LMSYS / AA exports.
 
 ## Model overrides
 

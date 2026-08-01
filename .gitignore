@@ -34,6 +34,10 @@ env/
 # Local agent design/plan docs (not part of the shipped product)
 docs/superpowers/
 
+# Raw GI leaderboard dumps (regenerate; see data/gi_sources/README.md)
+data/gi_sources/*.json
+!data/gi_sources/README.md
+
 # IDE
 .cursor/
 .vscode/

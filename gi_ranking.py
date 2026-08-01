@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import statistics
 import threading
 import time
@@ -23,11 +24,45 @@ COMPLEXITY_MIN_GI: dict[int, float] = {
     5: 80.0,
 }
 
+# Substring snapshot keys shorter than this are exact/alias-only (no fuzzy hit).
+MIN_SUBSTRING_KEY_LEN = 4
+
+_QUANT_SUFFIX_RE = re.compile(
+    r"[-_]("
+    r"q[2-8](?:_[0-9k_m]+)?|"
+    r"gguf|awq|gptq|fp8|int[48]|bf16|fp16"
+    r")$",
+    re.IGNORECASE,
+)
+
 _lock = threading.RLock()
 _snapshot: dict[str, float] = {}  # lowercased model key → gi
+_aliases: dict[str, str] = {}  # normalized catalog id → canonical snapshot key
 _overrides: dict[str, float] = {}  # "provider|model" → gi
 _snapshot_loaded = False
 _overrides_loaded = False
+
+
+_FREE_SUFFIX_RE = re.compile(r"[-_]free$", re.IGNORECASE)
+
+
+def normalize_model_id(model: str) -> str:
+    """Lowercase, strip org/, :tag, trailing -free, and common quant suffixes."""
+    s = (model or "").strip().lower()
+    if not s:
+        return ""
+    if "/" in s:
+        s = s.rsplit("/", 1)[-1]
+    if ":" in s:
+        s = s.split(":", 1)[0]
+    s = _FREE_SUFFIX_RE.sub("", s)
+    # Drop trailing quant tags repeatedly (e.g. -q4_k_m)
+    while True:
+        m = _QUANT_SUFFIX_RE.search(s)
+        if not m:
+            break
+        s = s[: m.start()]
+    return s.strip("-_")
 
 
 def rankings_path() -> Path:
@@ -69,30 +104,62 @@ def min_gi_for_complexity(complexity: int) -> float:
     return COMPLEXITY_MIN_GI[5]
 
 
+def _score_for_key(key: str) -> float | None:
+    """Resolve a snapshot key or alias target to a GI score."""
+    if key in _snapshot:
+        return _snapshot[key]
+    target = _aliases.get(key)
+    if target and target in _snapshot:
+        return _snapshot[target]
+    return None
+
+
 def _match_snapshot(model: str) -> float | None:
-    """Longest-substring match against snapshot keys (lowercased)."""
-    mn = (model or "").lower()
-    if not mn:
+    """Exact → normalized → alias → longest contained key (min key length)."""
+    raw = (model or "").strip().lower()
+    if not raw:
         return None
-    if mn in _snapshot:
-        return _snapshot[mn]
+
+    hit = _score_for_key(raw)
+    if hit is not None:
+        return hit
+
+    norm = normalize_model_id(raw)
+    if norm:
+        hit = _score_for_key(norm)
+        if hit is not None:
+            return hit
+        if norm in _aliases:
+            target = _aliases[norm]
+            if target in _snapshot:
+                return _snapshot[target]
+
+    candidates = [raw]
+    if norm and norm not in candidates:
+        candidates.append(norm)
+
     best_key = None
     for key in _snapshot:
-        if key in mn or mn in key:
-            if best_key is None or len(key) > len(best_key):
-                best_key = key
+        if len(key) < MIN_SUBSTRING_KEY_LEN:
+            continue
+        for cand in candidates:
+            if key in cand:
+                if best_key is None or len(key) > len(best_key):
+                    best_key = key
+                break
     if best_key is None:
         return None
     return _snapshot[best_key]
 
 
 def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
-    global _snapshot, _snapshot_loaded
+    global _snapshot, _aliases, _snapshot_loaded
     with _lock:
         if _snapshot_loaded and not force:
             return
         p = path or rankings_path()
         _snapshot = {}
+        _aliases = {}
         if not p.exists():
             log.warning("[gi] snapshot missing at %s — all models default to 0 unless overridden", p)
             _snapshot_loaded = True
@@ -118,10 +185,31 @@ def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
                     log.warning("[gi] skipping out-of-range snapshot gi for %s: %s", mid, gi)
                     continue
                 _snapshot[mid.lower()] = gi
-            log.info("[gi] loaded %d snapshot scores from %s", len(_snapshot), p)
+
+            raw_aliases = doc.get("aliases") or {}
+            if isinstance(raw_aliases, dict):
+                for src, dst in raw_aliases.items():
+                    if not isinstance(src, str) or not isinstance(dst, str):
+                        continue
+                    sk = normalize_model_id(src) or src.strip().lower()
+                    tk = dst.strip().lower()
+                    if not sk or not tk:
+                        continue
+                    if tk not in _snapshot:
+                        log.warning("[gi] skipping alias %s → %s (target missing)", sk, tk)
+                        continue
+                    _aliases[sk] = tk
+
+            log.info(
+                "[gi] loaded %d snapshot scores, %d aliases from %s",
+                len(_snapshot),
+                len(_aliases),
+                p,
+            )
         except Exception as e:
             log.warning("[gi] could not read snapshot %s: %s", p, e)
             _snapshot = {}
+            _aliases = {}
         _snapshot_loaded = True
 
 
@@ -222,9 +310,10 @@ def _persist_overrides(path: Path | None = None) -> None:
 
 def reset_for_tests() -> None:
     """Clear in-memory state (tests only)."""
-    global _snapshot, _overrides, _snapshot_loaded, _overrides_loaded
+    global _snapshot, _aliases, _overrides, _snapshot_loaded, _overrides_loaded
     with _lock:
         _snapshot = {}
+        _aliases = {}
         _overrides = {}
         _snapshot_loaded = False
         _overrides_loaded = False
