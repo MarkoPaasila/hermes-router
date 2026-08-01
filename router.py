@@ -1254,10 +1254,12 @@ def _promote_tools_support(name: str, model: str) -> None:
         return
     if st is None:
         _model_state[(name, model)] = {
-            "supports_tools": True, "reasoning": False}
+            "supports_tools": True, "reasoning": False,
+            "supports_tools_source": "promote"}
     else:
         st = _feature_caps_only(st)
         st["supports_tools"] = True
+        st["supports_tools_source"] = "promote"
         _model_state[(name, model)] = st
     ps = _provider_state.get(name)
     if isinstance(ps, dict) and ps.get("model") == model:
@@ -1271,6 +1273,7 @@ def _promote_tools_support(name: str, model: str) -> None:
             (doc.get("model_state") or {}).get(key) or _model_state[(name, model)]
         )
         entry["supports_tools"] = True
+        entry["supports_tools_source"] = "promote"
         doc.setdefault("model_state", {})[key] = entry
         _model_state[(name, model)] = _feature_caps_only(entry)
         if name in (doc.get("providers") or {}) and doc["providers"][name].get("model") == model:
@@ -1480,6 +1483,216 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     if old_primary != provider["model"]:
         pool_ref.rename_model(name, old_primary, provider["model"])
     log.info(f"[ratings]   {name}: discovered models → {', '.join(refreshed)}")
+
+
+def _fetch_models_catalog_map(provider: dict, key: str) -> dict[str, dict]:
+    """GET /models once; return normalized id → raw catalog item. {} on failure.
+
+    For Gemini, also merges native ``thinking`` flags (OpenAI-compat /models omits them).
+    """
+    try:
+        hdrs = {"Authorization": f"Bearer {key}", **provider.get("headers", {})}
+        r = _HTTP.get(f"{provider['base_url'].rstrip('/')}/models", headers=hdrs, timeout=10)
+        if r.status_code != 200:
+            out: dict[str, dict] = {}
+        else:
+            out = {}
+            for item in r.json().get("data", []):
+                if not isinstance(item, dict):
+                    continue
+                mid = item.get("id")
+                if not isinstance(mid, str) or not mid.strip():
+                    continue
+                normalized = mid.strip()
+                if provider["name"] == "gemini" and normalized.startswith("models/"):
+                    normalized = normalized[len("models/"):]
+                out[normalized] = item
+        if provider["name"] == "gemini":
+            _enrich_gemini_catalog_thinking(out, key)
+        return out
+    except Exception as e:
+        log.debug(f"[ratings]   {provider['name']}: capability catalog fetch skipped: {e}")
+        return {}
+
+
+def _enrich_gemini_catalog_thinking(out: dict[str, dict], key: str) -> None:
+    """Attach native Gemini ``thinking`` onto catalog items (query-key auth only)."""
+    try:
+        url = "https://generativelanguage.googleapis.com/v1beta/models"
+        r = _HTTP.get(url, params={"key": key, "pageSize": 200}, timeout=15)
+        if r.status_code != 200:
+            return
+        for item in r.json().get("models") or []:
+            if not isinstance(item, dict) or "thinking" not in item:
+                continue
+            name = item.get("name") or ""
+            if not isinstance(name, str):
+                continue
+            mid = name[len("models/"):] if name.startswith("models/") else name
+            if not mid:
+                continue
+            base = out.get(mid) or {"id": mid}
+            merged = dict(base)
+            think = item.get("thinking")
+            if think is True or think is False:
+                merged["thinking"] = think
+                out[mid] = merged
+            elif mid not in out:
+                out[mid] = merged
+    except Exception as e:
+        log.debug(f"[ratings]   gemini: native thinking enrich skipped: {e}")
+
+
+_STICKY_CAP_SOURCES = frozenset({"catalog", "promote"})
+
+# Normalized model id → True when OpenRouter advertises reasoning. Filled once per
+# ratings pass so thin-catalog providers (SambaNova/Cerebras/…) can inherit.
+_openrouter_reasoning_index: dict[str, bool] | None = None
+
+_REASONING_INDEX_STRIP_SUFFIXES = (
+    "-it", "-terminus", "-exp", "-instruct", "-chat",
+)
+
+
+def _openrouter_item_has_reasoning(item: dict) -> bool:
+    params = item.get("supported_parameters")
+    params_set = {p for p in params if isinstance(p, str)} if isinstance(params, list) else set()
+    reasoning_obj = item.get("reasoning")
+    return (
+        isinstance(reasoning_obj, dict)
+        or "reasoning" in params_set
+        or "include_reasoning" in params_set
+        or "reasoning_effort" in params_set
+    )
+
+
+def _reasoning_index_keys(model_id: str) -> list[str]:
+    """Normalized id plus shortened forms (strip -it/-terminus/…)."""
+    nid = gi_ranking.normalize_model_id(model_id)
+    if not nid:
+        return []
+    keys = [nid]
+    for suf in _REASONING_INDEX_STRIP_SUFFIXES:
+        if nid.endswith(suf) and len(nid) > len(suf) + 2:
+            keys.append(nid[: -len(suf)])
+    return keys
+
+
+def _load_openrouter_reasoning_index() -> dict[str, bool]:
+    """Public OpenRouter /models → {normalized_id: True} for reasoning models."""
+    global _openrouter_reasoning_index
+    if _openrouter_reasoning_index is not None:
+        return _openrouter_reasoning_index
+    out: dict[str, bool] = {}
+    try:
+        r = _HTTP.get("https://openrouter.ai/api/v1/models", timeout=15)
+        if r.status_code == 200:
+            for item in r.json().get("data") or []:
+                if not isinstance(item, dict) or not _openrouter_item_has_reasoning(item):
+                    continue
+                mid = item.get("id")
+                if not isinstance(mid, str):
+                    continue
+                for k in _reasoning_index_keys(mid):
+                    out[k] = True
+    except Exception as e:
+        log.debug(f"[ratings] openrouter reasoning index skipped: {e}")
+    _openrouter_reasoning_index = out
+    log.info(f"[ratings] OpenRouter reasoning index: {len(out)} id(s)")
+    return out
+
+
+def _shared_reasoning_hint(model: str) -> bool | None:
+    """True when a shared OpenRouter catalog marks this model family as reasoning."""
+    idx = _load_openrouter_reasoning_index()
+    if not idx:
+        return None
+    for k in _reasoning_index_keys(model):
+        if idx.get(k):
+            return True
+    # Cerebras-style truncations: gemma-4-31b ↔ gemma-4-31b-it already covered by
+    # strip suffixes on the index side; also try query + common suffixes.
+    nid = gi_ranking.normalize_model_id(model)
+    if not nid:
+        return None
+    for suf in ("-it", "-terminus", "-instruct"):
+        if idx.get(nid + suf):
+            return True
+    return None
+
+
+def _merge_capability(prior: dict | None, cap: str, value: bool, source: str) -> tuple[bool, str]:
+    """Apply sticky-positive rules for one capability field.
+
+    Sticky sources (catalog/promote) with prior True are never demoted.
+    """
+    src_key = f"{cap}_source"
+    if prior and prior.get(cap) is True and prior.get(src_key) in _STICKY_CAP_SOURCES:
+        if value is False:
+            return True, prior.get(src_key) or "catalog"
+        if value is True:
+            return True, source if source in _STICKY_CAP_SOURCES else (prior.get(src_key) or source)
+    return value, source
+
+
+def _catalog_caps_from_item(provider_name: str, item: dict | None) -> dict:
+    """Map a /models catalog item to optional capability bools.
+
+    Returns {"supports_tools": True|False|None, "reasoning": True|False|None}.
+    None means silent — caller should fall back to behavioral probe.
+    """
+    if not isinstance(item, dict):
+        return {"supports_tools": None, "reasoning": None}
+
+    params = item.get("supported_parameters")
+    has_params = isinstance(params, list)
+    params_set = {p for p in params if isinstance(p, str)} if has_params else set()
+    rich = has_params and len(params_set) > 0
+
+    tools_true = "tools" in params_set or "tool_choice" in params_set
+    reasoning_obj = item.get("reasoning")
+    reasoning_true = (
+        isinstance(reasoning_obj, dict)
+        or "reasoning" in params_set
+        or "include_reasoning" in params_set
+        or "reasoning_effort" in params_set
+    )
+
+    if provider_name == "openrouter":
+        if not rich and not isinstance(reasoning_obj, dict):
+            return {"supports_tools": None, "reasoning": None}
+        supports_tools = True if tools_true else (False if rich else None)
+        if isinstance(reasoning_obj, dict) or reasoning_true:
+            reasoning = True
+        elif rich:
+            reasoning = False
+        else:
+            reasoning = None
+        return {"supports_tools": supports_tools, "reasoning": reasoning}
+
+    if provider_name == "gemini":
+        # Native model metadata exposes thinking; OpenAI-compat /models does not.
+        # Only assert when the API sends a real bool — null/missing stays silent.
+        if item.get("thinking") is True:
+            return {
+                "supports_tools": True if tools_true else None,
+                "reasoning": True,
+            }
+        if item.get("thinking") is False:
+            return {
+                "supports_tools": True if tools_true else None,
+                "reasoning": False,
+            }
+        return {
+            "supports_tools": True if tools_true else None,
+            "reasoning": None,
+        }
+
+    # Default adapter: may assert true on obvious fields; never assert false.
+    return {
+        "supports_tools": True if tools_true else None,
+        "reasoning": True if reasoning_true else None,
+    }
 
 
 def _probe_anthropic(provider: dict, key: str) -> tuple:
@@ -1749,28 +1962,71 @@ def _env_flag(name: str, suffix: str, model: str):
     return val.strip().lower() not in ("0", "false", "no", "")
 
 
-def _resolve_caps(p: dict, key: str, model: str, ok: bool) -> dict:
+def _resolve_caps(p: dict, key: str, model: str, ok: bool,
+                  catalog_item=None, prior=None) -> dict:
     """Feature probes for one (provider, model). GI is resolved separately via
-    gi_ranking. An env override (per-model first, then provider-wide) wins;
-    otherwise probe the model when the provider is reachable.
+    gi_ranking.
 
-    _probe_tools returns None when the probe itself was inconclusive (network
-    error / non-200, often a free-tier RPM cap already hit by earlier probes in
-    the same startup pass) — that must NOT be cached as a confident "no tool
-    support", so it falls back to the optimistic default (True) instead.
+    Resolve order per capability: env override → catalog → behavioral probe.
+    Catalog/promote positives in ``prior`` are never demoted by a later probe
+    false. _probe_tools None stays optimistic True.
+
+    When catalog is silent on reasoning and prior was a probe-false, re-probe
+    so sticky false-negatives (e.g. OpenCode) can recover.
     """
     name = p["name"]
+    cat = _catalog_caps_from_item(name, catalog_item)
+
     et = _env_flag(name, "SUPPORTS_TOOLS", model)
     if et is not None:
-        supports_tools = et
+        supports_tools, tools_source = et, "env"
+    elif cat["supports_tools"] is not None:
+        supports_tools, tools_source = _merge_capability(
+            prior, "supports_tools", cat["supports_tools"], "catalog")
     elif not ok:
-        supports_tools = False   # provider unreachable at boot — genuinely unusable
+        supports_tools, tools_source = _merge_capability(
+            prior, "supports_tools", False, "probe")
+    elif prior is not None and "supports_tools" in prior:
+        # Keep cached tools when catalog is silent — avoid mass re-probes.
+        supports_tools = bool(prior.get("supports_tools"))
+        tools_source = prior.get("supports_tools_source") or "probe"
+        if prior.get("supports_tools") is True and prior.get("supports_tools_source") in _STICKY_CAP_SOURCES:
+            tools_source = prior.get("supports_tools_source") or "catalog"
     else:
         probed = _probe_tools(p, key, model)
-        supports_tools = True if probed is None else probed
+        raw = True if probed is None else probed
+        supports_tools, tools_source = _merge_capability(
+            prior, "supports_tools", raw, "probe")
+
     er = _env_flag(name, "REASONING", model)
-    reasoning = er if er is not None else (_probe_reasoning(p, key, model) if ok else False)
-    return {"supports_tools": supports_tools, "reasoning": reasoning}
+    if er is not None:
+        reasoning, reasoning_source = er, "env"
+    elif cat["reasoning"] is not None:
+        reasoning, reasoning_source = _merge_capability(
+            prior, "reasoning", cat["reasoning"], "catalog")
+    else:
+        shared = _shared_reasoning_hint(model)
+        if shared is True:
+            reasoning, reasoning_source = _merge_capability(
+                prior, "reasoning", True, "catalog")
+        elif not ok:
+            reasoning, reasoning_source = _merge_capability(
+                prior, "reasoning", False, "probe")
+        elif prior is not None and prior.get("reasoning") is True:
+            # Keep prior true when catalog silent (skip redundant probe).
+            reasoning, reasoning_source = True, prior.get("reasoning_source") or "probe"
+        else:
+            # No prior, or prior false/unknown — probe (recovers sticky false-negatives).
+            raw = _probe_reasoning(p, key, model) if ok else False
+            reasoning, reasoning_source = _merge_capability(
+                prior, "reasoning", raw, "probe")
+
+    return {
+        "supports_tools": supports_tools,
+        "reasoning": reasoning,
+        "supports_tools_source": tools_source,
+        "reasoning_source": reasoning_source,
+    }
 
 
 def _migrate_capability_scale(doc: dict) -> dict:
@@ -1799,7 +2055,8 @@ def _migrate_capability_scale(doc: dict) -> dict:
 
 def _initialize_ratings(providers: list, pool_ref):
     """Background: probe all providers, fix bad models, assign ratings, persist state."""
-    global _provider_state, _model_state
+    global _provider_state, _model_state, _openrouter_reasoning_index
+    _openrouter_reasoning_index = None  # refresh shared hints each ratings pass
     if STATE_FILE.exists():
         try:
             cached_doc = _migrate_capability_scale(json.loads(STATE_FILE.read_text()))
@@ -1880,10 +2137,14 @@ def _initialize_ratings(providers: list, pool_ref):
                 p["models"] = list(dict.fromkeys(p["models"]))
             pool_ref.rename_model(name, original, actual)
         # Per-model feature probes for the whole list (primary = models[0] = actual).
-        # Reuse a cached entry when present so adding one model doesn't re-probe all.
+        # Always re-resolve with catalog + prior sticky state so catalog can upgrade
+        # probe false-negatives; sticky positives are protected inside _resolve_caps.
+        catalog_map = _fetch_models_catalog_map(p, key)
         for m in (p.get("models") or [actual]):
+            prior = cached_models.get((name, m))
             caps = _feature_caps_only(
-                cached_models.get((name, m)) or _resolve_caps(p, key, m, caps_probe_ok)
+                _resolve_caps(p, key, m, caps_probe_ok,
+                              catalog_item=catalog_map.get(m), prior=prior)
             )
             new_model_state[(name, m)] = caps
             gi, gi_src = gi_ranking.resolve_gi(name, m)
