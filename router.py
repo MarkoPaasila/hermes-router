@@ -3697,8 +3697,8 @@ th.sortable.sorted-desc::after{content:'↓'}
 
 /* ── GI bar (0–100; higher = stronger) ── */
 .gi-bar{display:inline-flex;align-items:center;gap:6px}
-.gi-track{width:48px;height:6px;border-radius:99px;background:var(--border);overflow:hidden}
-.gi-fill{height:100%;border-radius:99px;background:var(--accent)}
+.gi-track{display:inline-block;width:48px;height:6px;border-radius:99px;background:var(--border);overflow:hidden;vertical-align:middle}
+.gi-fill{display:block;height:100%;border-radius:99px;background:var(--accent)}
 .gi-num{font-size:11px;font-variant-numeric:tabular-nums}
 .gi-src{font-size:10px;color:var(--muted)}
 
@@ -5833,18 +5833,6 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _est_tokens = float(est_tokens) if est_tokens else max(
                 1.0, sum(len(str(m.get("content", ""))) for m in
                          payload.get("messages", [])) / 4)
-            # #region agent log
-            if name == "gemini" and model == "gemini-2.5-pro":
-                try:
-                    open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
-                        __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "A,C,E",
-                            "location": "router.py:trying", "message": "admitting gemini-2.5-pro attempt",
-                            "data": {"headroom": rate_limiter.headroom(name, key, model),
-                                     "est_tokens": _est_tokens},
-                            "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
-                except Exception:
-                    pass
-            # #endregion
             # Thin headroom is a signal, not a hard skip: after burst-sized caps a
             # prior large debit can sit at ~0–5% while the next debit still fits,
             # and when it does not we want the wait tracked for exhausted-retry.
@@ -5867,17 +5855,6 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 if not _rl_ok:
                     if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
                         _best_rl_wait = float(_rl_wait)
-                    # #region agent log
-                    try:
-                        open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
-                            __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "B,D,E",
-                                "location": "router.py:rate_hold", "message": "skipped rate_hold",
-                                "data": {"provider": name, "model": model, "wait_s": _rl_wait,
-                                         "headroom": _current_headroom},
-                                "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
-                    except Exception:
-                        pass
-                    # #endregion
                     log.info(f"  {name}/{model} rate hold ({_rl_wait:.1f}s) — trying next")
                     _crec("note", name, model, "skipped", "rate_hold")
                     continue
@@ -5903,41 +5880,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 _rl_release()
                 stats.record_error(name)
                 # 429 is NOT a health failure — rate limiter learns + Retry-After hold.
-                # #region agent log
-                _dbg_hdrs = {k: v for k, v in dict(resp.headers).items()
-                             if k.lower() in ("retry-after", "x-ratelimit-limit",
-                                              "x-ratelimit-remaining", "x-ratelimit-reset")
-                             or k.lower().startswith("x-ratelimit-")}
-                try:
-                    open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
-                        __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "A,B,C",
-                            "location": "router.py:429", "message": "upstream 429 before on_429",
-                            "data": {"provider": name, "model": model, "headroom_before": _current_headroom,
-                                     "headers": {k: str(v)[:80] for k, v in list(_dbg_hdrs.items())[:20]},
-                                     "body_prefix": (resp.text or "")[:160]},
-                            "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
-                except Exception:
-                    pass
-                # #endregion
                 rate_limiter.on_429(
                     name, key, model, dict(resp.headers),
                     model_headroom_before=_current_headroom,
                     observed_at=_rl_t0,
                 )
-                # #region agent log
-                try:
-                    _snap = rate_limiter.snapshot(name, key, model)
-                    open("/home/marko/Projektit/Hermes-router/.cursor/debug-3ca43e.log", "a").write(
-                        __import__("json").dumps({"sessionId": "3ca43e", "hypothesisId": "B,D",
-                            "location": "router.py:429-after", "message": "after on_429 snapshot",
-                            "data": {"provider": name, "model": model,
-                                     "blocked_until": _snap.get("blocked_until"),
-                                     "blocked_remain_s": (max(0.0, (_snap.get("blocked_until") or 0) - time.time())
-                                                          if _snap.get("blocked_until") else 0)},
-                            "timestamp": int(time.time() * 1000), "runId": "pre-fix"}) + "\n")
-                except Exception:
-                    pass
-                # #endregion
                 log.warning(f"  {name}/{model} 429 — rate-limit hold, trying next")
                 _crec("note", name, model, "failed", "http_429")
                 continue
