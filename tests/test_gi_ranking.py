@@ -204,6 +204,30 @@ def test_short_substring_keys_do_not_match(tmp_path):
     assert src == "snapshot"
 
 
+def test_gpt_oss_20b_does_not_inherit_120b(tmp_path):
+    snap = tmp_path / "gi_rankings.json"
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {
+            "gpt-oss-120b": {"gi": 50.0},
+            "gpt-oss-20b": {"gi": 42.0},
+        },
+    }))
+    gi.load_snapshot(force=True)
+    assert gi.resolve_gi("groq", "openai/gpt-oss-20b") == (42.0, "snapshot")
+    assert gi.resolve_gi("openrouter", "openai/gpt-oss-20b:free") == (42.0, "snapshot")
+    assert gi.resolve_gi("groq", "openai/gpt-oss-120b") == (50.0, "snapshot")
+    # Without a 20b entry, must not inherit 120b via substring
+    snap.write_text(json.dumps({
+        "version": 1,
+        "models": {"gpt-oss-120b": {"gi": 50.0}},
+    }))
+    gi.load_snapshot(force=True)
+    score, src = gi.resolve_gi("groq", "openai/gpt-oss-20b")
+    assert src == "default"
+    assert score == 0.0
+
+
 def test_modality_sku_does_not_inherit_chat_gi(tmp_path):
     snap = tmp_path / "gi_rankings.json"
     snap.write_text(json.dumps({

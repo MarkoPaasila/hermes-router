@@ -607,6 +607,12 @@
         "seed": 50.0
       }
     },
+    "gpt-oss-20b": {
+      "gi": 42.0,
+      "sources": {
+        "seed": 42.0
+      }
+    },
     "granite-4.1-8b": {
       "gi": 21.22,
       "sources": {
