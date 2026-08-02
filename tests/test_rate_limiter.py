@@ -1314,3 +1314,70 @@ def test_force_consume_admits_when_empty():
     ok, wait, _ = g.consume(1.0, 10.0, force=True)
     assert ok is True
     assert wait == 0.0
+
+
+def test_format_bucket_used_survives_refill():
+    """Dashboard used is sliding-window spend; continuous refill must not zero it."""
+    from rate_limiter import TokenBucket, _format_bucket_metrics
+    import time as _time
+    b = TokenBucket(window_seconds=3600.0, cap=15_000_000.0, tokens=15_000_000.0, dimension="T")
+    b.tokens -= 12.0
+    b.record_usage(12.0)
+    b.refill(_time.time() + 1.0)  # refill would clear fill-deficit instantly at this rate
+    # Simulate full refill of the continuous bucket
+    b.tokens = b.cap
+    m = _format_bucket_metrics("TPH", b)
+    assert m["used"] == pytest.approx(12.0)
+
+
+def test_header_map_accepts_minute_aliases():
+    from rate_limiter import BucketGroup, _format_bucket_metrics
+    g = BucketGroup(provider_name="cerebras", caps={"RPM": 10.0, "TPM": 100_000.0,
+                                                    "RPH": 150.0, "TPH": 1_000_000.0})
+    for b in g.buckets.values():
+        b.tokens = b.cap
+    g.update_from_headers({
+        "x-ratelimit-limit-requests-minute": "10",
+        "x-ratelimit-remaining-requests-minute": "7",
+        "x-ratelimit-limit-tokens-minute": "100000",
+        "x-ratelimit-remaining-tokens-minute": "90000",
+    })
+    assert g.buckets["RPM"].tokens == pytest.approx(7.0)
+    assert g.buckets["TPM"].tokens == pytest.approx(90_000.0)
+    assert _format_bucket_metrics("RPM", g.buckets["RPM"])["used"] == 3
+    assert _format_bucket_metrics("TPM", g.buckets["TPM"])["used"] == pytest.approx(10_000.0)
+
+
+def test_header_remaining_does_not_wipe_local_window_usage():
+    from rate_limiter import TokenBucket, _format_bucket_metrics
+    b = TokenBucket(window_seconds=3600.0, cap=1_000_000.0, tokens=1_000_000.0, dimension="T")
+    b.record_usage(50_000.0)
+    # Upstream hour remaining implies only 8k used — must not reset local 50k.
+    b.set_from_header(cap=1_000_000.0, remaining=992_000.0)
+    assert _format_bucket_metrics("TPH", b)["used"] == pytest.approx(50_000.0)
+    # Upstream reporting more spend tops up.
+    b.set_from_header(cap=1_000_000.0, remaining=900_000.0, observed_at=time.time() + 1)
+    assert _format_bucket_metrics("TPH", b)["used"] == pytest.approx(100_000.0)
+
+
+def test_usage_events_persist_roundtrip():
+    from rate_limiter import BucketGroup
+    g = BucketGroup(provider_name="groq", caps={"RPM": 30.0, "TPM": 6000.0})
+    g.consume(1.0, 100.0)
+    d = g.to_dict()
+    assert "usage_events" in d["TPM"]
+    g2 = BucketGroup.from_dict(d, provider_name="groq")
+    assert g2.buckets["TPM"].usage_in_window() == pytest.approx(100.0)
+    assert g2.buckets["RPM"].usage_in_window() == pytest.approx(1.0)
+
+
+def test_header_missing_remaining_preserves_usage():
+    from rate_limiter import BucketGroup, _format_bucket_metrics
+    g = BucketGroup(provider_name="cerebras", caps={"TPM": 100_000.0, "TPH": 1_000_000.0})
+    g.consume(0.0, 12_000.0)
+    before = _format_bucket_metrics("TPH", g.buckets["TPH"])["used"]
+    g.update_from_headers({
+        "x-ratelimit-limit-tokens-hour": "1000000",
+        # no remaining header
+    })
+    assert _format_bucket_metrics("TPH", g.buckets["TPH"])["used"] == pytest.approx(before)

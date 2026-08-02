@@ -8,7 +8,7 @@ import time
 import threading
 import json
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -310,6 +310,8 @@ class TokenBucket:
         self._consecutive_successes = 0
         self._header_pinned        = False
         self._header_obs_at        = 0.0
+        # Sliding-window spend for dashboard "used" (independent of continuous refill).
+        self._usage_events: deque[tuple[float, float]] = deque()
 
     def _coerce_cap(self, cap: float) -> float:
         """Request-dimension (RPx) caps are integers; token caps stay continuous."""
@@ -323,11 +325,46 @@ class TokenBucket:
         self.tokens = min(self.cap, self.tokens + elapsed * rate)
         self.last_refill = now
 
+    def _prune_usage(self, now: float) -> None:
+        cutoff = now - self.window_seconds
+        events = self._usage_events
+        while events and events[0][0] < cutoff:
+            events.popleft()
+
+    def record_usage(self, amount: float, now: float | None = None) -> None:
+        """Record spend (or credit if negative) for sliding-window used display."""
+        if not amount:
+            return
+        t = time.time() if now is None else float(now)
+        self._usage_events.append((t, float(amount)))
+        self._prune_usage(t)
+
+    def set_usage_from_remaining(self, remaining: float, now: float | None = None) -> None:
+        """Align window used with upstream remaining without wiping local history.
+
+        If upstream reports more spend than we have tracked, append the delta.
+        If local spend is already higher, keep existing events (headers must not
+        reset hour/day bars back to a fresh snapshot).
+        """
+        t = time.time() if now is None else float(now)
+        header_used = max(0.0, self.cap - float(remaining))
+        local_used = self.usage_in_window(t)
+        delta = header_used - local_used
+        if delta > 1e-9:
+            self._usage_events.append((t, delta))
+            self._prune_usage(t)
+
+    def usage_in_window(self, now: float | None = None) -> float:
+        t = time.time() if now is None else float(now)
+        self._prune_usage(t)
+        return max(0.0, sum(a for _, a in self._usage_events))
+
     def consume(self, amount: float) -> bool:
         self.refill(time.time())
         if self.tokens >= amount:
             self.tokens -= amount
             self._period_consumed += amount
+            self.record_usage(amount)
             if self.tokens <= 0:
                 self._hit_zero = True
             return True
@@ -335,6 +372,8 @@ class TokenBucket:
 
     def restore(self, amount: float) -> None:
         self.tokens = min(self.cap, self.tokens + amount)
+        if amount:
+            self.record_usage(-float(amount))
 
     def headroom(self) -> float:
         if self.cap <= 0:
@@ -438,6 +477,7 @@ class TokenBucket:
         if self.dimension == "R":
             rem = float(max(0, int(round(rem))))
         self.tokens = rem
+        self.set_usage_from_remaining(rem, now=obs)
         self._header_pinned = True
         self._header_obs_at = obs
         self._consecutive_successes = 0
@@ -453,7 +493,18 @@ class TokenBucket:
         return
 
     def to_dict(self) -> dict:
-        return {"cap": self.cap, "tokens": self.tokens, "last_refill": self.last_refill}
+        now = time.time()
+        self._prune_usage(now)
+        out = {"cap": self.cap, "tokens": self.tokens, "last_refill": self.last_refill}
+        if self._usage_events:
+            ev = list(self._usage_events)
+            # Bound state size: coalesce oldest into one sample.
+            max_ev = 500
+            if len(ev) > max_ev:
+                older, newer = ev[:-max_ev], ev[-max_ev:]
+                ev = [(older[0][0], sum(a for _, a in older))] + newer
+            out["usage_events"] = [[float(t), float(a)] for t, a in ev]
+        return out
 
     @classmethod
     def from_dict(cls, d: dict, window_seconds: float, initial_cap: float,
@@ -462,6 +513,15 @@ class TokenBucket:
                 tokens=d.get("tokens"), last_refill=d.get("last_refill"),
                 dimension=dimension)
         b._initial_cap = b._coerce_cap(initial_cap)
+        raw_ev = d.get("usage_events") or []
+        try:
+            b._usage_events = deque(
+                (float(t), float(a)) for t, a in raw_ev
+                if isinstance(t, (int, float)) or (isinstance(t, str) and t)
+            )
+        except (TypeError, ValueError):
+            b._usage_events = deque()
+        b._prune_usage(time.time())
         return b
 
 
@@ -506,12 +566,14 @@ def _load_caps_for(provider_name: str) -> dict[str, float]:
 
 # Maps x-ratelimit header suffixes to (dimension, window_key) for bucket lookup.
 _HEADER_MAP = {
-    "requests":        ("R", "M"),   # x-ratelimit-{limit,remaining}-requests → RPM
-    "tokens":          ("T", "M"),   # x-ratelimit-{limit,remaining}-tokens   → TPM
-    "requests-day":    ("R", "D"),
-    "tokens-day":      ("T", "D"),
-    "requests-hour":   ("R", "H"),
-    "tokens-hour":     ("T", "H"),
+    "requests":         ("R", "M"),   # x-ratelimit-{limit,remaining}-requests → RPM
+    "tokens":           ("T", "M"),   # x-ratelimit-{limit,remaining}-tokens   → TPM
+    "requests-minute":  ("R", "M"),   # Cerebras / OpenAI-style minute aliases
+    "tokens-minute":    ("T", "M"),
+    "requests-hour":    ("R", "H"),
+    "tokens-hour":      ("T", "H"),
+    "requests-day":     ("R", "D"),
+    "tokens-day":       ("T", "D"),
 }
 
 def _dim_window_to_limit(dim: str, window: str) -> str:
@@ -520,8 +582,12 @@ def _dim_window_to_limit(dim: str, window: str) -> str:
 
 
 def _format_bucket_metrics(name: str, b: TokenBucket, *, include_tokens: bool = False) -> dict:
-    """Serialize bucket metrics; RPx caps/used/tokens as ints, TPx as 1-dp floats."""
-    used = max(0.0, b.cap - b.tokens)
+    """Serialize bucket metrics; RPx caps/used/tokens as ints, TPx as 1-dp floats.
+
+    `used` is sliding-window spend (not cap−tokens), so continuous refill does not
+    zero the dashboard bars seconds after real traffic.
+    """
+    used = min(float(b.cap), b.usage_in_window())
     dim = LIMIT_KEYS.get(name, (getattr(b, "dimension", "T"),))[0]
     if dim == "R":
         out = {
@@ -612,6 +678,7 @@ class BucketGroup:
                 b._period_consumed += amount
                 if b.tokens <= 0:
                     b._hit_zero = True
+            b.record_usage(amount, now=now)
         self._requests_this_period += int(req_count)
         if changes:
             changes.extend(reclamp_bucket_caps(self.buckets))
@@ -742,6 +809,7 @@ class BucketGroup:
                 except (TypeError, ValueError): pass
         obs = time.time() if observed_at is None else float(observed_at)
         for suffix, cap_val in limits.items():
+            rem_missing = suffix not in remaining
             rem_val = remaining.get(suffix, cap_val)
             pair = _HEADER_MAP.get(suffix)
             if not pair:
@@ -750,22 +818,43 @@ class BucketGroup:
             limit_name = _dim_window_to_limit(dim, window_key)
             if limit_name not in self.buckets:
                 _, wk = LIMIT_KEYS[limit_name]
+                # Missing remaining must not invent rem=cap (that zeros display used).
+                init_tokens = rem_val if not rem_missing else None
                 b = TokenBucket(window_seconds=WINDOWS[wk], cap=cap_val,
-                                tokens=rem_val, dimension=dim)
-                change = b.set_from_header(cap_val, rem_val, observed_at=obs)
-                if change is None:
-                    change = CapChange(old_cap=cap_val, event="header_pin", reason="header")
+                                tokens=init_tokens, dimension=dim)
+                if rem_missing:
+                    change = CapChange(old_cap=cap_val, event="header_pin", reason="header_cap_only")
+                    b.cap = b._coerce_cap(cap_val)
+                    b._header_pinned = True
+                    b._header_obs_at = obs
+                else:
+                    change = b.set_from_header(cap_val, rem_val, observed_at=obs)
+                    if change is None:
+                        change = CapChange(old_cap=cap_val, event="header_pin", reason="header")
                 self.buckets[limit_name] = b
                 log.info(f"[rate] created bucket {limit_name} from header cap={cap_val}")
                 header_touched.add(limit_name)
                 changes.append((limit_name, change))
             else:
                 b = self.buckets[limit_name]
-                change = b.set_from_header(cap_val, rem_val, observed_at=obs)
-                if b._header_obs_at == obs:
+                if rem_missing:
+                    # Cap-only: keep tokens + sliding-window used intact.
+                    old = b.cap
+                    b.cap = b._coerce_cap(float(cap_val))
+                    b.tokens = min(b.tokens, b.cap)
+                    b._header_pinned = True
+                    b._header_obs_at = obs
+                    change = (CapChange(old_cap=old, event="header_pin", reason="header_cap_only")
+                              if b.cap != old else None)
                     header_touched.add(limit_name)
-                if change is not None:
-                    changes.append((limit_name, change))
+                    if change is not None:
+                        changes.append((limit_name, change))
+                else:
+                    change = b.set_from_header(cap_val, rem_val, observed_at=obs)
+                    if b._header_obs_at == obs:
+                        header_touched.add(limit_name)
+                    if change is not None:
+                        changes.append((limit_name, change))
         return changes, header_touched
 
     def run_inactive_check(self) -> None:
@@ -799,10 +888,19 @@ class BucketGroup:
         for name, bdict in bucket_data.items():
             if name in g.buckets:
                 fill = max(0.0, min(1.0, RATE_BUCKET_INITIAL_FILL))
-                g.buckets[name].tokens = min(bdict["cap"] * fill,
-                                             bdict.get("tokens", bdict["cap"]))
+                cap = float(bdict["cap"])
+                raw = bdict.get("tokens", cap * fill)
+                g.buckets[name].tokens = max(0.0, min(cap, float(raw)))
                 g.buckets[name].last_refill = bdict.get("last_refill", time.time())
                 g.buckets[name]._initial_cap = bdict["cap"]
+                raw_ev = bdict.get("usage_events") or []
+                try:
+                    g.buckets[name]._usage_events = deque(
+                        (float(t), float(a)) for t, a in raw_ev
+                    )
+                except (TypeError, ValueError):
+                    g.buckets[name]._usage_events = deque()
+                g.buckets[name]._prune_usage(time.time())
         if isinstance(blocked, (int, float)) and blocked > time.time():
             g.blocked_until = float(blocked)
         return g
@@ -984,6 +1082,7 @@ class AdaptiveRateLimiter:
                     b.refill(now)
                     b.tokens = max(0.0, b.tokens - extra)
                     b._period_consumed += extra
+                    b.record_usage(extra, now=now)
 
     def on_success(self, provider_name: str, key: str, model: str,
                    token_count: float) -> None:
