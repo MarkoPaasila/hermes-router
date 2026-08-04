@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-08-01T08:46:32Z",
+  "generated_at": "2026-08-04T18:25:57Z",
   "sources": [
     "lmsys",
     "seed"
   ],
-  "note": "LMSYS Arena (text+code Elo via arena-ai-leaderboards 2026-08-01); seed retained for models not on that snapshot. Replace seed via --aa when Artificial Analysis export is available.",
+  "note": "LMSYS Arena text+code Elo via arena-ai-leaderboards 2026-08-04 (truncated dump overlay: new Elo wins, prior Elo retained for missing ids); seed retained for models not on that snapshot. Replace seed via --aa when Artificial Analysis export is available.",
   "aliases": {
     "claude-3-5-sonnet": "claude-3-5",
     "claude-3.5-sonnet": "claude-3-5",
@@ -17,6 +17,7 @@
     "gemini-flash-latest": "gemini-3.5-flash",
     "gemini-flash-lite-latest": "gemini-3.5-flash-lite",
     "gemini-pro-latest": "gemini-3.1-pro-preview",
+    "glm-4.7-flash": "glm-4.7",
     "gpt-4o-mini": "gpt-4o",
     "grok-3": "grok-2",
     "laguna-xs-2.1": "laguna-xs.2",
@@ -50,15 +51,15 @@
       }
     },
     "claude-fable-5": {
-      "gi": 79.15,
+      "gi": 79.48,
       "sources": {
-        "lmsys": 79.15
+        "lmsys": 79.48
       }
     },
     "claude-haiku-4-5-20251001": {
-      "gi": 45.39,
+      "gi": 45.47,
       "sources": {
-        "lmsys": 45.39
+        "lmsys": 45.47
       }
     },
     "claude-opus": {
@@ -74,69 +75,69 @@
       }
     },
     "claude-opus-4-1-20250805": {
-      "gi": 57.2,
+      "gi": 57.3,
       "sources": {
-        "lmsys": 57.2
+        "lmsys": 57.3
       }
     },
     "claude-opus-4-5-20251101": {
-      "gi": 71.59,
+      "gi": 71.72,
       "sources": {
-        "lmsys": 71.59
+        "lmsys": 71.72
       }
     },
     "claude-opus-4-5-20251101-thinking-32k": {
-      "gi": 76.57,
+      "gi": 72.83,
       "sources": {
-        "lmsys": 76.57
+        "lmsys": 72.83
       }
     },
     "claude-opus-4-6": {
-      "gi": 77.12,
+      "gi": 77.26,
       "sources": {
-        "lmsys": 77.12
+        "lmsys": 77.26
       }
     },
     "claude-opus-4-6-thinking": {
-      "gi": 78.6,
+      "gi": 78.74,
       "sources": {
-        "lmsys": 78.6
+        "lmsys": 78.74
       }
     },
     "claude-opus-4-7": {
-      "gi": 76.38,
+      "gi": 76.34,
       "sources": {
-        "lmsys": 76.38
+        "lmsys": 76.34
       }
     },
     "claude-opus-4-7-thinking": {
-      "gi": 78.04,
+      "gi": 78.19,
       "sources": {
-        "lmsys": 78.04
+        "lmsys": 78.19
       }
     },
     "claude-opus-4-8": {
-      "gi": 84.69,
+      "gi": 73.2,
       "sources": {
-        "lmsys": 84.69
+        "lmsys": 73.2
       }
     },
     "claude-opus-4-8-thinking": {
-      "gi": 74.72,
+      "gi": 74.86,
       "sources": {
-        "lmsys": 74.72
+        "lmsys": 74.86
       }
     },
     "claude-opus-5-high": {
-      "gi": 76.38,
+      "gi": 76.34,
       "sources": {
-        "lmsys": 76.38
+        "lmsys": 76.34
       }
     },
     "claude-opus-5-max": {
-      "gi": 76.75,
+      "gi": 75.97,
       "sources": {
-        "lmsys": 76.75
+        "lmsys": 75.97
       }
     },
     "claude-sonnet": {
@@ -146,27 +147,27 @@
       }
     },
     "claude-sonnet-4-5-20250929": {
-      "gi": 56.46,
+      "gi": 56.56,
       "sources": {
-        "lmsys": 56.46
+        "lmsys": 56.56
       }
     },
     "claude-sonnet-4-5-20250929-thinking-32k": {
-      "gi": 57.75,
+      "gi": 57.86,
       "sources": {
-        "lmsys": 57.75
+        "lmsys": 57.86
       }
     },
     "claude-sonnet-4-6": {
-      "gi": 81.92,
+      "gi": 82.07,
       "sources": {
-        "lmsys": 81.92
+        "lmsys": 82.07
       }
     },
     "claude-sonnet-5-high": {
-      "gi": 85.61,
+      "gi": 85.58,
       "sources": {
-        "lmsys": 85.61
+        "lmsys": 85.58
       }
     },
     "command-a": {
@@ -212,21 +213,21 @@
       }
     },
     "deepseek-v3.2": {
-      "gi": 45.02,
+      "gi": 45.1,
       "sources": {
-        "lmsys": 45.02
+        "lmsys": 45.1
       }
     },
     "deepseek-v3.2-exp": {
-      "gi": 35.61,
+      "gi": 35.67,
       "sources": {
-        "lmsys": 35.61
+        "lmsys": 35.67
       }
     },
     "deepseek-v3.2-thinking": {
-      "gi": 52.03,
+      "gi": 52.13,
       "sources": {
-        "lmsys": 52.03
+        "lmsys": 52.13
       }
     },
     "deepseek-v4": {
@@ -242,33 +243,33 @@
       }
     },
     "deepseek-v4-flash-high": {
-      "gi": 93.54,
+      "gi": 92.05,
       "sources": {
-        "lmsys": 93.54
+        "lmsys": 92.05
       }
     },
     "deepseek-v4-flash-high-preview": {
-      "gi": 65.13,
+      "gi": 65.25,
       "sources": {
-        "lmsys": 65.13
+        "lmsys": 65.25
       }
     },
     "deepseek-v4-pro": {
-      "gi": 67.71,
+      "gi": 67.84,
       "sources": {
-        "lmsys": 67.71
+        "lmsys": 67.84
       }
     },
     "deepseek-v4-pro-high-preview": {
-      "gi": 71.22,
+      "gi": 71.35,
       "sources": {
-        "lmsys": 71.22
+        "lmsys": 71.35
       }
     },
     "devstral-2": {
-      "gi": 21.22,
+      "gi": 21.26,
       "sources": {
-        "lmsys": 21.22
+        "lmsys": 21.26
       }
     },
     "devstral-medium-2507": {
@@ -308,81 +309,81 @@
       }
     },
     "gemini-2.5-pro": {
-      "gi": 26.75,
+      "gi": 26.8,
       "sources": {
-        "lmsys": 26.75
+        "lmsys": 26.8
       }
     },
     "gemini-3-flash": {
-      "gi": 66.24,
+      "gi": 72.83,
       "sources": {
-        "lmsys": 66.24
+        "lmsys": 72.83
       }
     },
     "gemini-3-flash (thinking-minimal)": {
-      "gi": 56.09,
+      "gi": 56.19,
       "sources": {
-        "lmsys": 56.09
+        "lmsys": 56.19
       }
     },
     "gemini-3-pro": {
-      "gi": 75.09,
+      "gi": 75.23,
       "sources": {
-        "lmsys": 75.09
+        "lmsys": 75.23
       }
     },
     "gemini-3.1-flash-lite-preview": {
-      "gi": 32.66,
+      "gi": 32.72,
       "sources": {
-        "lmsys": 32.66
+        "lmsys": 32.72
       }
     },
     "gemini-3.1-pro-preview": {
-      "gi": 75.09,
+      "gi": 75.05,
       "sources": {
-        "lmsys": 75.09
+        "lmsys": 75.05
       }
     },
     "gemini-3.5-flash": {
-      "gi": 76.2,
+      "gi": 76.34,
       "sources": {
-        "lmsys": 76.2
+        "lmsys": 76.34
       }
     },
     "gemini-3.5-flash-high": {
-      "gi": 73.25,
+      "gi": 73.2,
       "sources": {
-        "lmsys": 73.25
+        "lmsys": 73.2
       }
     },
     "gemini-3.5-flash-lite": {
-      "gi": 68.82,
+      "gi": 68.95,
       "sources": {
-        "lmsys": 68.82
+        "lmsys": 68.95
       }
     },
     "gemini-3.5-flash-medium": {
-      "gi": 75.28,
+      "gi": 73.01,
       "sources": {
-        "lmsys": 75.28
+        "lmsys": 73.01
       }
     },
     "gemini-3.6-flash": {
-      "gi": 74.35,
+      "gi": 74.68,
       "sources": {
-        "lmsys": 74.35
+        "lmsys": 74.68
       }
     },
     "gemma-4-26b-a4b": {
-      "gi": 53.14,
+      "gi": 53.23,
       "sources": {
-        "lmsys": 53.14
+        "lmsys": 53.23
       }
     },
     "gemma-4-31b": {
-      "gi": 52.4,
+      "gi": 52.5,
       "sources": {
-        "lmsys": 52.4
+        "lmsys": 52.5
       }
     },
     "glm-4.5-flash": {
@@ -392,15 +393,15 @@
       }
     },
     "glm-4.6": {
-      "gi": 47.97,
+      "gi": 48.06,
       "sources": {
-        "lmsys": 47.97
+        "lmsys": 48.06
       }
     },
     "glm-4.7": {
-      "gi": 65.31,
+      "gi": 65.43,
       "sources": {
-        "lmsys": 65.31
+        "lmsys": 65.43
       }
     },
     "glm-4.7-flash": {
@@ -410,27 +411,27 @@
       }
     },
     "glm-5": {
-      "gi": 65.68,
+      "gi": 65.8,
       "sources": {
-        "lmsys": 65.68
+        "lmsys": 65.8
       }
     },
     "glm-5.1": {
-      "gi": 80.63,
+      "gi": 80.78,
       "sources": {
-        "lmsys": 80.63
+        "lmsys": 80.78
       }
     },
     "glm-5.2-max": {
-      "gi": 93.73,
+      "gi": 93.72,
       "sources": {
-        "lmsys": 93.73
+        "lmsys": 93.72
       }
     },
     "glm-5v-turbo": {
-      "gi": 59.04,
+      "gi": 59.15,
       "sources": {
-        "lmsys": 59.04
+        "lmsys": 59.15
       }
     },
     "gpt-4.5": {
@@ -458,51 +459,51 @@
       }
     },
     "gpt-5-medium": {
-      "gi": 62.73,
+      "gi": 62.85,
       "sources": {
-        "lmsys": 62.73
+        "lmsys": 62.85
       }
     },
     "gpt-5.1": {
-      "gi": 48.34,
+      "gi": 48.43,
       "sources": {
-        "lmsys": 48.34
+        "lmsys": 48.43
       }
     },
     "gpt-5.1-codex": {
-      "gi": 47.42,
+      "gi": 47.5,
       "sources": {
-        "lmsys": 47.42
+        "lmsys": 47.5
       }
     },
     "gpt-5.1-codex-mini": {
-      "gi": 30.44,
+      "gi": 30.5,
       "sources": {
-        "lmsys": 30.44
+        "lmsys": 30.5
       }
     },
     "gpt-5.1-medium": {
-      "gi": 57.56,
+      "gi": 57.67,
       "sources": {
-        "lmsys": 57.56
+        "lmsys": 57.67
       }
     },
     "gpt-5.2": {
-      "gi": 62.73,
+      "gi": 62.85,
       "sources": {
-        "lmsys": 62.73
+        "lmsys": 62.85
       }
     },
     "gpt-5.2-chat-latest-20260210": {
-      "gi": 73.25,
+      "gi": 73.38,
       "sources": {
-        "lmsys": 73.25
+        "lmsys": 73.38
       }
     },
     "gpt-5.2-codex": {
-      "gi": 47.79,
+      "gi": 47.87,
       "sources": {
-        "lmsys": 47.79
+        "lmsys": 47.87
       }
     },
     "gpt-5.3-codex": {
@@ -512,81 +513,87 @@
       }
     },
     "gpt-5.3-codex (codex-harness)": {
-      "gi": 53.51,
+      "gi": 53.6,
       "sources": {
-        "lmsys": 53.51
+        "lmsys": 53.6
       }
     },
     "gpt-5.4": {
-      "gi": 57.56,
+      "gi": 57.67,
       "sources": {
-        "lmsys": 57.56
+        "lmsys": 57.67
       }
     },
     "gpt-5.4-high": {
-      "gi": 73.43,
+      "gi": 73.57,
       "sources": {
-        "lmsys": 73.43
+        "lmsys": 73.57
       }
     },
     "gpt-5.4-high (codex-harness)": {
-      "gi": 70.66,
+      "gi": 70.79,
       "sources": {
-        "lmsys": 70.66
+        "lmsys": 70.79
       }
     },
     "gpt-5.4-medium (codex-harness)": {
-      "gi": 67.34,
+      "gi": 67.47,
       "sources": {
-        "lmsys": 67.34
+        "lmsys": 67.47
       }
     },
     "gpt-5.4-mini-high": {
-      "gi": 59.04,
+      "gi": 59.15,
       "sources": {
-        "lmsys": 59.04
+        "lmsys": 59.15
       }
     },
     "gpt-5.5": {
-      "gi": 73.25,
+      "gi": 73.38,
       "sources": {
-        "lmsys": 73.25
+        "lmsys": 73.38
       }
     },
     "gpt-5.5 (codex-harness)": {
-      "gi": 69.93,
+      "gi": 70.06,
       "sources": {
-        "lmsys": 69.93
+        "lmsys": 70.06
       }
     },
     "gpt-5.5-high": {
-      "gi": 74.35,
+      "gi": 74.49,
       "sources": {
-        "lmsys": 74.35
+        "lmsys": 74.49
       }
     },
     "gpt-5.5-high (codex-harness)": {
-      "gi": 74.91,
+      "gi": 75.05,
       "sources": {
-        "lmsys": 74.91
+        "lmsys": 75.05
+      }
+    },
+    "gpt-5.5-instant": {
+      "gi": 72.83,
+      "sources": {
+        "lmsys": 72.83
       }
     },
     "gpt-5.5-xhigh (codex-harness)": {
-      "gi": 79.15,
+      "gi": 79.3,
       "sources": {
-        "lmsys": 79.15
+        "lmsys": 79.3
       }
     },
     "gpt-5.6-luna-xhigh (codex-harness)": {
-      "gi": 82.1,
+      "gi": 82.07,
       "sources": {
-        "lmsys": 82.1
+        "lmsys": 82.07
       }
     },
     "gpt-5.6-sol-xhigh": {
-      "gi": 74.91,
+      "gi": 74.68,
       "sources": {
-        "lmsys": 74.91
+        "lmsys": 74.68
       }
     },
     "gpt-5.6-sol-xhigh (codex-harness)": {
@@ -596,9 +603,9 @@
       }
     },
     "gpt-5.6-terra-xhigh (codex-harness)": {
-      "gi": 81.55,
+      "gi": 81.7,
       "sources": {
-        "lmsys": 81.55
+        "lmsys": 81.7
       }
     },
     "gpt-oss-120b": {
@@ -614,9 +621,9 @@
       }
     },
     "granite-4.1-8b": {
-      "gi": 21.22,
+      "gi": 21.26,
       "sources": {
-        "lmsys": 21.22
+        "lmsys": 21.26
       }
     },
     "grok-2": {
@@ -626,117 +633,123 @@
       }
     },
     "grok-4-1-fast-reasoning": {
-      "gi": 29.7,
+      "gi": 29.76,
       "sources": {
-        "lmsys": 29.7
+        "lmsys": 29.76
       }
     },
     "grok-4-fast-reasoning": {
-      "gi": 14.94,
+      "gi": 14.97,
       "sources": {
-        "lmsys": 14.94
+        "lmsys": 14.97
       }
     },
     "grok-4.1-thinking": {
-      "gi": 24.17,
+      "gi": 24.21,
       "sources": {
-        "lmsys": 24.17
+        "lmsys": 24.21
       }
     },
     "grok-4.20-beta-0309-reasoning": {
-      "gi": 54.43,
+      "gi": 72.64,
       "sources": {
-        "lmsys": 54.43
+        "lmsys": 72.64
+      }
+    },
+    "grok-4.20-beta1": {
+      "gi": 73.01,
+      "sources": {
+        "lmsys": 73.01
       }
     },
     "grok-4.3": {
-      "gi": 51.29,
+      "gi": 51.39,
       "sources": {
-        "lmsys": 51.29
+        "lmsys": 51.39
       }
     },
     "grok-4.5": {
-      "gi": 86.9,
+      "gi": 86.88,
       "sources": {
-        "lmsys": 86.9
+        "lmsys": 86.88
       }
     },
     "grok-code-fast-1": {
-      "gi": 15.5,
+      "gi": 15.53,
       "sources": {
-        "lmsys": 15.5
+        "lmsys": 15.53
       }
     },
     "hunyuan-hy3-preview": {
-      "gi": 51.29,
+      "gi": 51.39,
       "sources": {
-        "lmsys": 51.29
+        "lmsys": 51.39
       }
     },
     "hy3": {
-      "gi": 80.63,
+      "gi": 80.78,
       "sources": {
-        "lmsys": 80.63
+        "lmsys": 80.78
       }
     },
     "inkling": {
-      "gi": 61.44,
+      "gi": 61.55,
       "sources": {
-        "lmsys": 61.44
+        "lmsys": 61.55
       }
     },
     "kat-coder-pro-v1": {
-      "gi": 32.47,
+      "gi": 32.53,
       "sources": {
-        "lmsys": 32.47
+        "lmsys": 32.53
       }
     },
     "kimi-k2-thinking-turbo": {
-      "gi": 44.83,
+      "gi": 44.92,
       "sources": {
-        "lmsys": 44.83
+        "lmsys": 44.92
       }
     },
     "kimi-k2.5-instant": {
-      "gi": 60.15,
+      "gi": 60.26,
       "sources": {
-        "lmsys": 60.15
+        "lmsys": 60.26
       }
     },
     "kimi-k2.5-thinking": {
-      "gi": 65.87,
+      "gi": 65.99,
       "sources": {
-        "lmsys": 65.87
+        "lmsys": 65.99
       }
     },
     "kimi-k2.6": {
-      "gi": 79.52,
+      "gi": 79.67,
       "sources": {
-        "lmsys": 79.52
+        "lmsys": 79.67
       }
     },
     "kimi-k2.7-code": {
-      "gi": 72.69,
+      "gi": 72.83,
       "sources": {
-        "lmsys": 72.69
+        "lmsys": 72.83
       }
     },
     "kimi-k3-max": {
-      "gi": 75.09,
+      "gi": 75.05,
       "sources": {
-        "lmsys": 75.09
+        "lmsys": 75.05
       }
     },
     "laguna-m.1": {
-      "gi": 49.82,
+      "gi": 49.91,
       "sources": {
-        "lmsys": 49.82
+        "lmsys": 49.91
       }
     },
     "laguna-xs.2": {
-      "gi": 41.51,
+      "gi": 41.59,
       "sources": {
-        "lmsys": 41.51
+        "lmsys": 41.59
       }
     },
     "llama-3.1-70b": {
@@ -776,69 +789,69 @@
       }
     },
     "mercury-2": {
-      "gi": 16.05,
+      "gi": 16.08,
       "sources": {
-        "lmsys": 16.05
+        "lmsys": 16.08
       }
     },
     "mimo-v2-flash (non-thinking)": {
-      "gi": 46.49,
+      "gi": 46.58,
       "sources": {
-        "lmsys": 46.49
+        "lmsys": 46.58
       }
     },
     "mimo-v2-flash (thinking)": {
-      "gi": 39.11,
+      "gi": 39.19,
       "sources": {
-        "lmsys": 39.11
+        "lmsys": 39.19
       }
     },
     "mimo-v2-pro": {
-      "gi": 65.31,
+      "gi": 65.43,
       "sources": {
-        "lmsys": 65.31
+        "lmsys": 65.43
       }
     },
     "mimo-v2.5": {
-      "gi": 65.87,
+      "gi": 65.99,
       "sources": {
-        "lmsys": 65.87
+        "lmsys": 65.99
       }
     },
     "mimo-v2.5-pro": {
-      "gi": 72.69,
+      "gi": 72.83,
       "sources": {
-        "lmsys": 72.69
+        "lmsys": 72.83
       }
     },
     "minimax-m2": {
-      "gi": 40.22,
+      "gi": 40.3,
       "sources": {
-        "lmsys": 40.22
+        "lmsys": 40.3
       }
     },
     "minimax-m2.1-preview": {
-      "gi": 57.01,
+      "gi": 57.12,
       "sources": {
-        "lmsys": 57.01
+        "lmsys": 57.12
       }
     },
     "minimax-m2.5": {
-      "gi": 56.64,
+      "gi": 56.75,
       "sources": {
-        "lmsys": 56.64
+        "lmsys": 56.75
       }
     },
     "minimax-m2.7": {
-      "gi": 58.86,
+      "gi": 58.96,
       "sources": {
-        "lmsys": 58.86
+        "lmsys": 58.96
       }
     },
     "minimax-m3": {
-      "gi": 76.2,
+      "gi": 76.34,
       "sources": {
-        "lmsys": 76.2
+        "lmsys": 76.34
       }
     },
     "mistral-7b": {
@@ -854,9 +867,9 @@
       }
     },
     "mistral-large-3": {
-      "gi": 27.86,
+      "gi": 27.91,
       "sources": {
-        "lmsys": 27.86
+        "lmsys": 27.91
       }
     },
     "mistral-medium": {
@@ -866,9 +879,9 @@
       }
     },
     "mistral-medium-3.5": {
-      "gi": 34.69,
+      "gi": 34.75,
       "sources": {
-        "lmsys": 34.69
+        "lmsys": 34.75
       }
     },
     "mistral-small": {
@@ -896,15 +909,15 @@
       }
     },
     "muse-spark": {
-      "gi": 75.46,
+      "gi": 75.6,
       "sources": {
-        "lmsys": 75.46
+        "lmsys": 75.6
       }
     },
     "muse-spark-1.1": {
-      "gi": 76.01,
+      "gi": 75.97,
       "sources": {
-        "lmsys": 76.01
+        "lmsys": 75.97
       }
     },
     "nemotron": {
@@ -1034,69 +1047,81 @@
       }
     },
     "qwen3-coder-480b-a35b-instruct": {
-      "gi": 35.61,
+      "gi": 35.67,
       "sources": {
-        "lmsys": 35.61
+        "lmsys": 35.67
       }
     },
     "qwen3.5-122b-a10b": {
-      "gi": 51.66,
+      "gi": 51.76,
       "sources": {
-        "lmsys": 51.66
+        "lmsys": 51.76
       }
     },
     "qwen3.5-27b": {
-      "gi": 51.48,
+      "gi": 51.57,
       "sources": {
-        "lmsys": 51.48
+        "lmsys": 51.57
       }
     },
     "qwen3.5-35b-a3b": {
-      "gi": 31.73,
+      "gi": 31.79,
       "sources": {
-        "lmsys": 31.73
+        "lmsys": 31.79
       }
     },
     "qwen3.5-397b-a17b": {
-      "gi": 59.23,
+      "gi": 59.33,
       "sources": {
-        "lmsys": 59.23
+        "lmsys": 59.33
       }
     },
     "qwen3.5-flash": {
-      "gi": 29.34,
+      "gi": 29.39,
       "sources": {
-        "lmsys": 29.34
+        "lmsys": 29.39
       }
     },
     "qwen3.6-max-preview": {
-      "gi": 73.62,
+      "gi": 73.75,
       "sources": {
-        "lmsys": 73.62
+        "lmsys": 73.75
       }
     },
     "qwen3.6-plus": {
-      "gi": 69.93,
+      "gi": 70.06,
       "sources": {
-        "lmsys": 69.93
+        "lmsys": 70.06
       }
     },
     "qwen3.7-max-20260517": {
-      "gi": 81.0,
+      "gi": 81.15,
       "sources": {
-        "lmsys": 81.0
+        "lmsys": 81.15
+      }
+    },
+    "qwen3.7-max-preview": {
+      "gi": 73.2,
+      "sources": {
+        "lmsys": 73.2
+      }
+    },
+    "qwen3.8-max": {
+      "gi": 77.08,
+      "sources": {
+        "lmsys": 77.08
       }
     },
     "seed-2.1-pro-preview": {
-      "gi": 82.84,
+      "gi": 82.81,
       "sources": {
-        "lmsys": 82.84
+        "lmsys": 82.81
       }
     },
     "trinity-large-thinking": {
-      "gi": 29.52,
+      "gi": 29.57,
       "sources": {
-        "lmsys": 29.52
+        "lmsys": 29.57
       }
     },
     "wizardlm-2-7b": {
