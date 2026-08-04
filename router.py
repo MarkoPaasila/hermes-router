@@ -4157,6 +4157,25 @@ th.sortable.sorted-desc::after{content:'↓'}
   </div>
 </div>
 
+<!-- Cascade fail/skip detail modal -->
+<div id="cascade-detail-modal" class="hidden" onclick="if(event.target===this)closeCascadeDetail()">
+  <div class="rl-detail-box panel" role="dialog" aria-modal="true" aria-labelledby="cascade-detail-title">
+    <div class="panel-header">
+      <span class="panel-title" id="cascade-detail-title">Cascade</span>
+      <button class="btn" onclick="closeCascadeDetail()">Close</button>
+    </div>
+    <div class="panel-body">
+      <div id="cascade-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
+      <table>
+        <thead><tr>
+          <th>#</th><th>Provider</th><th>Model</th><th>Outcome</th><th>Reason</th>
+        </tr></thead>
+        <tbody id="cascade-detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="app-shell">
   <aside class="sidebar">
     <div class="sidebar-brand"><span>Hermes</span> Router</div>
