@@ -36,6 +36,11 @@ from token_caps import (
 )
 from session_sticky import SessionStickyStore, resolve_session_id
 from cascade_trail import CascadeTrail, http_reason
+from ttft_baseline import (
+    TtftBaselineStore,
+    TtftDeadlineExceeded,
+    abort_enabled as ttft_abort_enabled,
+)
 import gi_ranking
 
 # ── Config ─────────────────────────────────────────────────────────────────────
@@ -3553,8 +3558,64 @@ def _resolve_model(provider: dict, payload: dict, model: str | None) -> str:
     return m
 
 
+ttft_baselines = TtftBaselineStore()
+
+
+def _extend_response_read_timeout(resp, seconds: float) -> None:
+    """Best-effort: after TTFT, allow long body/stream reads."""
+    try:
+        sock = getattr(getattr(getattr(resp, "raw", None), "_fp", None), "fp", None)
+        raw = getattr(sock, "raw", None) if sock is not None else None
+        s = getattr(raw, "_sock", None) if raw is not None else None
+        if s is not None:
+            s.settimeout(seconds)
+            return
+    except Exception:
+        pass
+    try:
+        conn = getattr(resp, "connection", None)
+        s = getattr(conn, "sock", None) if conn is not None else None
+        if s is not None:
+            s.settimeout(seconds)
+    except Exception:
+        pass
+
+
+def _http_post_ttft(
+    *,
+    provider_name: str,
+    model_id: str,
+    url: str,
+    headers: dict,
+    json_body: dict,
+    stream: bool,
+    first_byte_deadline_s: float | None,
+    default_read_s: float,
+    extend_s: float = 180.0,
+) -> requests.Response | None:
+    """POST with optional TTFT read deadline; record successful header TTFT."""
+    t0 = time.time()
+    read_s = first_byte_deadline_s if first_byte_deadline_s is not None else default_read_s
+    try:
+        resp = _HTTP.post(
+            url, headers=headers, json=json_body, stream=stream, timeout=(10, read_s),
+        )
+    except requests.exceptions.ReadTimeout as e:
+        if first_byte_deadline_s is not None:
+            raise TtftDeadlineExceeded(first_byte_deadline_s, time.time() - t0) from e
+        log.error(f"  Network error → {provider_name}: {e}")
+        return None
+    except requests.exceptions.RequestException as e:
+        log.error(f"  Network error → {provider_name}: {e}")
+        return None
+    ttft_baselines.record(provider_name, model_id, time.time() - t0)
+    _extend_response_read_timeout(resp, extend_s)
+    return resp
+
+
 def forward(provider: dict, key: str, payload: dict, streaming: bool,
-            model: str | None = None) -> requests.Response | None:
+            model: str | None = None,
+            first_byte_deadline_s: float | None = None) -> requests.Response | None:
     # Codex (ChatGPT OAuth) speaks the Responses API — translate and send directly.
     if provider.get("protocol") == "codex":
         token = codex_creds.get_access_token(key)   # key is the account_id
@@ -3574,12 +3635,17 @@ def forward(provider: dict, key: str, payload: dict, streaming: bool,
             "originator":         "codex_cli_rs",
             "OpenAI-Beta":        "responses=experimental",
         }
-        try:
-            return _HTTP.post(provider["base_url"].rstrip("/") + "/responses",
-                              headers=hdrs, json=body, stream=True, timeout=(10, 180))
-        except requests.exceptions.RequestException as e:
-            log.error(f"  Network error → codex: {e}")
-            return None
+        return _http_post_ttft(
+            provider_name=provider["name"],
+            model_id=model,
+            url=provider["base_url"].rstrip("/") + "/responses",
+            headers=hdrs,
+            json_body=body,
+            stream=True,
+            first_byte_deadline_s=first_byte_deadline_s,
+            default_read_s=180.0,
+            extend_s=180.0,
+        )
 
     # Anthropic uses a different wire format — translate and send directly.
     if provider.get("protocol") == "anthropic":
@@ -3591,12 +3657,17 @@ def forward(provider: dict, key: str, payload: dict, streaming: bool,
             cleaned.append(m)
         body = _to_anthropic_body({**payload, "messages": cleaned}, model)
         hdrs = {"x-api-key": key, "anthropic-version": "2023-06-01", "Content-Type": "application/json"}
-        try:
-            return _HTTP.post("https://api.anthropic.com/v1/messages",
-                              headers=hdrs, json=body, stream=streaming, timeout=(10, 120))
-        except requests.exceptions.RequestException as e:
-            log.error(f"  Network error → anthropic: {e}")
-            return None
+        return _http_post_ttft(
+            provider_name=provider["name"],
+            model_id=model,
+            url="https://api.anthropic.com/v1/messages",
+            headers=hdrs,
+            json_body=body,
+            stream=streaming,
+            first_byte_deadline_s=first_byte_deadline_s,
+            default_read_s=120.0,
+            extend_s=120.0,
+        )
 
     headers = {
         "Authorization": f"Bearer {key}",
@@ -3650,11 +3721,17 @@ def forward(provider: dict, key: str, payload: dict, streaming: bool,
         body["stream_options"]["include_usage"] = True
 
     url = provider["base_url"].rstrip("/") + "/chat/completions"
-    try:
-        return _HTTP.post(url, headers=headers, json=body, stream=streaming, timeout=(10, 120))
-    except requests.exceptions.RequestException as e:
-        log.error(f"  Network error → {provider['name']}: {e}")
-        return None
+    return _http_post_ttft(
+        provider_name=provider["name"],
+        model_id=body["model"],
+        url=url,
+        headers=headers,
+        json_body=body,
+        stream=streaming,
+        first_byte_deadline_s=first_byte_deadline_s,
+        default_read_s=120.0,
+        extend_s=180.0,
+    )
 
 
 def _embed_ordered() -> list[dict]:
