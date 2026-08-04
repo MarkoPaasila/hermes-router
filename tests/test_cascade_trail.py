@@ -1,4 +1,10 @@
-from cascade_trail import CascadeTrail, http_reason, reason_label
+from cascade_trail import CascadeTrail, _prio, http_reason, reason_label
+
+
+def test_ttft_deadline_label_and_priority():
+    assert reason_label("ttft_deadline") == "TTFT deadline exceeded"
+    assert _prio("ttft_deadline") == 95
+    assert _prio("network") > _prio("ttft_deadline") > _prio("http_5xx")
 
 
 def test_http_reason_mapping():

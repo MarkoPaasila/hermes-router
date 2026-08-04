@@ -4800,6 +4800,7 @@ const CASCADE_REASON_LABELS = {
   keys_cooling: 'All keys cooling',
   unsuitable_cooling: 'Unsuitable model cooldown',
   network: 'Network / timeout',
+  ttft_deadline: 'TTFT deadline exceeded',
   empty_response: 'Empty / unusable response',
   http_429: 'HTTP 429',
   http_401: 'HTTP 401',

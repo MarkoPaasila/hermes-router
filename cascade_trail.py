@@ -12,6 +12,7 @@ REASON_LABELS = {
     "keys_cooling": "All keys cooling",
     "unsuitable_cooling": "Unsuitable model cooldown",
     "network": "Network / timeout",
+    "ttft_deadline": "TTFT deadline exceeded",
     "http_429": "HTTP 429",
     "http_401": "HTTP 401",
     "http_403": "HTTP 403",
@@ -24,6 +25,7 @@ REASON_LABELS = {
 # Higher wins when coalescing multiple key attempts on one model.
 _REASON_PRIORITY = {
     "network": 100,
+    "ttft_deadline": 95,
     "http_5xx": 90,
     "http_429": 80,
     "http_401": 70,
