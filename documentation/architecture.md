@@ -107,10 +107,14 @@ requests.
 
 ### Fallback & circuit breaker
 
-If a provider errors or times out, the proxy cascades to the next automatically. A provider
-that keeps failing health checks (network errors or 5xx — not rate-limits or bad requests) has
-its **circuit breaker** tripped: it's pulled out of rotation for a cooldown, then re-probed
-(half-open). Healthy providers are always preferred. Tunable via the `BREAKER_*` settings.
+If a provider errors or times out, the proxy cascades to the next automatically. Each attempt
+also has a **TTFT deadline** from that candidate’s EWMA baseline (or a cold absolute): if
+headers take too long, the attempt aborts, session affinity clears when that candidate was
+affine, and the cascade continues — without tripping the breaker. A provider that keeps failing
+health checks (network errors or 5xx — not rate-limits, bad requests, or TTFT aborts) has its
+**circuit breaker** tripped: it's pulled out of rotation for a cooldown, then re-probed
+(half-open). Healthy providers are always preferred. Tunable via the `BREAKER_*` and `TTFT_*`
+settings.
 
 ### Response cache
 

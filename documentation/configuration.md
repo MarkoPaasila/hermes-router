@@ -99,6 +99,12 @@ Sensible defaults — most users never touch these.
 | `BREAKER_MIN_SAMPLES` | `4` | Minimum samples before the breaker can trip |
 | `BREAKER_ERROR_RATE` | `0.5` | Health-failure fraction that trips the breaker |
 | `BREAKER_COOLDOWN` | `60` | Seconds the breaker stays open before re-probing |
+| `TTFT_ABORT_ENABLED` | `1` | If `1`, abort attempts whose first-byte wait exceeds the per-candidate TTFT deadline and cascade |
+| `TTFT_FLOOR_S` | `3.0` | Warm deadline never below this many seconds |
+| `TTFT_MULT` | `3.0` | Warm deadline = `max(floor, mult × EWMA TTFT)` |
+| `TTFT_MIN_SAMPLES` | `5` | Successful TTFT samples before the relative deadline applies |
+| `TTFT_COLD_DEADLINE_S` | `20.0` | Absolute first-byte wait while a candidate is still cold |
+| `TTFT_EWMA_ALPHA` | `0.2` | EWMA smoothing for successful TTFT samples |
 
 ### Per-key budgets & rate limits
 
