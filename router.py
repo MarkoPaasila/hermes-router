@@ -6218,13 +6218,32 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     continue
             _rl_t0 = time.time()
             _req_ctx.attempts += 1
-            t0   = _rl_t0
-            resp = forward(provider, key, payload, streaming, model)
-            elapsed = time.time() - t0
+            t0 = _rl_t0
 
             def _rl_release():
                 rate_limiter.release_reservation(
                     name, key, model, 1.0, _est_tokens)
+
+            _deadline = (
+                ttft_baselines.deadline_s(name, model) if ttft_abort_enabled() else None
+            )
+            try:
+                resp = forward(
+                    provider, key, payload, streaming, model,
+                    first_byte_deadline_s=_deadline,
+                )
+            except TtftDeadlineExceeded as _ttft_ex:
+                _rl_release()
+                _sum = ttft_baselines.summary(name, model)
+                log.warning(
+                    f"  {name}/{model} TTFT abort after {_ttft_ex.waited_s:.1f}s "
+                    f"(deadline {_ttft_ex.deadline_s:.1f}s, ewma {_sum.get('ewma_s')}, "
+                    f"n={_sum.get('sample_count', 0)})"
+                )
+                _crec("note", name, model, "failed", "ttft_deadline")
+                _leave_sticky_model(name, model)
+                continue
+            elapsed = time.time() - t0
 
             if resp is None:
                 _rl_release()

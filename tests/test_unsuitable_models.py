@@ -116,7 +116,7 @@ def test_route_skips_cooling_unsuitable_model(monkeypatch):
                 "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
             }
 
-    def fake_forward(p, key, payload, streaming, model):
+    def fake_forward(p, key, payload, streaming, model, **kwargs):
         forwarded.append(model)
         return _Ok()
 

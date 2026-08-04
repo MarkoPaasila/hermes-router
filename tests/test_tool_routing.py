@@ -179,7 +179,7 @@ def test_tool_last_resort_tries_deferred_candidate(monkeypatch):
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
     }
 
-    def fake_forward(provider, key, payload, streaming, model):
+    def fake_forward(provider, key, payload, streaming, model, **kwargs):
         tried.append(f"{provider['name']}/{model}")
         resp = MagicMock()
         resp.status_code = 200

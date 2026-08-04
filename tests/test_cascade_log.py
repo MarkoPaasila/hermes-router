@@ -69,7 +69,7 @@ def test_token_cap_skip_then_success(monkeypatch):
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
     }
 
-    def fake_forward(provider, key, payload, streaming, model):
+    def fake_forward(provider, key, payload, streaming, model, **kwargs):
         assert provider["name"] == "prov_b"
         resp = MagicMock()
         resp.status_code = 200
@@ -104,7 +104,7 @@ def test_http_429_then_success(monkeypatch):
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
     }
 
-    def fake_forward(provider, key, payload, streaming, model):
+    def fake_forward(provider, key, payload, streaming, model, **kwargs):
         calls["n"] += 1
         resp = MagicMock()
         resp.headers = {}
@@ -151,7 +151,7 @@ def test_rate_hold_skip_classified_as_skipped(monkeypatch):
         "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
     }
 
-    def fake_forward(provider, key, payload, streaming, model):
+    def fake_forward(provider, key, payload, streaming, model, **kwargs):
         assert provider["name"] == "prov_b"
         resp = MagicMock()
         resp.status_code = 200
