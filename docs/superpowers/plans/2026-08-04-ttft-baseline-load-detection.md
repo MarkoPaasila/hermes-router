@@ -498,11 +498,7 @@ def test_ttft_abort_clears_sticky_and_cascades(monkeypatch):
 
     monkeypatch.setattr(router, "forward", fake_forward)
     monkeypatch.setattr(router.stats, "record_health", lambda n, ok: health.append((n, ok)))
-    monkeypatch.setattr(router.sticky_store, "set",
-                        lambda *a, **k: None)
-    # seed sticky on prov_a
-    cleared = {"v": False}
-    monkeypatch.setattr(router, "_leave_sticky_model", lambda *a, **k: None)  # defined inside route — instead seed via _session_id/_sticky args
+    router.sticky_store.set("sess1", provider="prov_a", model="m1", key="sk-a")
 
     result = router._route_completion(
         {"model": "hermes-router", "messages": [{"role": "user", "content": "hi"}]},
@@ -515,10 +511,13 @@ def test_ttft_abort_clears_sticky_and_cascades(monkeypatch):
     assert any(s.get("reason") == "ttft_deadline" for s in fields["cascade"])
     assert fields["cascade"][-1]["outcome"] == "success"
     assert ("prov_a", False) not in health  # no breaker trip from TTFT
-    assert router.sticky_store.get("sess1") is None or True  # cleared — assert via sticky_store spy
+    # _leave_sticky_model → sticky_store.clear; success on prov_b may re-set sticky
+    assert router.sticky_store.get("sess1") is None or (
+        router.sticky_store.get("sess1") or {}
+    ).get("provider") == "prov_b"
 ```
 
-Implement the sticky assertion properly: monkeypatch `sticky_store.clear` to set a flag, or call real `SessionStickyStore` — `_route_completion` uses `_leave_sticky_model` which calls `_clear_sticky` → `sticky_store.clear`. Seed sticky with `router.sticky_store.set("sess1", provider="prov_a", model="m1", key="sk-a")` before the call, pass `_session_id="sess1"` and matching `_sticky`, then assert `router.sticky_store.get("sess1") is None` after.
+Note: after cascade success on `prov_b`, sticky may be re-remembered to `prov_b` — assert affinity left `prov_a` (cleared or moved), never still stuck on `prov_a`.
 
 Also add:
 
