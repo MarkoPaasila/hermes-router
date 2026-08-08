@@ -6052,8 +6052,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     # prefers a local model for short/casual turns, with cloud as fallback. We
     # normalize the model back to the router id so the cache and upstream model
     # selection behave exactly like a default request.
+    original_model = str(payload.get("model") or "")
+    pinned = not _is_auto_model_id(original_model)
+
     prefer_local = False
-    if str(payload.get("model") or "").endswith(":fast"):
+    if original_model.endswith(":fast"):
         prefer_local = True
         payload = {**payload, "model": ROUTER_MODEL}
     else:
@@ -6086,6 +6089,28 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
 
     est_tokens = _estimated_tokens(messages)
     ordered    = _ordered_providers(payload, prefer_local, sticky=_sticky)
+    if pinned:
+        ordered = _filter_candidates_by_pin(ordered, original_model)
+        caller_scope = None
+        try:
+            caller_scope = KEY_PROVIDER_SCOPE.get(_caller_token())
+        except RuntimeError:
+            pass
+        if caller_scope is not None:
+            allowed = set(caller_scope)
+            ordered = [
+                c for c in ordered if c["provider"]["name"] in allowed]
+        if not ordered:
+            return ("error", {
+                "error": {
+                    "message": (
+                        f"Model '{original_model}' is not in the proxy catalog "
+                        f"(or not allowed for this access key). "
+                        f"See GET /v1/models."
+                    ),
+                    "type": "invalid_request_error",
+                }
+            }, 400)
 
     def _leave_sticky_model(name: str, model: str) -> None:
         nonlocal _sticky
@@ -6565,7 +6590,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         return _route_completion(payload, streaming, ns, _rate_retry=True,
                                  _session_id=_session_id, _sticky=_sticky)
 
-    return ("error", {"error": {"message": "All providers exhausted", "type": "router_error"}}, 503)
+    if pinned:
+        msg = f"Pinned model '{original_model}' could not be served"
+    else:
+        msg = "All providers exhausted"
+    return ("error", {"error": {"message": msg, "type": "router_error"}}, 503)
 def _log_completion(token: str, endpoint: str, payload: dict, result: tuple, elapsed: float) -> dict | None:
     """Append one entry to the request ring buffer. Returns the entry (for later
     stream-token patching) or None if logging is disabled / failed. Never raises."""
