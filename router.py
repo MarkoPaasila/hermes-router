@@ -3547,6 +3547,39 @@ def _codex_streaming_generator(resp: requests.Response):
 
 # ── Request forwarding ─────────────────────────────────────────────────────────
 
+def _is_auto_model_id(model: str | None) -> bool:
+    """True when the client asked for proxy auto-selection (not a pinned model)."""
+    m = str(model or "").strip()
+    if not m or m == ROUTER_MODEL or m == "auto":
+        return True
+    return m.endswith(":fast")
+
+
+def _models_match_normalized(a: str, b: str) -> bool:
+    na = gi_ranking.normalize_model_id(a)
+    nb = gi_ranking.normalize_model_id(b)
+    return bool(na) and na == nb
+
+
+def _filter_candidates_by_pin(ordered: list, pin_model: str) -> list:
+    return [c for c in ordered if _models_match_normalized(c.get("model") or "", pin_model)]
+
+
+def _chat_catalog_model_ids(providers: list | None = None) -> list[str]:
+    """Distinct live chat catalog model strings (config/discovery lists), first-seen order."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in (providers if providers is not None else PROVIDERS):
+        models = p.get("models") or ([p["model"]] if p.get("model") else [])
+        for m in models:
+            s = str(m or "").strip()
+            if not s or s in seen:
+                continue
+            seen.add(s)
+            out.append(s)
+    return out
+
+
 def _resolve_model(provider: dict, payload: dict, model: str | None) -> str:
     """Which model to actually send: the explicit one the failover loop chose,
     else the client's (if it named a real model), else the provider's primary."""
