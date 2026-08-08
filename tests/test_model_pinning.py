@@ -220,3 +220,88 @@ def test_pinned_exhaustion_mentions_model(monkeypatch):
     assert result[2] == 503
     assert "gemini-2.5-flash" in result[1]["error"]["message"]
     assert result[1]["error"]["type"] == "router_error"
+
+
+def test_unknown_pin_rejects_cross_model_semantic_hit(monkeypatch):
+    _stub_route(monkeypatch)
+    monkeypatch.setattr(router, "SEMANTIC_CACHE", True)
+    monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: [])
+    monkeypatch.setattr(router, "_embed_ordered", lambda: [object()])
+    monkeypatch.setattr(router, "_embed_text", lambda text: [1.0])
+    monkeypatch.setattr(
+        router.cache, "semantic_lookup",
+        lambda *a, **k: {"choices": [{"message": {"content": "wrong model"}}]},
+    )
+
+    result = router._route_completion(
+        {"model": "totally-unknown-model",
+         "messages": [{"role": "user", "content": "same prompt"}]},
+        streaming=False, ns="pin-semantic-unknown",
+    )
+
+    assert result[0] == "error"
+    assert result[2] == 400
+    assert "totally-unknown-model" in result[1]["error"]["message"]
+
+
+def test_known_pin_does_not_return_cross_model_semantic_hit(monkeypatch):
+    ordered, a, b, other = _two_same_logical_model()
+    match_only = [c for c in ordered if c["provider"]["name"] != "groq"]
+    _stub_route(monkeypatch)
+    monkeypatch.setattr(router, "SEMANTIC_CACHE", True)
+    monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: match_only)
+    monkeypatch.setattr(router, "_embed_ordered", lambda: [object()])
+    monkeypatch.setattr(router, "_embed_text", lambda text: [1.0])
+    semantic_calls = []
+
+    def fake_semantic_lookup(*args, **kwargs):
+        semantic_calls.append((args, kwargs))
+        return {"choices": [{"message": {"content": "wrong model"}}]}
+
+    monkeypatch.setattr(router.cache, "semantic_lookup", fake_semantic_lookup)
+    body = {
+        "choices": [{"message": {"role": "assistant", "content": "right model"},
+                     "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    }
+
+    def fake_forward(provider, key, payload, streaming, model,
+                     first_byte_deadline_s=None):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        resp.json.return_value = body
+        resp.text = ""
+        return resp
+
+    monkeypatch.setattr(router, "forward", fake_forward)
+    result = router._route_completion(
+        {"model": "gemini-2.5-flash",
+         "messages": [{"role": "user", "content": "same prompt"}]},
+        streaming=False, ns="pin-semantic-known",
+    )
+
+    assert result[0] == "json"
+    assert result[1]["choices"][0]["message"]["content"] == "right model"
+    assert semantic_calls == []
+
+
+def test_pinned_out_of_provider_scope_returns_400(monkeypatch):
+    ordered, a, b, other = _two_same_logical_model()
+    match_only = [c for c in ordered if c["provider"]["name"] != "groq"]
+    _stub_route(monkeypatch)
+    monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: match_only)
+    monkeypatch.setattr(router, "_caller_token", lambda: "scoped-key")
+    monkeypatch.setattr(
+        router, "KEY_PROVIDER_SCOPE", {"scoped-key": {"groq"}})
+
+    result = router._route_completion(
+        {"model": "gemini-2.5-flash",
+         "messages": [{"role": "user", "content": "hi"}]},
+        streaming=False, ns="pin-scope",
+    )
+
+    assert result[0] == "error"
+    assert result[2] == 400
+    assert result[1]["error"]["type"] == "invalid_request_error"
+    assert "gemini-2.5-flash" in result[1]["error"]["message"]

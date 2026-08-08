@@ -6067,30 +6067,12 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             pass  # called outside a request context (e.g. tests)
 
     messages = payload.get("messages", [])
-
-    # Cache check (non-streaming only): exact match first (cheap), then optional
-    # semantic match. query_emb is reused to store the response so future similar
-    # prompts can match it.
-    query_emb = None
-    if not streaming:
-        cached = cache.get(payload, ns)
-        if cached is not None:
-            log.info("↩ cache hit")
-            _req_ctx.cache_hit = True
-            return ("json", cached)
-        if SEMANTIC_CACHE and _embed_ordered():
-            query_emb = _embed_text(_prompt_text(messages))
-            if query_emb:
-                hit = cache.semantic_lookup(query_emb, ns)
-                if hit is not None:
-                    log.info("↩ semantic cache hit")
-                    _req_ctx.cache_hit = True
-                    return ("json", hit)
-
-    est_tokens = _estimated_tokens(messages)
-    ordered    = _ordered_providers(payload, prefer_local, sticky=_sticky)
+    ordered = None
     if pinned:
-        ordered = _filter_candidates_by_pin(ordered, original_model)
+        ordered = _filter_candidates_by_pin(
+            _ordered_providers(payload, prefer_local, sticky=_sticky),
+            original_model,
+        )
         caller_scope = None
         try:
             caller_scope = KEY_PROVIDER_SCOPE.get(_caller_token())
@@ -6111,6 +6093,29 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     "type": "invalid_request_error",
                 }
             }, 400)
+
+    # Cache check (non-streaming only): exact match first (cheap), then optional
+    # semantic match. query_emb is reused to store the response so future similar
+    # prompts can match it.
+    query_emb = None
+    if not streaming:
+        cached = cache.get(payload, ns)
+        if cached is not None:
+            log.info("↩ cache hit")
+            _req_ctx.cache_hit = True
+            return ("json", cached)
+        if SEMANTIC_CACHE and not pinned and _embed_ordered():
+            query_emb = _embed_text(_prompt_text(messages))
+            if query_emb:
+                hit = cache.semantic_lookup(query_emb, ns)
+                if hit is not None:
+                    log.info("↩ semantic cache hit")
+                    _req_ctx.cache_hit = True
+                    return ("json", hit)
+
+    est_tokens = _estimated_tokens(messages)
+    if ordered is None:
+        ordered = _ordered_providers(payload, prefer_local, sticky=_sticky)
 
     def _leave_sticky_model(name: str, model: str) -> None:
         nonlocal _sticky
