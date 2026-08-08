@@ -10,6 +10,13 @@ language. For the technical version (scoring formulas, code paths), see the
 **general intelligence ranking (GI)**, and the proxy sends it to the cheapest model that clears
 the complexity→GI threshold — cascading to the next option automatically when needed.
 
+## Pinned model vs auto
+
+When the client sends `hermes-router` (or `hermes-router:fast` / `auto`), the
+proxy ranks the full chat catalog. When the client sends any other model id,
+selection is **pinned**: only candidates whose model id matches under
+normalization are tried. See [Usage](usage.md#listing-and-pinning-a-model).
+
 ## Chat completion selection
 
 This is the core of the proxy, used by every chat request.

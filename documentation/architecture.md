@@ -202,7 +202,7 @@ Clients speak OpenAI Chat Completions; the proxy adapts to whatever the chosen p
 |---|---|---|
 | `POST /v1/chat/completions` | access key | OpenAI chat completions (streaming + tools) |
 | `POST /v1/embeddings` | access key | OpenAI embeddings (stable provider order) |
-| `GET /v1/models` | access key | Advertises the `hermes-router` model id |
+| `GET /v1/models` | access key | Advertises `hermes-router` (and `:fast` when local is configured) plus every live chat catalog model id |
 | `GET /v1/status` | access key | Per-provider health, latency, keys, key-affinity mode, cache |
 | `GET /health` | none | Liveness check for uptime monitors |
 

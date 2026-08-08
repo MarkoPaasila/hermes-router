@@ -29,6 +29,17 @@ Streaming (`stream=True`) and tool calling (`tools=[...]`) both work.
 > on — capacity scales with keys × **models** × providers. See
 > [Configuration](/configuration/#multiple-models-per-provider).
 
+## Listing and pinning a model
+
+`GET /v1/models` returns the virtual proxy model id (`hermes-router`) and every
+model currently in the live chat catalog. Send one of those catalog ids as
+`model` on `/v1/chat/completions` to **pin** selection to that logical model:
+the proxy only tries providers that offer it (matched after normalizing org
+prefixes and tags), then falls back across those candidates. If none can serve,
+the request errors — it does **not** substitute a different model.
+
+Use `model: "hermes-router"` (default) when you want full-catalog auto selection.
+
 ## Tool use
 
 Pass OpenAI-format `tools` on `/v1/chat/completions`. When a request carries tools, the proxy
