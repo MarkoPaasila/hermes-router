@@ -952,6 +952,54 @@ def _build_providers() -> list[dict]:
 
 PROVIDERS = _build_providers()
 
+
+def _restore_catalog_models_from_state(providers: list, state_file: Path | None = None) -> int:
+    """Seed each provider's model list from the last persisted ``model_state``.
+
+    Background discovery can take tens of seconds after restart. Until it
+    finishes, ``GET /v1/models`` would otherwise advertise only the configured
+    ``*_MODEL`` lists — clients that cached the prior full catalog (e.g. Hermes
+    Agent) then fail validation for models that are about to reappear.
+    """
+    path = state_file if state_file is not None else STATE_FILE
+    if not path.exists():
+        return 0
+    try:
+        doc = json.loads(path.read_text())
+    except Exception as e:
+        log.warning(f"[catalog] could not read prior state for restore: {e}")
+        return 0
+    by_provider: dict[str, list[str]] = {}
+    for key in (doc.get("model_state") or {}):
+        name, _, model = str(key).partition("::")
+        model = model.strip()
+        if not name or not model:
+            continue
+        by_provider.setdefault(name, []).append(model)
+    if not by_provider:
+        return 0
+    restored = 0
+    for p in providers:
+        saved = by_provider.get(p["name"]) or []
+        if not saved:
+            continue
+        configured = list(p.get("models") or ([p["model"]] if p.get("model") else []))
+        merged = _filter_excluded(p["name"], list(dict.fromkeys(configured + saved)))
+        if not merged or merged == configured:
+            continue
+        p["models"] = merged
+        if p.get("model") not in merged:
+            p["model"] = merged[0]
+        restored += 1
+        log.info(
+            f"[catalog] {p['name']}: restored {len(merged)} model(s) from prior state "
+            f"(was {len(configured)} configured)"
+        )
+    return restored
+
+
+_restore_catalog_models_from_state(PROVIDERS)
+
 # Providers whose /models endpoint mixes paid models in with the free ones.
 # When auto-discovering a replacement model for these, restrict to :free ids so
 # a probe can never silently promote the router onto a paid model.

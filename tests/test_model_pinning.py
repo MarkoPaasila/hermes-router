@@ -73,6 +73,30 @@ def test_chat_catalog_model_ids_unique_first_seen():
     ]
 
 
+def test_restore_catalog_models_from_state_merges_prior_models(tmp_path):
+    state = tmp_path / "router_state.json"
+    state.write_text("""
+    {
+      "model_state": {
+        "opencode::big-pickle": {"supports_tools": true},
+        "opencode::deepseek-v4-flash-free": {"supports_tools": true},
+        "gemini::gemini-2.5-flash": {"supports_tools": true}
+      }
+    }
+    """)
+    providers = [
+        {"name": "opencode", "model": "big-pickle", "models": ["big-pickle"]},
+        {"name": "gemini", "model": "gemini-2.5-flash-lite",
+         "models": ["gemini-2.5-flash-lite"]},
+    ]
+    n = router._restore_catalog_models_from_state(providers, state_file=state)
+    assert n == 2
+    assert providers[0]["models"] == ["big-pickle", "deepseek-v4-flash-free"]
+    assert providers[0]["model"] == "big-pickle"
+    assert providers[1]["models"] == ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
+    assert providers[1]["model"] == "gemini-2.5-flash-lite"
+
+
 def _two_same_logical_model():
     a = {"name": "openrouter", "base_url": "https://or.test/v1",
          "model": "google/gemini-2.5-flash",
