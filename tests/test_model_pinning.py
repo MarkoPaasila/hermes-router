@@ -39,6 +39,25 @@ def test_filter_candidates_by_pin_preserves_order():
         "google/gemini-2.5-flash", "gemini-2.5-flash"]
 
 
+def test_v1_models_lists_router_and_catalog(monkeypatch):
+    monkeypatch.setattr(router, "_auth_check", lambda: None)
+    monkeypatch.setattr(router, "PROVIDERS", [
+        {"name": "gemini", "model": "gemini-2.5-flash",
+         "models": ["gemini-2.5-flash", "gemini-2.5-pro"]},
+        {"name": "local", "model": "llama3.1", "models": ["llama3.1"]},
+    ])
+    client = router.app.test_client()
+    r = client.get("/v1/models")
+    assert r.status_code == 200
+    ids = [m["id"] for m in r.get_json()["data"]]
+    assert ids[0] == router.ROUTER_MODEL
+    assert f"{router.ROUTER_MODEL}:fast" in ids
+    assert "gemini-2.5-flash" in ids
+    assert "gemini-2.5-pro" in ids
+    assert "llama3.1" in ids
+    assert all(m["owned_by"] == "hermes-router" for m in r.get_json()["data"])
+
+
 def test_chat_catalog_model_ids_unique_first_seen():
     providers = [
         {"name": "gemini", "model": "gemini-2.5-flash",

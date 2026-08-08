@@ -6015,6 +6015,8 @@ def models():
     # since that's what it routes short turns to.
     if any(p["name"] == "local" for p in PROVIDERS):
         data.append({"id": f"{ROUTER_MODEL}:fast", "object": "model", "owned_by": "hermes-router"})
+    for mid in _chat_catalog_model_ids():
+        data.append({"id": mid, "object": "model", "owned_by": "hermes-router"})
     return jsonify({"object": "list", "data": data})
 
 
