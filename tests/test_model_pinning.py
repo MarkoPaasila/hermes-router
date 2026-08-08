@@ -181,6 +181,83 @@ def test_pinned_only_attempts_matching_candidates(monkeypatch):
     assert router._models_match_normalized(tried[0][1], "gemini-2.5-flash")
 
 
+def test_matching_pinned_sticky_candidate_is_attempted_first(monkeypatch):
+    _, a, b, other = _two_same_logical_model()
+    monkeypatch.setattr(router, "PROVIDERS", [a, b, other])
+    monkeypatch.setattr(router.stats, "health_bucket", lambda name: 0)
+    _stub_route(monkeypatch)
+    tried = []
+
+    body = {
+        "choices": [{"message": {"role": "assistant", "content": "ok"},
+                     "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+    }
+
+    def fake_forward(provider, key, payload, streaming, model,
+                     first_byte_deadline_s=None):
+        tried.append((provider["name"], model))
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        resp.json.return_value = body
+        resp.text = ""
+        return resp
+
+    monkeypatch.setattr(router, "forward", fake_forward)
+    result = router._route_completion(
+        {"model": "gemini-2.5-flash",
+         "messages": [{"role": "user", "content": "hi"}]},
+        streaming=False, ns="pin-sticky",
+        _session_id="session-1",
+        _sticky={"provider": "gemini", "model": "gemini-2.5-flash",
+                 "key": "sk-g"},
+    )
+
+    assert result[0] == "json"
+    assert tried == [("gemini", "gemini-2.5-flash")]
+
+
+def test_tools_on_pin_never_widen_to_unrelated_capable_model(monkeypatch):
+    ordered, _, _, _ = _two_same_logical_model()
+    monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: ordered)
+    monkeypatch.setattr(
+        router, "_model_supports_tools",
+        lambda name, model: name == "groq",
+    )
+    _stub_route(monkeypatch)
+    tried = []
+
+    def fake_forward(provider, key, payload, streaming, model,
+                     first_byte_deadline_s=None):
+        tried.append((provider["name"], model))
+        resp = MagicMock()
+        resp.status_code = 500
+        resp.headers = {}
+        resp.text = "boom"
+        resp.json.return_value = {"error": "boom"}
+        return resp
+
+    monkeypatch.setattr(router, "forward", fake_forward)
+    result = router._route_completion(
+        {
+            "model": "gemini-2.5-flash",
+            "messages": [{"role": "user", "content": "use a tool"}],
+            "tools": [{
+                "type": "function",
+                "function": {"name": "lookup", "parameters": {
+                    "type": "object", "properties": {}}},
+            }],
+        },
+        streaming=False, ns="pin-tools",
+    )
+
+    assert result[0] == "error"
+    assert result[2] == 503
+    assert [name for name, _ in tried] == ["openrouter", "gemini"]
+    assert all(name != "groq" for name, _ in tried)
+
+
 def test_auto_still_can_try_unrelated_models(monkeypatch):
     ordered, a, b, other = _two_same_logical_model()
     monkeypatch.setattr(router, "_ordered_providers", lambda *a, **k: ordered)

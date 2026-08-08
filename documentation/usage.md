@@ -31,12 +31,18 @@ Streaming (`stream=True`) and tool calling (`tools=[...]`) both work.
 
 ## Listing and pinning a model
 
-`GET /v1/models` returns the virtual proxy model id (`hermes-router`) and every
-model currently in the live chat catalog. Send one of those catalog ids as
-`model` on `/v1/chat/completions` to **pin** selection to that logical model:
+`GET /v1/models` returns the virtual proxy model id (`hermes-router`), every
+model currently in the live chat catalog, and may include `hermes-router:fast`
+when a local provider is configured. Send one of those catalog ids as `model`
+on `/v1/chat/completions` to **pin** selection to that logical model:
 the proxy only tries providers that offer it (matched after normalizing org
 prefixes and tags), then falls back across those candidates. If none can serve,
 the request errors — it does **not** substitute a different model.
+
+Before this behavior was introduced, the proxy largely ignored arbitrary
+`model` values and auto-selected a model. Now ids other than `hermes-router`,
+`auto`, and `:fast` variants are pinned; unknown ids return a
+`400 invalid_request_error` instead of falling back to automatic selection.
 
 Use `model: "hermes-router"` (default) when you want full-catalog auto selection.
 
