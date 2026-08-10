@@ -1008,9 +1008,14 @@ _FREE_ONLY_DISCOVERY = {"openrouter", "naga", "opencode"}
 _MODEL_DISCOVERY_SKIP = {"anthropic", "codex", "local", "huggingface"}
 
 
+# Free OpenCode Zen models that omit a `:free` / `-free` suffix in their id.
+_FREE_MODEL_IDS = frozenset({"big-pickle"})
+
+
 def _is_free_model_id(model: str) -> bool:
     m = (model or "").lower()
-    return m.endswith(":free") or m.endswith("-free") or "/free" in m
+    return (m.endswith(":free") or m.endswith("-free") or "/free" in m
+            or m in _FREE_MODEL_IDS)
 
 # ── Config-write support (web dashboard "Add key" / "Set model" / add-on toggles) ──
 # Mirrors the canonical provider lists + env-var mappings already used by the `hr`
@@ -1466,7 +1471,9 @@ def _discover_models_with_catalog(provider: dict, key: str, free_only: bool = Fa
             log.debug(f"[ratings]   {provider['name']}: dropped {len(dropped)} specialized "
                       f"model(s): {sample}{more}")
         if free_only:
-            catalog = [m for m in catalog if _is_free_model_id(m)]
+            # Membership catalog stays unfiltered (same pattern as specialized):
+            # configured models that still exist upstream must remain keepable.
+            # free_only only bounds what discovery may append.
             filtered = [m for m in filtered if _is_free_model_id(m)]
         catalog = list(dict.fromkeys(catalog))
         filtered = list(dict.fromkeys(filtered))
