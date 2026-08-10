@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "generated_at": "2026-08-04T18:25:57Z",
+  "generated_at": "2026-08-10T19:18:16Z",
   "sources": [
+    "artificial_analysis",
     "lmsys",
     "seed"
   ],
-  "note": "LMSYS Arena text+code Elo via arena-ai-leaderboards 2026-08-04 (truncated dump overlay: new Elo wins, prior Elo retained for missing ids); seed retained for models not on that snapshot. Replace seed via --aa when Artificial Analysis export is available.",
   "aliases": {
     "claude-3-5-sonnet": "claude-3-5",
     "claude-3.5-sonnet": "claude-3-5",
@@ -24,19 +24,69 @@
     "laguna-xs-2.1": "laguna-xs.2",
     "llama-3.3-70b-instruct": "llama-3.3-70b",
     "mistral-small-3.1-24b-instruct": "mistral-small",
+    "nemotron-3-super": "nvidia/nemotron-3-super",
     "nemotron-3-super-120b-a12b": "nvidia/nemotron-3-super",
     "qwen-2.5-72b-instruct": "qwen2.5-72b"
   },
-  "coverage": {
-    "matched": 500,
-    "total": 500,
-    "pct": 100.0
-  },
   "models": {
+    "agnes-2-5-pro-alpha": {
+      "gi": 62.32,
+      "sources": {
+        "artificial_analysis": 62.32
+      }
+    },
+    "apertus-70b-instruct": {
+      "gi": 1.61,
+      "sources": {
+        "artificial_analysis": 1.61
+      }
+    },
+    "apertus-8b-instruct": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "apriel-v1-5-15b-thinker": {
+      "gi": 33.17,
+      "sources": {
+        "artificial_analysis": 33.17
+      }
+    },
+    "apriel-v1-6-15b-thinker": {
+      "gi": 31.88,
+      "sources": {
+        "artificial_analysis": 31.88
+      }
+    },
+    "arctic-instruct": {
+      "gi": 3.22,
+      "sources": {
+        "artificial_analysis": 3.22
+      }
+    },
     "big-pickle": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
+      }
+    },
+    "celeris-1": {
+      "gi": 18.52,
+      "sources": {
+        "artificial_analysis": 18.52
+      }
+    },
+    "claude-2": {
+      "gi": 3.7,
+      "sources": {
+        "artificial_analysis": 3.7
+      }
+    },
+    "claude-21": {
+      "gi": 4.03,
+      "sources": {
+        "artificial_analysis": 4.03
       }
     },
     "claude-3-5": {
@@ -45,22 +95,137 @@
         "seed": 72.0
       }
     },
+    "claude-3-5-haiku": {
+      "gi": 18.36,
+      "sources": {
+        "artificial_analysis": 18.36
+      }
+    },
     "claude-3-7": {
       "gi": 90.0,
       "sources": {
         "seed": 90.0
       }
     },
-    "claude-fable-5": {
-      "gi": 79.48,
+    "claude-3-7-sonnet": {
+      "gi": 36.88,
       "sources": {
-        "lmsys": 79.48
+        "artificial_analysis": 36.88
+      }
+    },
+    "claude-3-7-sonnet-thinking": {
+      "gi": 42.83,
+      "sources": {
+        "artificial_analysis": 42.83
+      }
+    },
+    "claude-3-haiku": {
+      "gi": 4.03,
+      "sources": {
+        "artificial_analysis": 4.03
+      }
+    },
+    "claude-3-opus": {
+      "gi": 17.39,
+      "sources": {
+        "artificial_analysis": 17.39
+      }
+    },
+    "claude-3-sonnet": {
+      "gi": 5.48,
+      "sources": {
+        "artificial_analysis": 5.48
+      }
+    },
+    "claude-35-sonnet": {
+      "gi": 14.17,
+      "sources": {
+        "artificial_analysis": 14.17
+      }
+    },
+    "claude-35-sonnet-june-24": {
+      "gi": 11.43,
+      "sources": {
+        "artificial_analysis": 11.43
+      }
+    },
+    "claude-4-1-opus": {
+      "gi": 44.77,
+      "sources": {
+        "artificial_analysis": 44.77
+      }
+    },
+    "claude-4-1-opus-thinking": {
+      "gi": 53.95,
+      "sources": {
+        "artificial_analysis": 53.95
+      }
+    },
+    "claude-4-5-haiku": {
+      "gi": 37.2,
+      "sources": {
+        "artificial_analysis": 37.2
+      }
+    },
+    "claude-4-5-haiku-reasoning": {
+      "gi": 46.54,
+      "sources": {
+        "artificial_analysis": 46.54
+      }
+    },
+    "claude-4-5-sonnet": {
+      "gi": 46.54,
+      "sources": {
+        "artificial_analysis": 46.54
+      }
+    },
+    "claude-4-5-sonnet-thinking": {
+      "gi": 58.62,
+      "sources": {
+        "artificial_analysis": 58.62
+      }
+    },
+    "claude-4-opus": {
+      "gi": 40.26,
+      "sources": {
+        "artificial_analysis": 40.26
+      }
+    },
+    "claude-4-opus-thinking": {
+      "gi": 49.44,
+      "sources": {
+        "artificial_analysis": 49.44
+      }
+    },
+    "claude-4-sonnet": {
+      "gi": 40.26,
+      "sources": {
+        "artificial_analysis": 40.26
+      }
+    },
+    "claude-4-sonnet-thinking": {
+      "gi": 46.38,
+      "sources": {
+        "artificial_analysis": 46.38
+      }
+    },
+    "claude-fable-5": {
+      "gi": 94.44,
+      "sources": {
+        "lmsys": 90.48,
+        "artificial_analysis": 98.39
       }
     },
     "claude-haiku-4-5-20251001": {
       "gi": 45.47,
       "sources": {
         "lmsys": 45.47
+      }
+    },
+    "claude-instant": {
+      "gi": 1.13,
+      "sources": {
+        "artificial_analysis": 1.13
       }
     },
     "claude-opus": {
@@ -81,64 +246,116 @@
         "lmsys": 57.3
       }
     },
-    "claude-opus-4-5-20251101": {
-      "gi": 71.72,
+    "claude-opus-4-5": {
+      "gi": 55.72,
       "sources": {
-        "lmsys": 71.72
+        "artificial_analysis": 55.72
+      }
+    },
+    "claude-opus-4-5-20251101": {
+      "gi": 71.9,
+      "sources": {
+        "lmsys": 71.9
       }
     },
     "claude-opus-4-5-20251101-thinking-32k": {
-      "gi": 72.83,
+      "gi": 74.77,
       "sources": {
-        "lmsys": 72.83
+        "lmsys": 74.77
+      }
+    },
+    "claude-opus-4-5-thinking": {
+      "gi": 65.86,
+      "sources": {
+        "artificial_analysis": 65.86
       }
     },
     "claude-opus-4-6": {
-      "gi": 77.26,
+      "gi": 70.96,
       "sources": {
-        "lmsys": 77.26
+        "lmsys": 81.05,
+        "artificial_analysis": 60.87
+      }
+    },
+    "claude-opus-4-6-adaptive": {
+      "gi": 70.69,
+      "sources": {
+        "artificial_analysis": 70.69
       }
     },
     "claude-opus-4-6-thinking": {
-      "gi": 78.74,
+      "gi": 82.44,
       "sources": {
-        "lmsys": 78.74
+        "lmsys": 82.44
       }
     },
     "claude-opus-4-7": {
-      "gi": 76.34,
+      "gi": 84.84,
       "sources": {
-        "lmsys": 76.34
+        "lmsys": 82.72,
+        "artificial_analysis": 86.96
+      }
+    },
+    "claude-opus-4-7-non-reasoning": {
+      "gi": 69.08,
+      "sources": {
+        "artificial_analysis": 69.08
       }
     },
     "claude-opus-4-7-thinking": {
-      "gi": 78.19,
+      "gi": 83.27,
       "sources": {
-        "lmsys": 78.19
+        "lmsys": 83.27
       }
     },
     "claude-opus-4-8": {
-      "gi": 73.2,
+      "gi": 84.79,
       "sources": {
-        "lmsys": 73.2
+        "lmsys": 78.93,
+        "artificial_analysis": 90.66
       }
     },
     "claude-opus-4-8-thinking": {
-      "gi": 74.86,
+      "gi": 82.26,
       "sources": {
-        "lmsys": 74.86
+        "lmsys": 82.26
+      }
+    },
+    "claude-opus-5": {
+      "gi": 100.0,
+      "sources": {
+        "artificial_analysis": 100.0
       }
     },
     "claude-opus-5-high": {
-      "gi": 76.34,
+      "gi": 95.15,
       "sources": {
-        "lmsys": 76.34
+        "lmsys": 92.88,
+        "artificial_analysis": 97.42
+      }
+    },
+    "claude-opus-5-low": {
+      "gi": 82.93,
+      "sources": {
+        "artificial_analysis": 82.93
       }
     },
     "claude-opus-5-max": {
-      "gi": 75.97,
+      "gi": 93.9,
       "sources": {
-        "lmsys": 75.97
+        "lmsys": 93.9
+      }
+    },
+    "claude-opus-5-medium": {
+      "gi": 92.75,
+      "sources": {
+        "artificial_analysis": 92.75
+      }
+    },
+    "claude-opus-5-xhigh": {
+      "gi": 99.03,
+      "sources": {
+        "artificial_analysis": 99.03
       }
     },
     "claude-sonnet": {
@@ -160,27 +377,70 @@
       }
     },
     "claude-sonnet-4-6": {
-      "gi": 82.07,
+      "gi": 67.46,
       "sources": {
-        "lmsys": 82.07
+        "lmsys": 77.26,
+        "artificial_analysis": 57.65
+      }
+    },
+    "claude-sonnet-4-6-adaptive": {
+      "gi": 76.33,
+      "sources": {
+        "artificial_analysis": 76.33
+      }
+    },
+    "claude-sonnet-4-6-non-reasoning-low-effort": {
+      "gi": 54.91,
+      "sources": {
+        "artificial_analysis": 54.91
+      }
+    },
+    "claude-sonnet-5": {
+      "gi": 87.44,
+      "sources": {
+        "artificial_analysis": 87.44
       }
     },
     "claude-sonnet-5-high": {
-      "gi": 85.58,
+      "gi": 78.19,
       "sources": {
-        "lmsys": 85.58
+        "lmsys": 78.19
+      }
+    },
+    "claude-sonnet-5-non-reasoning": {
+      "gi": 66.99,
+      "sources": {
+        "artificial_analysis": 66.99
       }
     },
     "command-a": {
-      "gi": 72.0,
+      "gi": 10.47,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 10.47
+      }
+    },
+    "command-a-plus": {
+      "gi": 35.1,
+      "sources": {
+        "artificial_analysis": 35.1
+      }
+    },
+    "command-r-03-2024": {
+      "gi": 1.13,
+      "sources": {
+        "artificial_analysis": 1.13
       }
     },
     "command-r-plus": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
+      }
+    },
+    "command-r-plus-04-2024": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
       }
     },
     "command-r7b": {
@@ -195,6 +455,90 @@
         "seed": 30.0
       }
     },
+    "dbrx": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
+      }
+    },
+    "deephermes-3-llama-3-1-8b-preview": {
+      "gi": 1.45,
+      "sources": {
+        "artificial_analysis": 1.45
+      }
+    },
+    "deephermes-3-mistral-24b-preview": {
+      "gi": 6.44,
+      "sources": {
+        "artificial_analysis": 6.44
+      }
+    },
+    "deepseek-coder-v2": {
+      "gi": 5.96,
+      "sources": {
+        "artificial_analysis": 5.96
+      }
+    },
+    "deepseek-coder-v2-lite": {
+      "gi": 2.74,
+      "sources": {
+        "artificial_analysis": 2.74
+      }
+    },
+    "deepseek-llm-67b-chat": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
+      }
+    },
+    "deepseek-r1": {
+      "gi": 31.24,
+      "sources": {
+        "artificial_analysis": 31.24
+      }
+    },
+    "deepseek-r1-0120": {
+      "gi": 28.34,
+      "sources": {
+        "artificial_analysis": 28.34
+      }
+    },
+    "deepseek-r1-distill-llama-70b": {
+      "gi": 14.17,
+      "sources": {
+        "artificial_analysis": 14.17
+      }
+    },
+    "deepseek-r1-distill-llama-8b": {
+      "gi": 8.37,
+      "sources": {
+        "artificial_analysis": 8.37
+      }
+    },
+    "deepseek-r1-distill-qwen-1-5b": {
+      "gi": 3.7,
+      "sources": {
+        "artificial_analysis": 3.7
+      }
+    },
+    "deepseek-r1-distill-qwen-14b": {
+      "gi": 14.01,
+      "sources": {
+        "artificial_analysis": 14.01
+      }
+    },
+    "deepseek-r1-distill-qwen-32b": {
+      "gi": 16.1,
+      "sources": {
+        "artificial_analysis": 16.1
+      }
+    },
+    "deepseek-r1-qwen3-8b": {
+      "gi": 14.98,
+      "sources": {
+        "artificial_analysis": 14.98
+      }
+    },
     "deepseek-r2": {
       "gi": 90.0,
       "sources": {
@@ -202,15 +546,87 @@
       }
     },
     "deepseek-v2": {
-      "gi": 72.0,
+      "gi": 3.7,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 3.7
+      }
+    },
+    "deepseek-v2-5": {
+      "gi": 8.86,
+      "sources": {
+        "artificial_analysis": 8.86
+      }
+    },
+    "deepseek-v2-5-sep-2024": {
+      "gi": 8.7,
+      "sources": {
+        "artificial_analysis": 8.7
       }
     },
     "deepseek-v3": {
-      "gi": 72.0,
+      "gi": 21.26,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 21.26
+      }
+    },
+    "deepseek-v3-0324": {
+      "gi": 22.87,
+      "sources": {
+        "artificial_analysis": 22.87
+      }
+    },
+    "deepseek-v3-1": {
+      "gi": 32.85,
+      "sources": {
+        "artificial_analysis": 32.85
+      }
+    },
+    "deepseek-v3-1-reasoning": {
+      "gi": 32.21,
+      "sources": {
+        "artificial_analysis": 32.21
+      }
+    },
+    "deepseek-v3-1-terminus": {
+      "gi": 33.33,
+      "sources": {
+        "artificial_analysis": 33.33
+      }
+    },
+    "deepseek-v3-1-terminus-reasoning": {
+      "gi": 47.67,
+      "sources": {
+        "artificial_analysis": 47.67
+      }
+    },
+    "deepseek-v3-2": {
+      "gi": 38.81,
+      "sources": {
+        "artificial_analysis": 38.81
+      }
+    },
+    "deepseek-v3-2-0925": {
+      "gi": 33.33,
+      "sources": {
+        "artificial_analysis": 33.33
+      }
+    },
+    "deepseek-v3-2-reasoning": {
+      "gi": 50.89,
+      "sources": {
+        "artificial_analysis": 50.89
+      }
+    },
+    "deepseek-v3-2-reasoning-0925": {
+      "gi": 40.1,
+      "sources": {
+        "artificial_analysis": 40.1
+      }
+    },
+    "deepseek-v3-2-speciale": {
+      "gi": 34.78,
+      "sources": {
+        "artificial_analysis": 34.78
       }
     },
     "deepseek-v3.2": {
@@ -238,15 +654,27 @@
       }
     },
     "deepseek-v4-flash": {
-      "gi": 72.0,
+      "gi": 81.8,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 81.8
+      }
+    },
+    "deepseek-v4-flash-0420": {
+      "gi": 66.18,
+      "sources": {
+        "artificial_analysis": 66.18
+      }
+    },
+    "deepseek-v4-flash-0420-high": {
+      "gi": 61.19,
+      "sources": {
+        "artificial_analysis": 61.19
       }
     },
     "deepseek-v4-flash-high": {
-      "gi": 92.05,
+      "gi": 92.79,
       "sources": {
-        "lmsys": 92.05
+        "lmsys": 92.79
       }
     },
     "deepseek-v4-flash-high-preview": {
@@ -255,22 +683,48 @@
         "lmsys": 65.25
       }
     },
-    "deepseek-v4-pro": {
-      "gi": 67.84,
+    "deepseek-v4-flash-non-reasoning": {
+      "gi": 45.57,
       "sources": {
-        "lmsys": 67.84
+        "artificial_analysis": 45.57
+      }
+    },
+    "deepseek-v4-pro": {
+      "gi": 70.1,
+      "sources": {
+        "lmsys": 68.85,
+        "artificial_analysis": 71.34
+      }
+    },
+    "deepseek-v4-pro-high": {
+      "gi": 68.76,
+      "sources": {
+        "artificial_analysis": 68.76
       }
     },
     "deepseek-v4-pro-high-preview": {
-      "gi": 71.35,
+      "gi": 71.16,
       "sources": {
-        "lmsys": 71.35
+        "lmsys": 71.16
+      }
+    },
+    "deepseek-v4-pro-non-reasoning": {
+      "gi": 49.76,
+      "sources": {
+        "artificial_analysis": 49.76
       }
     },
     "devstral-2": {
-      "gi": 21.26,
+      "gi": 25.28,
       "sources": {
-        "lmsys": 21.26
+        "lmsys": 21.26,
+        "artificial_analysis": 29.31
+      }
+    },
+    "devstral-medium": {
+      "gi": 18.36,
+      "sources": {
+        "artificial_analysis": 18.36
       }
     },
     "devstral-medium-2507": {
@@ -279,10 +733,268 @@
         "lmsys": 0.0
       }
     },
+    "devstral-small": {
+      "gi": 13.04,
+      "sources": {
+        "artificial_analysis": 13.04
+      }
+    },
+    "devstral-small-2": {
+      "gi": 26.89,
+      "sources": {
+        "artificial_analysis": 26.89
+      }
+    },
+    "devstral-small-2505": {
+      "gi": 17.39,
+      "sources": {
+        "artificial_analysis": 17.39
+      }
+    },
+    "diffusiongemma-26b-a4b": {
+      "gi": 20.61,
+      "sources": {
+        "artificial_analysis": 20.61
+      }
+    },
+    "doubao-seed-code": {
+      "gi": 41.06,
+      "sources": {
+        "artificial_analysis": 41.06
+      }
+    },
+    "ernie-4-5-300b-a47b": {
+      "gi": 12.72,
+      "sources": {
+        "artificial_analysis": 12.72
+      }
+    },
+    "ernie-5-0-thinking-preview": {
+      "gi": 34.3,
+      "sources": {
+        "artificial_analysis": 34.3
+      }
+    },
+    "ernie-5.1": {
+      "gi": 71.72,
+      "sources": {
+        "lmsys": 71.72
+      }
+    },
+    "exaone-4-0-1-2b": {
+      "gi": 2.25,
+      "sources": {
+        "artificial_analysis": 2.25
+      }
+    },
+    "exaone-4-0-1-2b-reasoning": {
+      "gi": 2.42,
+      "sources": {
+        "artificial_analysis": 2.42
+      }
+    },
+    "exaone-4-0-32b": {
+      "gi": 7.57,
+      "sources": {
+        "artificial_analysis": 7.57
+      }
+    },
+    "exaone-4-0-32b-reasoning": {
+      "gi": 15.3,
+      "sources": {
+        "artificial_analysis": 15.3
+      }
+    },
+    "exaone-4-5-33b": {
+      "gi": 31.4,
+      "sources": {
+        "artificial_analysis": 31.4
+      }
+    },
+    "falcon-h1r-7b": {
+      "gi": 14.01,
+      "sources": {
+        "artificial_analysis": 14.01
+      }
+    },
+    "g9v3-39a5b": {
+      "gi": 48.95,
+      "sources": {
+        "artificial_analysis": 48.95
+      }
+    },
+    "g9v3-3b": {
+      "gi": 24.96,
+      "sources": {
+        "artificial_analysis": 24.96
+      }
+    },
+    "gemini-1-0-pro": {
+      "gi": 2.74,
+      "sources": {
+        "artificial_analysis": 2.74
+      }
+    },
+    "gemini-1-0-ultra": {
+      "gi": 5.31,
+      "sources": {
+        "artificial_analysis": 5.31
+      }
+    },
+    "gemini-1-5-flash": {
+      "gi": 10.95,
+      "sources": {
+        "artificial_analysis": 10.95
+      }
+    },
+    "gemini-1-5-flash-8b": {
+      "gi": 6.76,
+      "sources": {
+        "artificial_analysis": 6.76
+      }
+    },
+    "gemini-1-5-flash-may-2024": {
+      "gi": 5.8,
+      "sources": {
+        "artificial_analysis": 5.8
+      }
+    },
+    "gemini-1-5-pro": {
+      "gi": 14.33,
+      "sources": {
+        "artificial_analysis": 14.33
+      }
+    },
+    "gemini-1-5-pro-may-2024": {
+      "gi": 8.21,
+      "sources": {
+        "artificial_analysis": 8.21
+      }
+    },
     "gemini-1.5-flash": {
       "gi": 50.0,
       "sources": {
         "seed": 50.0
+      }
+    },
+    "gemini-2-0-flash": {
+      "gi": 18.04,
+      "sources": {
+        "artificial_analysis": 18.04
+      }
+    },
+    "gemini-2-0-flash-experimental": {
+      "gi": 15.46,
+      "sources": {
+        "artificial_analysis": 15.46
+      }
+    },
+    "gemini-2-0-flash-lite-001": {
+      "gi": 12.24,
+      "sources": {
+        "artificial_analysis": 12.24
+      }
+    },
+    "gemini-2-0-flash-lite-preview": {
+      "gi": 11.92,
+      "sources": {
+        "artificial_analysis": 11.92
+      }
+    },
+    "gemini-2-0-flash-thinking-exp-0121": {
+      "gi": 19.81,
+      "sources": {
+        "artificial_analysis": 19.81
+      }
+    },
+    "gemini-2-0-flash-thinking-exp-1219": {
+      "gi": 8.7,
+      "sources": {
+        "artificial_analysis": 8.7
+      }
+    },
+    "gemini-2-0-pro-experimental-02-05": {
+      "gi": 17.39,
+      "sources": {
+        "artificial_analysis": 17.39
+      }
+    },
+    "gemini-2-5-flash": {
+      "gi": 21.26,
+      "sources": {
+        "artificial_analysis": 21.26
+      }
+    },
+    "gemini-2-5-flash-04-2025": {
+      "gi": 17.07,
+      "sources": {
+        "artificial_analysis": 17.07
+      }
+    },
+    "gemini-2-5-flash-lite": {
+      "gi": 9.18,
+      "sources": {
+        "artificial_analysis": 9.18
+      }
+    },
+    "gemini-2-5-flash-lite-preview-09-2025": {
+      "gi": 19.48,
+      "sources": {
+        "artificial_analysis": 19.48
+      }
+    },
+    "gemini-2-5-flash-lite-preview-09-2025-reasoning": {
+      "gi": 22.87,
+      "sources": {
+        "artificial_analysis": 22.87
+      }
+    },
+    "gemini-2-5-flash-lite-reasoning": {
+      "gi": 16.75,
+      "sources": {
+        "artificial_analysis": 16.75
+      }
+    },
+    "gemini-2-5-flash-preview-09-2025": {
+      "gi": 29.15,
+      "sources": {
+        "artificial_analysis": 29.15
+      }
+    },
+    "gemini-2-5-flash-preview-09-2025-reasoning": {
+      "gi": 37.36,
+      "sources": {
+        "artificial_analysis": 37.36
+      }
+    },
+    "gemini-2-5-flash-reasoning": {
+      "gi": 31.08,
+      "sources": {
+        "artificial_analysis": 31.08
+      }
+    },
+    "gemini-2-5-flash-reasoning-04-2025": {
+      "gi": 26.89,
+      "sources": {
+        "artificial_analysis": 26.89
+      }
+    },
+    "gemini-2-5-pro": {
+      "gi": 40.1,
+      "sources": {
+        "artificial_analysis": 40.1
+      }
+    },
+    "gemini-2-5-pro-03-25": {
+      "gi": 36.07,
+      "sources": {
+        "artificial_analysis": 36.07
+      }
+    },
+    "gemini-2-5-pro-05-06": {
+      "gi": 34.94,
+      "sources": {
+        "artificial_analysis": 34.94
       }
     },
     "gemini-2.0-flash": {
@@ -315,22 +1027,78 @@
         "lmsys": 26.8
       }
     },
-    "gemini-3-flash": {
-      "gi": 72.83,
+    "gemini-3-1-flash-lite-preview": {
+      "gi": 39.61,
       "sources": {
-        "lmsys": 72.83
+        "artificial_analysis": 39.61
+      }
+    },
+    "gemini-3-1-pro-preview": {
+      "gi": 75.2,
+      "sources": {
+        "artificial_analysis": 75.2
+      }
+    },
+    "gemini-3-5-flash": {
+      "gi": 82.13,
+      "sources": {
+        "artificial_analysis": 82.13
+      }
+    },
+    "gemini-3-5-flash-lite": {
+      "gi": 58.62,
+      "sources": {
+        "artificial_analysis": 58.62
+      }
+    },
+    "gemini-3-5-flash-medium": {
+      "gi": 73.59,
+      "sources": {
+        "artificial_analysis": 73.59
+      }
+    },
+    "gemini-3-5-flash-minimal": {
+      "gi": 56.04,
+      "sources": {
+        "artificial_analysis": 56.04
+      }
+    },
+    "gemini-3-6-flash": {
+      "gi": 81.48,
+      "sources": {
+        "artificial_analysis": 81.48
+      }
+    },
+    "gemini-3-flash": {
+      "gi": 56.46,
+      "sources": {
+        "lmsys": 69.59,
+        "artificial_analysis": 43.32
       }
     },
     "gemini-3-flash (thinking-minimal)": {
-      "gi": 56.19,
+      "gi": 70.24,
       "sources": {
-        "lmsys": 56.19
+        "lmsys": 70.24
+      }
+    },
+    "gemini-3-flash-reasoning": {
+      "gi": 60.71,
+      "sources": {
+        "artificial_analysis": 60.71
       }
     },
     "gemini-3-pro": {
-      "gi": 75.23,
+      "gi": 67.28,
       "sources": {
-        "lmsys": 75.23
+        "lmsys": 70.79,
+        "artificial_analysis": 63.77
+      }
+    },
+    "gemini-3-pro-low": {
+      "gi": 52.98,
+      "sources": {
+        "artificial_analysis": 52.98
       }
     },
     "gemini-3.1-flash-lite-preview": {
@@ -340,51 +1108,221 @@
       }
     },
     "gemini-3.1-pro-preview": {
-      "gi": 75.05,
+      "gi": 71.63,
       "sources": {
-        "lmsys": 75.05
+        "lmsys": 71.63
       }
     },
     "gemini-3.5-flash": {
-      "gi": 76.34,
+      "gi": 76.52,
       "sources": {
-        "lmsys": 76.34
+        "lmsys": 76.52
       }
     },
     "gemini-3.5-flash-high": {
-      "gi": 73.2,
+      "gi": 76.43,
       "sources": {
-        "lmsys": 73.2
+        "lmsys": 76.43
       }
     },
     "gemini-3.5-flash-lite": {
-      "gi": 68.95,
+      "gi": 69.69,
       "sources": {
-        "lmsys": 68.95
+        "lmsys": 69.69
       }
     },
     "gemini-3.5-flash-medium": {
-      "gi": 73.01,
+      "gi": 74.21,
       "sources": {
-        "lmsys": 73.01
+        "lmsys": 74.21
       }
     },
     "gemini-3.6-flash": {
-      "gi": 74.68,
+      "gi": 79.76,
       "sources": {
-        "lmsys": 74.68
+        "lmsys": 79.76
+      }
+    },
+    "gemma-3-12b": {
+      "gi": 7.25,
+      "sources": {
+        "artificial_analysis": 7.25
+      }
+    },
+    "gemma-3-1b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "gemma-3-270m": {
+      "gi": 1.61,
+      "sources": {
+        "artificial_analysis": 1.61
+      }
+    },
+    "gemma-3-27b": {
+      "gi": 10.31,
+      "sources": {
+        "artificial_analysis": 10.31
+      }
+    },
+    "gemma-3-4b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "gemma-3n-e2b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "gemma-3n-e4b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "gemma-3n-e4b-preview-0520": {
+      "gi": 5.15,
+      "sources": {
+        "artificial_analysis": 5.15
+      }
+    },
+    "gemma-4-12b": {
+      "gi": 34.3,
+      "sources": {
+        "artificial_analysis": 34.3
+      }
+    },
+    "gemma-4-12b-non-reasoning": {
+      "gi": 19.65,
+      "sources": {
+        "artificial_analysis": 19.65
       }
     },
     "gemma-4-26b-a4b": {
-      "gi": 53.23,
+      "gi": 46.83,
       "sources": {
-        "lmsys": 53.23
+        "lmsys": 53.23,
+        "artificial_analysis": 40.42
+      }
+    },
+    "gemma-4-26b-a4b-non-reasoning": {
+      "gi": 31.24,
+      "sources": {
+        "artificial_analysis": 31.24
       }
     },
     "gemma-4-31b": {
-      "gi": 52.5,
+      "gi": 49.36,
       "sources": {
-        "lmsys": 52.5
+        "lmsys": 52.5,
+        "artificial_analysis": 46.22
+      }
+    },
+    "gemma-4-31b-non-reasoning": {
+      "gi": 34.3,
+      "sources": {
+        "artificial_analysis": 34.3
+      }
+    },
+    "gemma-4-e2b": {
+      "gi": 14.17,
+      "sources": {
+        "artificial_analysis": 14.17
+      }
+    },
+    "gemma-4-e2b-non-reasoning": {
+      "gi": 8.37,
+      "sources": {
+        "artificial_analysis": 8.37
+      }
+    },
+    "gemma-4-e4b": {
+      "gi": 18.36,
+      "sources": {
+        "artificial_analysis": 18.36
+      }
+    },
+    "gemma-4-e4b-non-reasoning": {
+      "gi": 12.4,
+      "sources": {
+        "artificial_analysis": 12.4
+      }
+    },
+    "glm-4-5-air": {
+      "gi": 25.28,
+      "sources": {
+        "artificial_analysis": 25.28
+      }
+    },
+    "glm-4-5v": {
+      "gi": 9.34,
+      "sources": {
+        "artificial_analysis": 9.34
+      }
+    },
+    "glm-4-5v-reasoning": {
+      "gi": 12.88,
+      "sources": {
+        "artificial_analysis": 12.88
+      }
+    },
+    "glm-4-6": {
+      "gi": 36.07,
+      "sources": {
+        "artificial_analysis": 36.07
+      }
+    },
+    "glm-4-6-reasoning": {
+      "gi": 45.57,
+      "sources": {
+        "artificial_analysis": 45.57
+      }
+    },
+    "glm-4-6v": {
+      "gi": 15.94,
+      "sources": {
+        "artificial_analysis": 15.94
+      }
+    },
+    "glm-4-6v-reasoning": {
+      "gi": 25.6,
+      "sources": {
+        "artificial_analysis": 25.6
+      }
+    },
+    "glm-4-7": {
+      "gi": 53.95,
+      "sources": {
+        "artificial_analysis": 53.95
+      }
+    },
+    "glm-4-7-flash": {
+      "gi": 35.91,
+      "sources": {
+        "artificial_analysis": 35.91
+      }
+    },
+    "glm-4-7-flash-non-reasoning": {
+      "gi": 23.51,
+      "sources": {
+        "artificial_analysis": 23.51
+      }
+    },
+    "glm-4-7-non-reasoning": {
+      "gi": 42.03,
+      "sources": {
+        "artificial_analysis": 42.03
+      }
+    },
+    "glm-4.5": {
+      "gi": 30.11,
+      "sources": {
+        "artificial_analysis": 30.11
       }
     },
     "glm-4.5-flash": {
@@ -412,27 +1350,107 @@
       }
     },
     "glm-5": {
-      "gi": 65.8,
+      "gi": 64.79,
       "sources": {
-        "lmsys": 65.8
+        "lmsys": 65.8,
+        "artificial_analysis": 63.77
+      }
+    },
+    "glm-5-1": {
+      "gi": 64.41,
+      "sources": {
+        "artificial_analysis": 64.41
+      }
+    },
+    "glm-5-1-non-reasoning": {
+      "gi": 56.84,
+      "sources": {
+        "artificial_analysis": 56.84
+      }
+    },
+    "glm-5-2": {
+      "gi": 83.09,
+      "sources": {
+        "artificial_analysis": 83.09
+      }
+    },
+    "glm-5-2-non-reasoning": {
+      "gi": 54.43,
+      "sources": {
+        "artificial_analysis": 54.43
+      }
+    },
+    "glm-5-non-reasoning": {
+      "gi": 51.85,
+      "sources": {
+        "artificial_analysis": 51.85
+      }
+    },
+    "glm-5-turbo": {
+      "gi": 61.35,
+      "sources": {
+        "artificial_analysis": 61.35
       }
     },
     "glm-5.1": {
-      "gi": 80.78,
+      "gi": 76.25,
       "sources": {
-        "lmsys": 80.78
+        "lmsys": 76.25
       }
     },
     "glm-5.2-max": {
-      "gi": 93.72,
+      "gi": 83.27,
       "sources": {
-        "lmsys": 93.72
+        "lmsys": 83.27
       }
     },
     "glm-5v-turbo": {
-      "gi": 59.15,
+      "gi": 57.19,
       "sources": {
-        "lmsys": 59.15
+        "lmsys": 59.15,
+        "artificial_analysis": 55.23
+      }
+    },
+    "gpt-35-turbo": {
+      "gi": 3.54,
+      "sources": {
+        "artificial_analysis": 3.54
+      }
+    },
+    "gpt-4": {
+      "gi": 9.34,
+      "sources": {
+        "artificial_analysis": 9.34
+      }
+    },
+    "gpt-4-1": {
+      "gi": 29.95,
+      "sources": {
+        "artificial_analysis": 29.95
+      }
+    },
+    "gpt-4-1-mini": {
+      "gi": 22.22,
+      "sources": {
+        "artificial_analysis": 22.22
+      }
+    },
+    "gpt-4-1-nano": {
+      "gi": 13.85,
+      "sources": {
+        "artificial_analysis": 13.85
+      }
+    },
+    "gpt-4-5": {
+      "gi": 20.29,
+      "sources": {
+        "artificial_analysis": 20.29
+      }
+    },
+    "gpt-4-turbo": {
+      "gi": 10.79,
+      "sources": {
+        "artificial_analysis": 10.79
       }
     },
     "gpt-4.5": {
@@ -442,27 +1460,370 @@
       }
     },
     "gpt-4o": {
-      "gi": 90.0,
+      "gi": 16.26,
       "sources": {
-        "seed": 90.0
+        "artificial_analysis": 16.26
+      }
+    },
+    "gpt-4o-2024-05-13": {
+      "gi": 11.92,
+      "sources": {
+        "artificial_analysis": 11.92
+      }
+    },
+    "gpt-4o-2024-08-06": {
+      "gi": 13.53,
+      "sources": {
+        "artificial_analysis": 13.53
+      }
+    },
+    "gpt-4o-chatgpt": {
+      "gi": 11.43,
+      "sources": {
+        "artificial_analysis": 11.43
+      }
+    },
+    "gpt-4o-chatgpt-03-25": {
+      "gi": 18.2,
+      "sources": {
+        "artificial_analysis": 18.2
       }
     },
     "gpt-4o-mini": {
-      "gi": 50.0,
+      "gi": 9.18,
       "sources": {
-        "seed": 50.0
+        "artificial_analysis": 9.18
+      }
+    },
+    "gpt-5": {
+      "gi": 55.23,
+      "sources": {
+        "artificial_analysis": 55.23
+      }
+    },
+    "gpt-5-1": {
+      "gi": 58.78,
+      "sources": {
+        "artificial_analysis": 58.78
+      }
+    },
+    "gpt-5-1-codex": {
+      "gi": 55.72,
+      "sources": {
+        "artificial_analysis": 55.72
+      }
+    },
+    "gpt-5-1-codex-mini": {
+      "gi": 48.79,
+      "sources": {
+        "artificial_analysis": 48.79
+      }
+    },
+    "gpt-5-1-non-reasoning": {
+      "gi": 31.72,
+      "sources": {
+        "artificial_analysis": 31.72
+      }
+    },
+    "gpt-5-2": {
+      "gi": 68.12,
+      "sources": {
+        "artificial_analysis": 68.12
+      }
+    },
+    "gpt-5-2-codex": {
+      "gi": 64.73,
+      "sources": {
+        "artificial_analysis": 64.73
+      }
+    },
+    "gpt-5-2-medium": {
+      "gi": 61.03,
+      "sources": {
+        "artificial_analysis": 61.03
+      }
+    },
+    "gpt-5-2-non-reasoning": {
+      "gi": 41.06,
+      "sources": {
+        "artificial_analysis": 41.06
+      }
+    },
+    "gpt-5-3-codex": {
+      "gi": 71.66,
+      "sources": {
+        "artificial_analysis": 71.66
+      }
+    },
+    "gpt-5-4": {
+      "gi": 83.9,
+      "sources": {
+        "artificial_analysis": 83.9
+      }
+    },
+    "gpt-5-4-low": {
+      "gi": 63.12,
+      "sources": {
+        "artificial_analysis": 63.12
+      }
+    },
+    "gpt-5-4-mini": {
+      "gi": 64.25,
+      "sources": {
+        "artificial_analysis": 64.25
+      }
+    },
+    "gpt-5-4-mini-medium": {
+      "gi": 47.5,
+      "sources": {
+        "artificial_analysis": 47.5
+      }
+    },
+    "gpt-5-4-mini-non-reasoning": {
+      "gi": 25.44,
+      "sources": {
+        "artificial_analysis": 25.44
+      }
+    },
+    "gpt-5-4-nano": {
+      "gi": 62.32,
+      "sources": {
+        "artificial_analysis": 62.32
+      }
+    },
+    "gpt-5-4-nano-medium": {
+      "gi": 47.99,
+      "sources": {
+        "artificial_analysis": 47.99
+      }
+    },
+    "gpt-5-4-nano-non-reasoning": {
+      "gi": 27.05,
+      "sources": {
+        "artificial_analysis": 27.05
+      }
+    },
+    "gpt-5-4-non-reasoning": {
+      "gi": 43.96,
+      "sources": {
+        "artificial_analysis": 43.96
+      }
+    },
+    "gpt-5-5": {
+      "gi": 89.05,
+      "sources": {
+        "artificial_analysis": 89.05
+      }
+    },
+    "gpt-5-5-high": {
+      "gi": 86.47,
+      "sources": {
+        "artificial_analysis": 86.47
+      }
+    },
+    "gpt-5-5-instant-05-26": {
+      "gi": 53.62,
+      "sources": {
+        "artificial_analysis": 53.62
+      }
+    },
+    "gpt-5-5-instant-06-26": {
+      "gi": 45.41,
+      "sources": {
+        "artificial_analysis": 45.41
+      }
+    },
+    "gpt-5-5-low": {
+      "gi": 70.05,
+      "sources": {
+        "artificial_analysis": 70.05
+      }
+    },
+    "gpt-5-5-medium": {
+      "gi": 81.16,
+      "sources": {
+        "artificial_analysis": 81.16
+      }
+    },
+    "gpt-5-5-non-reasoning": {
+      "gi": 56.04,
+      "sources": {
+        "artificial_analysis": 56.04
+      }
+    },
+    "gpt-5-6-luna": {
+      "gi": 82.61,
+      "sources": {
+        "artificial_analysis": 82.61
+      }
+    },
+    "gpt-5-6-luna-high": {
+      "gi": 74.07,
+      "sources": {
+        "artificial_analysis": 74.07
+      }
+    },
+    "gpt-5-6-luna-low": {
+      "gi": 52.98,
+      "sources": {
+        "artificial_analysis": 52.98
+      }
+    },
+    "gpt-5-6-luna-medium": {
+      "gi": 61.03,
+      "sources": {
+        "artificial_analysis": 61.03
+      }
+    },
+    "gpt-5-6-luna-non-reasoning": {
+      "gi": 41.55,
+      "sources": {
+        "artificial_analysis": 41.55
+      }
+    },
+    "gpt-5-6-luna-xhigh": {
+      "gi": 79.07,
+      "sources": {
+        "artificial_analysis": 79.07
+      }
+    },
+    "gpt-5-6-sol": {
+      "gi": 96.46,
+      "sources": {
+        "artificial_analysis": 96.46
+      }
+    },
+    "gpt-5-6-sol-high": {
+      "gi": 90.66,
+      "sources": {
+        "artificial_analysis": 90.66
+      }
+    },
+    "gpt-5-6-sol-low": {
+      "gi": 80.03,
+      "sources": {
+        "artificial_analysis": 80.03
+      }
+    },
+    "gpt-5-6-sol-medium": {
+      "gi": 87.92,
+      "sources": {
+        "artificial_analysis": 87.92
+      }
+    },
+    "gpt-5-6-sol-non-reasoning": {
+      "gi": 65.86,
+      "sources": {
+        "artificial_analysis": 65.86
+      }
+    },
+    "gpt-5-6-sol-xhigh": {
+      "gi": 93.4,
+      "sources": {
+        "artificial_analysis": 93.4
+      }
+    },
+    "gpt-5-6-terra": {
+      "gi": 89.53,
+      "sources": {
+        "artificial_analysis": 89.53
+      }
+    },
+    "gpt-5-6-terra-high": {
+      "gi": 79.07,
+      "sources": {
+        "artificial_analysis": 79.07
+      }
+    },
+    "gpt-5-6-terra-low": {
+      "gi": 64.9,
+      "sources": {
+        "artificial_analysis": 64.9
+      }
+    },
+    "gpt-5-6-terra-medium": {
+      "gi": 73.75,
+      "sources": {
+        "artificial_analysis": 73.75
+      }
+    },
+    "gpt-5-6-terra-non-reasoning": {
+      "gi": 54.11,
+      "sources": {
+        "artificial_analysis": 54.11
+      }
+    },
+    "gpt-5-6-terra-xhigh": {
+      "gi": 83.41,
+      "sources": {
+        "artificial_analysis": 83.41
+      }
+    },
+    "gpt-5-chatgpt": {
+      "gi": 23.19,
+      "sources": {
+        "artificial_analysis": 23.19
       }
     },
     "gpt-5-codex": {
-      "gi": 90.0,
+      "gi": 57.97,
       "sources": {
-        "seed": 90.0
+        "artificial_analysis": 57.97
+      }
+    },
+    "gpt-5-low": {
+      "gi": 49.76,
+      "sources": {
+        "artificial_analysis": 49.76
       }
     },
     "gpt-5-medium": {
-      "gi": 62.85,
+      "gi": 58.48,
       "sources": {
-        "lmsys": 62.85
+        "lmsys": 62.85,
+        "artificial_analysis": 54.11
+      }
+    },
+    "gpt-5-mini": {
+      "gi": 39.94,
+      "sources": {
+        "artificial_analysis": 39.94
+      }
+    },
+    "gpt-5-mini-medium": {
+      "gi": 49.28,
+      "sources": {
+        "artificial_analysis": 49.28
+      }
+    },
+    "gpt-5-mini-minimal": {
+      "gi": 21.42,
+      "sources": {
+        "artificial_analysis": 21.42
+      }
+    },
+    "gpt-5-minimal": {
+      "gi": 26.25,
+      "sources": {
+        "artificial_analysis": 26.25
+      }
+    },
+    "gpt-5-nano": {
+      "gi": 30.76,
+      "sources": {
+        "artificial_analysis": 30.76
+      }
+    },
+    "gpt-5-nano-medium": {
+      "gi": 29.31,
+      "sources": {
+        "artificial_analysis": 29.31
+      }
+    },
+    "gpt-5-nano-minimal": {
+      "gi": 10.95,
+      "sources": {
+        "artificial_analysis": 10.95
       }
     },
     "gpt-5.1": {
@@ -520,9 +1881,9 @@
       }
     },
     "gpt-5.4": {
-      "gi": 57.67,
+      "gi": 71.35,
       "sources": {
-        "lmsys": 57.67
+        "lmsys": 71.35
       }
     },
     "gpt-5.4-high": {
@@ -538,9 +1899,9 @@
       }
     },
     "gpt-5.4-medium (codex-harness)": {
-      "gi": 67.47,
+      "gi": 67.28,
       "sources": {
-        "lmsys": 67.47
+        "lmsys": 67.28
       }
     },
     "gpt-5.4-mini-high": {
@@ -550,9 +1911,9 @@
       }
     },
     "gpt-5.5": {
-      "gi": 73.38,
+      "gi": 73.57,
       "sources": {
-        "lmsys": 73.38
+        "lmsys": 73.57
       }
     },
     "gpt-5.5 (codex-harness)": {
@@ -568,21 +1929,21 @@
       }
     },
     "gpt-5.5-high (codex-harness)": {
-      "gi": 75.05,
+      "gi": 75.23,
       "sources": {
-        "lmsys": 75.05
+        "lmsys": 75.23
       }
     },
     "gpt-5.5-instant": {
-      "gi": 72.83,
+      "gi": 73.01,
       "sources": {
-        "lmsys": 72.83
+        "lmsys": 73.01
       }
     },
     "gpt-5.5-xhigh (codex-harness)": {
-      "gi": 79.3,
+      "gi": 79.48,
       "sources": {
-        "lmsys": 79.3
+        "lmsys": 79.48
       }
     },
     "gpt-5.6-luna-xhigh (codex-harness)": {
@@ -592,9 +1953,9 @@
       }
     },
     "gpt-5.6-sol-xhigh": {
-      "gi": 74.68,
+      "gi": 74.49,
       "sources": {
-        "lmsys": 74.68
+        "lmsys": 74.49
       }
     },
     "gpt-5.6-sol-xhigh (codex-harness)": {
@@ -603,22 +1964,100 @@
         "lmsys": 100.0
       }
     },
-    "gpt-5.6-terra-xhigh (codex-harness)": {
-      "gi": 81.7,
+    "gpt-5.6-terra-xhigh": {
+      "gi": 71.72,
       "sources": {
-        "lmsys": 81.7
+        "lmsys": 71.72
+      }
+    },
+    "gpt-5.6-terra-xhigh (codex-harness)": {
+      "gi": 82.62,
+      "sources": {
+        "lmsys": 82.62
       }
     },
     "gpt-oss-120b": {
-      "gi": 50.0,
+      "gi": 37.2,
       "sources": {
-        "seed": 50.0
+        "artificial_analysis": 37.2
+      }
+    },
+    "gpt-oss-120b-low": {
+      "gi": 22.38,
+      "sources": {
+        "artificial_analysis": 22.38
       }
     },
     "gpt-oss-20b": {
-      "gi": 42.0,
+      "gi": 22.87,
       "sources": {
-        "seed": 42.0
+        "artificial_analysis": 22.87
+      }
+    },
+    "gpt-oss-20b-low": {
+      "gi": 21.58,
+      "sources": {
+        "artificial_analysis": 21.58
+      }
+    },
+    "granite-3-3-8b-instruct": {
+      "gi": 0.48,
+      "sources": {
+        "artificial_analysis": 0.48
+      }
+    },
+    "granite-4-0-350m": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "granite-4-0-h-350m": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "granite-4-0-h-nano-1b": {
+      "gi": 1.93,
+      "sources": {
+        "artificial_analysis": 1.93
+      }
+    },
+    "granite-4-0-h-small": {
+      "gi": 6.28,
+      "sources": {
+        "artificial_analysis": 6.28
+      }
+    },
+    "granite-4-0-micro": {
+      "gi": 1.61,
+      "sources": {
+        "artificial_analysis": 1.61
+      }
+    },
+    "granite-4-0-nano-1b": {
+      "gi": 0.97,
+      "sources": {
+        "artificial_analysis": 0.97
+      }
+    },
+    "granite-4-1-30b": {
+      "gi": 12.72,
+      "sources": {
+        "artificial_analysis": 12.72
+      }
+    },
+    "granite-4-1-3b": {
+      "gi": 5.96,
+      "sources": {
+        "artificial_analysis": 5.96
+      }
+    },
+    "granite-4-1-8b": {
+      "gi": 8.7,
+      "sources": {
+        "artificial_analysis": 8.7
       }
     },
     "granite-4.1-8b": {
@@ -627,28 +2066,138 @@
         "lmsys": 21.26
       }
     },
+    "grok-1": {
+      "gi": 7.73,
+      "sources": {
+        "artificial_analysis": 7.73
+      }
+    },
     "grok-2": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
       }
     },
-    "grok-4-1-fast-reasoning": {
-      "gi": 29.76,
+    "grok-2-1212": {
+      "gi": 10.95,
       "sources": {
-        "lmsys": 29.76
+        "artificial_analysis": 10.95
+      }
+    },
+    "grok-3": {
+      "gi": 28.34,
+      "sources": {
+        "artificial_analysis": 28.34
+      }
+    },
+    "grok-3-mini-reasoning": {
+      "gi": 35.27,
+      "sources": {
+        "artificial_analysis": 35.27
+      }
+    },
+    "grok-3-reasoning": {
+      "gi": 22.87,
+      "sources": {
+        "artificial_analysis": 22.87
+      }
+    },
+    "grok-4": {
+      "gi": 53.3,
+      "sources": {
+        "artificial_analysis": 53.3
+      }
+    },
+    "grok-4-1-fast": {
+      "gi": 25.76,
+      "sources": {
+        "artificial_analysis": 25.76
+      }
+    },
+    "grok-4-1-fast-reasoning": {
+      "gi": 39.28,
+      "sources": {
+        "lmsys": 29.76,
+        "artificial_analysis": 48.79
+      }
+    },
+    "grok-4-20": {
+      "gi": 59.58,
+      "sources": {
+        "artificial_analysis": 59.58
+      }
+    },
+    "grok-4-20-0309": {
+      "gi": 58.62,
+      "sources": {
+        "artificial_analysis": 58.62
+      }
+    },
+    "grok-4-20-0309-non-reasoning": {
+      "gi": 35.27,
+      "sources": {
+        "artificial_analysis": 35.27
+      }
+    },
+    "grok-4-20-non-reasoning": {
+      "gi": 34.14,
+      "sources": {
+        "artificial_analysis": 34.14
+      }
+    },
+    "grok-4-3": {
+      "gi": 59.42,
+      "sources": {
+        "artificial_analysis": 59.42
+      }
+    },
+    "grok-4-3-low": {
+      "gi": 56.84,
+      "sources": {
+        "artificial_analysis": 56.84
+      }
+    },
+    "grok-4-3-medium": {
+      "gi": 57.81,
+      "sources": {
+        "artificial_analysis": 57.81
+      }
+    },
+    "grok-4-3-non-reasoning": {
+      "gi": 38.65,
+      "sources": {
+        "artificial_analysis": 38.65
+      }
+    },
+    "grok-4-5": {
+      "gi": 88.24,
+      "sources": {
+        "artificial_analysis": 88.24
+      }
+    },
+    "grok-4-fast": {
+      "gi": 25.12,
+      "sources": {
+        "artificial_analysis": 25.12
       }
     },
     "grok-4-fast-reasoning": {
-      "gi": 14.97,
+      "gi": 29.14,
       "sources": {
-        "lmsys": 14.97
+        "lmsys": 14.97,
+        "artificial_analysis": 43.32
+      }
+    },
+    "grok-4.1": {
+      "gi": 70.43,
+      "sources": {
+        "lmsys": 70.43
       }
     },
     "grok-4.1-thinking": {
-      "gi": 24.21,
+      "gi": 71.53,
       "sources": {
-        "lmsys": 24.21
+        "lmsys": 71.53
       }
     },
     "grok-4.20-beta-0309-reasoning": {
@@ -663,6 +2212,12 @@
         "lmsys": 73.01
       }
     },
+    "grok-4.20-multi-agent-beta-0309": {
+      "gi": 72.46,
+      "sources": {
+        "lmsys": 72.46
+      }
+    },
     "grok-4.3": {
       "gi": 51.39,
       "sources": {
@@ -670,15 +2225,58 @@
       }
     },
     "grok-4.5": {
-      "gi": 86.88,
+      "gi": 79.67,
       "sources": {
-        "lmsys": 86.88
+        "lmsys": 79.67
+      }
+    },
+    "grok-beta": {
+      "gi": 10.14,
+      "sources": {
+        "artificial_analysis": 10.14
+      }
+    },
+    "grok-build-0-1-06-16": {
+      "gi": 63.93,
+      "sources": {
+        "artificial_analysis": 63.93
       }
     },
     "grok-code-fast-1": {
-      "gi": 15.53,
+      "gi": 24.67,
       "sources": {
-        "lmsys": 15.53
+        "lmsys": 15.53,
+        "artificial_analysis": 33.82
+      }
+    },
+    "hermes-3-llama-3-1-70b": {
+      "gi": 6.12,
+      "sources": {
+        "artificial_analysis": 6.12
+      }
+    },
+    "hermes-4-llama-3-1-405b": {
+      "gi": 12.24,
+      "sources": {
+        "artificial_analysis": 12.24
+      }
+    },
+    "hermes-4-llama-3-1-405b-reasoning": {
+      "gi": 12.56,
+      "sources": {
+        "artificial_analysis": 12.56
+      }
+    },
+    "hermes-4-llama-3-1-70b": {
+      "gi": 9.18,
+      "sources": {
+        "artificial_analysis": 9.18
+      }
+    },
+    "hermes-4-llama-3-1-70b-reasoning": {
+      "gi": 14.33,
+      "sources": {
+        "artificial_analysis": 14.33
       }
     },
     "hunyuan-hy3-preview": {
@@ -688,21 +2286,210 @@
       }
     },
     "hy3": {
-      "gi": 80.78,
+      "gi": 74.12,
       "sources": {
-        "lmsys": 80.78
+        "lmsys": 81.89,
+        "artificial_analysis": 66.34
+      }
+    },
+    "hy3-non-reasoning": {
+      "gi": 41.22,
+      "sources": {
+        "artificial_analysis": 41.22
+      }
+    },
+    "hy3-preview": {
+      "gi": 53.78,
+      "sources": {
+        "artificial_analysis": 53.78
+      }
+    },
+    "hyperclova-x-seed-think-32b": {
+      "gi": 26.09,
+      "sources": {
+        "artificial_analysis": 26.09
+      }
+    },
+    "hypernova-60b": {
+      "gi": 27.86,
+      "sources": {
+        "artificial_analysis": 27.86
       }
     },
     "inkling": {
-      "gi": 61.55,
+      "gi": 64.03,
       "sources": {
-        "lmsys": 61.55
+        "lmsys": 61.55,
+        "artificial_analysis": 66.51
+      }
+    },
+    "inkling-small": {
+      "gi": 64.73,
+      "sources": {
+        "artificial_analysis": 64.73
+      }
+    },
+    "intellect-3": {
+      "gi": 23.67,
+      "sources": {
+        "artificial_analysis": 23.67
+      }
+    },
+    "jamba-1-5-large": {
+      "gi": 6.12,
+      "sources": {
+        "artificial_analysis": 6.12
+      }
+    },
+    "jamba-1-5-mini": {
+      "gi": 2.09,
+      "sources": {
+        "artificial_analysis": 2.09
+      }
+    },
+    "jamba-1-6-large": {
+      "gi": 5.96,
+      "sources": {
+        "artificial_analysis": 5.96
+      }
+    },
+    "jamba-1-6-mini": {
+      "gi": 1.77,
+      "sources": {
+        "artificial_analysis": 1.77
+      }
+    },
+    "jamba-1-7-large": {
+      "gi": 6.44,
+      "sources": {
+        "artificial_analysis": 6.44
+      }
+    },
+    "jamba-1-7-mini": {
+      "gi": 2.09,
+      "sources": {
+        "artificial_analysis": 2.09
+      }
+    },
+    "jamba-reasoning-3b": {
+      "gi": 4.51,
+      "sources": {
+        "artificial_analysis": 4.51
+      }
+    },
+    "jt-35b-flash": {
+      "gi": 45.09,
+      "sources": {
+        "artificial_analysis": 45.09
+      }
+    },
+    "jt-4-1-flash-236b-a21b": {
+      "gi": 62.48,
+      "sources": {
+        "artificial_analysis": 62.48
+      }
+    },
+    "jt-mini": {
+      "gi": 28.66,
+      "sources": {
+        "artificial_analysis": 28.66
+      }
+    },
+    "k-exaone": {
+      "gi": 34.46,
+      "sources": {
+        "artificial_analysis": 34.46
+      }
+    },
+    "k-exaone-non-reasoning": {
+      "gi": 25.6,
+      "sources": {
+        "artificial_analysis": 25.6
+      }
+    },
+    "k2-think-v2": {
+      "gi": 26.09,
+      "sources": {
+        "artificial_analysis": 26.09
+      }
+    },
+    "k2-v2": {
+      "gi": 21.26,
+      "sources": {
+        "artificial_analysis": 21.26
+      }
+    },
+    "k2-v2-low": {
+      "gi": 11.92,
+      "sources": {
+        "artificial_analysis": 11.92
+      }
+    },
+    "k2-v2-medium": {
+      "gi": 18.36,
+      "sources": {
+        "artificial_analysis": 18.36
       }
     },
     "kat-coder-pro-v1": {
-      "gi": 32.53,
+      "gi": 38.73,
       "sources": {
-        "lmsys": 32.53
+        "lmsys": 32.53,
+        "artificial_analysis": 44.93
+      }
+    },
+    "kat-coder-pro-v2": {
+      "gi": 52.98,
+      "sources": {
+        "artificial_analysis": 52.98
+      }
+    },
+    "kimi-k2": {
+      "gi": 30.11,
+      "sources": {
+        "artificial_analysis": 30.11
+      }
+    },
+    "kimi-k2-0905": {
+      "gi": 37.04,
+      "sources": {
+        "artificial_analysis": 37.04
+      }
+    },
+    "kimi-k2-5": {
+      "gi": 56.36,
+      "sources": {
+        "artificial_analysis": 56.36
+      }
+    },
+    "kimi-k2-5-non-reasoning": {
+      "gi": 46.86,
+      "sources": {
+        "artificial_analysis": 46.86
+      }
+    },
+    "kimi-k2-6": {
+      "gi": 71.01,
+      "sources": {
+        "artificial_analysis": 71.01
+      }
+    },
+    "kimi-k2-6-non-reasoning": {
+      "gi": 55.39,
+      "sources": {
+        "artificial_analysis": 55.39
+      }
+    },
+    "kimi-k2-7-code": {
+      "gi": 67.63,
+      "sources": {
+        "artificial_analysis": 67.63
+      }
+    },
+    "kimi-k2-thinking": {
+      "gi": 52.33,
+      "sources": {
+        "artificial_analysis": 52.33
       }
     },
     "kimi-k2-thinking-turbo": {
@@ -724,9 +2511,9 @@
       }
     },
     "kimi-k2.6": {
-      "gi": 79.67,
+      "gi": 75.14,
       "sources": {
-        "lmsys": 79.67
+        "lmsys": 75.14
       }
     },
     "kimi-k2.7-code": {
@@ -735,10 +2522,28 @@
         "lmsys": 72.83
       }
     },
-    "kimi-k3-max": {
-      "gi": 75.05,
+    "kimi-k3": {
+      "gi": 94.52,
       "sources": {
-        "lmsys": 75.05
+        "artificial_analysis": 94.52
+      }
+    },
+    "kimi-k3-low": {
+      "gi": 76.17,
+      "sources": {
+        "artificial_analysis": 76.17
+      }
+    },
+    "kimi-k3-max": {
+      "gi": 92.61,
+      "sources": {
+        "lmsys": 92.61
+      }
+    },
+    "kimi-linear-48b-a3b-instruct": {
+      "gi": 11.92,
+      "sources": {
+        "artificial_analysis": 11.92
       }
     },
     "laguna-m.1": {
@@ -751,6 +2556,210 @@
       "gi": 41.59,
       "sources": {
         "lmsys": 41.59
+      }
+    },
+    "lfm-40b": {
+      "gi": 3.22,
+      "sources": {
+        "artificial_analysis": 3.22
+      }
+    },
+    "lfm2-1-2b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "lfm2-2-6b": {
+      "gi": 2.09,
+      "sources": {
+        "artificial_analysis": 2.09
+      }
+    },
+    "lfm2-24b-a2b": {
+      "gi": 5.8,
+      "sources": {
+        "artificial_analysis": 5.8
+      }
+    },
+    "lfm2-5-1-2b-instruct": {
+      "gi": 2.09,
+      "sources": {
+        "artificial_analysis": 2.09
+      }
+    },
+    "lfm2-5-1-2b-thinking": {
+      "gi": 2.09,
+      "sources": {
+        "artificial_analysis": 2.09
+      }
+    },
+    "lfm2-5-8b-a1b": {
+      "gi": 11.43,
+      "sources": {
+        "artificial_analysis": 11.43
+      }
+    },
+    "lfm2-5-vl-1-6b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "lfm2-8b-a1b": {
+      "gi": 0.48,
+      "sources": {
+        "artificial_analysis": 0.48
+      }
+    },
+    "ling-1t": {
+      "gi": 18.84,
+      "sources": {
+        "artificial_analysis": 18.84
+      }
+    },
+    "ling-2-6-1t": {
+      "gi": 41.22,
+      "sources": {
+        "artificial_analysis": 41.22
+      }
+    },
+    "ling-2-6-flash": {
+      "gi": 21.26,
+      "sources": {
+        "artificial_analysis": 21.26
+      }
+    },
+    "ling-3-0-flash": {
+      "gi": 59.26,
+      "sources": {
+        "artificial_analysis": 59.26
+      }
+    },
+    "ling-3-0-tiny": {
+      "gi": 37.84,
+      "sources": {
+        "artificial_analysis": 37.84
+      }
+    },
+    "ling-flash-2-0": {
+      "gi": 13.85,
+      "sources": {
+        "artificial_analysis": 13.85
+      }
+    },
+    "ling-mini-2-0": {
+      "gi": 3.86,
+      "sources": {
+        "artificial_analysis": 3.86
+      }
+    },
+    "llama-2-chat-13b": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
+      }
+    },
+    "llama-2-chat-70b": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
+      }
+    },
+    "llama-2-chat-7b": {
+      "gi": 4.67,
+      "sources": {
+        "artificial_analysis": 4.67
+      }
+    },
+    "llama-3-1-instruct-405b": {
+      "gi": 11.76,
+      "sources": {
+        "artificial_analysis": 11.76
+      }
+    },
+    "llama-3-1-instruct-70b": {
+      "gi": 8.86,
+      "sources": {
+        "artificial_analysis": 8.86
+      }
+    },
+    "llama-3-1-instruct-8b": {
+      "gi": 10.95,
+      "sources": {
+        "artificial_analysis": 10.95
+      }
+    },
+    "llama-3-1-nemotron-instruct-70b": {
+      "gi": 10.31,
+      "sources": {
+        "artificial_analysis": 10.31
+      }
+    },
+    "llama-3-1-nemotron-nano-4b-reasoning": {
+      "gi": 11.92,
+      "sources": {
+        "artificial_analysis": 11.92
+      }
+    },
+    "llama-3-1-nemotron-ultra-253b-v1-reasoning": {
+      "gi": 12.72,
+      "sources": {
+        "artificial_analysis": 12.72
+      }
+    },
+    "llama-3-2-instruct-11b-vision": {
+      "gi": 3.22,
+      "sources": {
+        "artificial_analysis": 3.22
+      }
+    },
+    "llama-3-2-instruct-1b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "llama-3-2-instruct-3b": {
+      "gi": 4.67,
+      "sources": {
+        "artificial_analysis": 4.67
+      }
+    },
+    "llama-3-2-instruct-90b-vision": {
+      "gi": 8.05,
+      "sources": {
+        "artificial_analysis": 8.05
+      }
+    },
+    "llama-3-3-instruct-70b": {
+      "gi": 13.37,
+      "sources": {
+        "artificial_analysis": 13.37
+      }
+    },
+    "llama-3-3-nemotron-super-49b": {
+      "gi": 11.76,
+      "sources": {
+        "artificial_analysis": 11.76
+      }
+    },
+    "llama-3-3-nemotron-super-49b-reasoning": {
+      "gi": 18.04,
+      "sources": {
+        "artificial_analysis": 18.04
+      }
+    },
+    "llama-3-instruct-70b": {
+      "gi": 3.38,
+      "sources": {
+        "artificial_analysis": 3.38
+      }
+    },
+    "llama-3-instruct-8b": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
       }
     },
     "llama-3.1-70b": {
@@ -778,21 +2787,112 @@
       }
     },
     "llama-4-maverick": {
-      "gi": 72.0,
+      "gi": 21.74,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 21.74
       }
     },
     "llama-4-scout": {
-      "gi": 72.0,
+      "gi": 14.98,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 14.98
+      }
+    },
+    "llama-65b": {
+      "gi": 1.13,
+      "sources": {
+        "artificial_analysis": 1.13
+      }
+    },
+    "llama-nemotron-super-49b-v1-5": {
+      "gi": 12.08,
+      "sources": {
+        "artificial_analysis": 12.08
+      }
+    },
+    "llama-nemotron-super-49b-v1-5-reasoning": {
+      "gi": 18.36,
+      "sources": {
+        "artificial_analysis": 18.36
+      }
+    },
+    "longcat-2-0": {
+      "gi": 52.98,
+      "sources": {
+        "artificial_analysis": 52.98
+      }
+    },
+    "longcat-flash-lite": {
+      "gi": 26.41,
+      "sources": {
+        "artificial_analysis": 26.41
+      }
+    },
+    "magistral-medium": {
+      "gi": 18.52,
+      "sources": {
+        "artificial_analysis": 18.52
+      }
+    },
+    "magistral-medium-2509": {
+      "gi": 27.38,
+      "sources": {
+        "artificial_analysis": 27.38
+      }
+    },
+    "magistral-small": {
+      "gi": 15.46,
+      "sources": {
+        "artificial_analysis": 15.46
+      }
+    },
+    "magistral-small-2509": {
+      "gi": 16.91,
+      "sources": {
+        "artificial_analysis": 16.91
       }
     },
     "mercury-2": {
-      "gi": 16.08,
+      "gi": 24.87,
       "sources": {
-        "lmsys": 16.08
+        "lmsys": 16.08,
+        "artificial_analysis": 33.66
+      }
+    },
+    "mi-dm-k-2-5-pro-dec28": {
+      "gi": 25.12,
+      "sources": {
+        "artificial_analysis": 25.12
+      }
+    },
+    "mimo-v2-0206": {
+      "gi": 53.14,
+      "sources": {
+        "artificial_analysis": 53.14
+      }
+    },
+    "mimo-v2-5-0424": {
+      "gi": 59.58,
+      "sources": {
+        "artificial_analysis": 59.58
+      }
+    },
+    "mimo-v2-5-pro": {
+      "gi": 67.47,
+      "sources": {
+        "artificial_analysis": 67.47
+      }
+    },
+    "mimo-v2-5-pro-non-reasoning": {
+      "gi": 44.12,
+      "sources": {
+        "artificial_analysis": 44.12
+      }
+    },
+    "mimo-v2-flash": {
+      "gi": 38.65,
+      "sources": {
+        "artificial_analysis": 38.65
       }
     },
     "mimo-v2-flash (non-thinking)": {
@@ -807,28 +2907,96 @@
         "lmsys": 39.19
       }
     },
-    "mimo-v2-pro": {
-      "gi": 65.43,
+    "mimo-v2-flash-reasoning": {
+      "gi": 49.76,
       "sources": {
-        "lmsys": 65.43
+        "artificial_analysis": 49.76
+      }
+    },
+    "mimo-v2-omni": {
+      "gi": 56.2,
+      "sources": {
+        "artificial_analysis": 56.2
+      }
+    },
+    "mimo-v2-omni-0327": {
+      "gi": 58.45,
+      "sources": {
+        "artificial_analysis": 58.45
+      }
+    },
+    "mimo-v2-pro": {
+      "gi": 65.25,
+      "sources": {
+        "lmsys": 65.43,
+        "artificial_analysis": 65.06
       }
     },
     "mimo-v2.5": {
-      "gi": 65.99,
+      "gi": 66.17,
       "sources": {
-        "lmsys": 65.99
+        "lmsys": 66.17
       }
     },
     "mimo-v2.5-pro": {
-      "gi": 72.83,
+      "gi": 72.37,
       "sources": {
-        "lmsys": 72.83
+        "lmsys": 72.37
+      }
+    },
+    "minicpm-v4-6-1-3b": {
+      "gi": 5.31,
+      "sources": {
+        "artificial_analysis": 5.31
+      }
+    },
+    "minicpm5-1b": {
+      "gi": 17.55,
+      "sources": {
+        "artificial_analysis": 17.55
+      }
+    },
+    "minicpm5-1b-non-reasoning": {
+      "gi": 17.23,
+      "sources": {
+        "artificial_analysis": 17.23
+      }
+    },
+    "minimax-m1-40k": {
+      "gi": 21.74,
+      "sources": {
+        "artificial_analysis": 21.74
+      }
+    },
+    "minimax-m1-80k": {
+      "gi": 27.21,
+      "sources": {
+        "artificial_analysis": 27.21
       }
     },
     "minimax-m2": {
-      "gi": 40.3,
+      "gi": 42.61,
       "sources": {
-        "lmsys": 40.3
+        "lmsys": 40.3,
+        "artificial_analysis": 44.93
+      }
+    },
+    "minimax-m2-1": {
+      "gi": 50.08,
+      "sources": {
+        "artificial_analysis": 50.08
+      }
+    },
+    "minimax-m2-5": {
+      "gi": 53.95,
+      "sources": {
+        "artificial_analysis": 53.95
+      }
+    },
+    "minimax-m2-7": {
+      "gi": 61.03,
+      "sources": {
+        "artificial_analysis": 61.03
       }
     },
     "minimax-m2.1-preview": {
@@ -850,9 +3018,28 @@
       }
     },
     "minimax-m3": {
-      "gi": 76.34,
+      "gi": 73.83,
       "sources": {
-        "lmsys": 76.34
+        "lmsys": 76.16,
+        "artificial_analysis": 71.5
+      }
+    },
+    "ministral-3-14b": {
+      "gi": 16.43,
+      "sources": {
+        "artificial_analysis": 16.43
+      }
+    },
+    "ministral-3-3b": {
+      "gi": 9.82,
+      "sources": {
+        "artificial_analysis": 9.82
+      }
+    },
+    "ministral-3-8b": {
+      "gi": 12.88,
+      "sources": {
+        "artificial_analysis": 12.88
       }
     },
     "mistral-7b": {
@@ -861,22 +3048,65 @@
         "seed": 30.0
       }
     },
-    "mistral-large": {
-      "gi": 72.0,
+    "mistral-7b-instruct": {
+      "gi": 1.13,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 1.13
+      }
+    },
+    "mistral-8x22b-instruct": {
+      "gi": 4.83,
+      "sources": {
+        "artificial_analysis": 4.83
+      }
+    },
+    "mistral-large": {
+      "gi": 4.99,
+      "sources": {
+        "artificial_analysis": 4.99
+      }
+    },
+    "mistral-large-2": {
+      "gi": 12.88,
+      "sources": {
+        "artificial_analysis": 12.88
+      }
+    },
+    "mistral-large-2407": {
+      "gi": 9.66,
+      "sources": {
+        "artificial_analysis": 9.66
       }
     },
     "mistral-large-3": {
-      "gi": 27.91,
+      "gi": 25.95,
       "sources": {
-        "lmsys": 27.91
+        "lmsys": 27.91,
+        "artificial_analysis": 23.99
       }
     },
     "mistral-medium": {
-      "gi": 72.0,
+      "gi": 3.54,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 3.54
+      }
+    },
+    "mistral-medium-3": {
+      "gi": 18.52,
+      "sources": {
+        "artificial_analysis": 18.52
+      }
+    },
+    "mistral-medium-3-1": {
+      "gi": 22.06,
+      "sources": {
+        "artificial_analysis": 22.06
+      }
+    },
+    "mistral-medium-3-5": {
+      "gi": 47.34,
+      "sources": {
+        "artificial_analysis": 47.34
       }
     },
     "mistral-medium-3.5": {
@@ -885,10 +3115,52 @@
         "lmsys": 34.75
       }
     },
-    "mistral-small": {
-      "gi": 50.0,
+    "mistral-saba": {
+      "gi": 8.37,
       "sources": {
-        "seed": 50.0
+        "artificial_analysis": 8.37
+      }
+    },
+    "mistral-small": {
+      "gi": 5.31,
+      "sources": {
+        "artificial_analysis": 5.31
+      }
+    },
+    "mistral-small-2402": {
+      "gi": 3.54,
+      "sources": {
+        "artificial_analysis": 3.54
+      }
+    },
+    "mistral-small-3": {
+      "gi": 9.18,
+      "sources": {
+        "artificial_analysis": 9.18
+      }
+    },
+    "mistral-small-3-1": {
+      "gi": 22.38,
+      "sources": {
+        "artificial_analysis": 22.38
+      }
+    },
+    "mistral-small-3-2": {
+      "gi": 15.62,
+      "sources": {
+        "artificial_analysis": 15.62
+      }
+    },
+    "mistral-small-4": {
+      "gi": 30.11,
+      "sources": {
+        "artificial_analysis": 30.11
+      }
+    },
+    "mistral-small-4-non-reasoning": {
+      "gi": 18.2,
+      "sources": {
+        "artificial_analysis": 18.2
       }
     },
     "mixtral-8x22b": {
@@ -903,22 +3175,77 @@
         "seed": 50.0
       }
     },
+    "mixtral-8x7b-instruct": {
+      "gi": 1.61,
+      "sources": {
+        "artificial_analysis": 1.61
+      }
+    },
+    "molmo-7b-d": {
+      "gi": 3.86,
+      "sources": {
+        "artificial_analysis": 3.86
+      }
+    },
+    "molmo2-8b": {
+      "gi": 0.97,
+      "sources": {
+        "artificial_analysis": 0.97
+      }
+    },
     "moonshot-v1": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
       }
     },
-    "muse-spark": {
-      "gi": 75.6,
+    "motif-0714": {
+      "gi": 70.69,
       "sources": {
-        "lmsys": 75.6
+        "artificial_analysis": 70.69
+      }
+    },
+    "motif-2-12-7b": {
+      "gi": 19.0,
+      "sources": {
+        "artificial_analysis": 19.0
+      }
+    },
+    "muse-spark": {
+      "gi": 72.02,
+      "sources": {
+        "lmsys": 75.6,
+        "artificial_analysis": 68.44
+      }
+    },
+    "muse-spark-1-1": {
+      "gi": 84.06,
+      "sources": {
+        "artificial_analysis": 84.06
+      }
+    },
+    "muse-spark-1-2": {
+      "gi": 89.86,
+      "sources": {
+        "artificial_analysis": 89.86
       }
     },
     "muse-spark-1.1": {
-      "gi": 75.97,
+      "gi": 79.94,
       "sources": {
-        "lmsys": 75.97
+        "lmsys": 79.94
+      }
+    },
+    "muse-spark-1.2 (xhigh)": {
+      "gi": 81.7,
+      "sources": {
+        "lmsys": 81.7
+      }
+    },
+    "nanbeige4-1-3b": {
+      "gi": 16.43,
+      "sources": {
+        "artificial_analysis": 16.43
       }
     },
     "nemotron": {
@@ -927,10 +3254,172 @@
         "seed": 72.0
       }
     },
+    "nemotron-3-nano-omni-30b-a3b": {
+      "gi": 22.54,
+      "sources": {
+        "artificial_analysis": 22.54
+      }
+    },
     "nemotron-3-ultra": {
       "gi": 90.0,
       "sources": {
         "seed": 90.0
+      }
+    },
+    "nemotron-cascade-2-30b-a3b": {
+      "gi": 27.38,
+      "sources": {
+        "artificial_analysis": 27.38
+      }
+    },
+    "nex-n2-pro": {
+      "gi": 65.54,
+      "sources": {
+        "artificial_analysis": 65.54
+      }
+    },
+    "north-mini-code": {
+      "gi": 30.92,
+      "sources": {
+        "artificial_analysis": 30.92
+      }
+    },
+    "nova-2-0-lite": {
+      "gi": 17.39,
+      "sources": {
+        "artificial_analysis": 17.39
+      }
+    },
+    "nova-2-0-lite-reasoning": {
+      "gi": 28.02,
+      "sources": {
+        "artificial_analysis": 28.02
+      }
+    },
+    "nova-2-0-lite-reasoning-low": {
+      "gi": 27.38,
+      "sources": {
+        "artificial_analysis": 27.38
+      }
+    },
+    "nova-2-0-lite-reasoning-medium": {
+      "gi": 29.31,
+      "sources": {
+        "artificial_analysis": 29.31
+      }
+    },
+    "nova-2-0-omni": {
+      "gi": 15.14,
+      "sources": {
+        "artificial_analysis": 15.14
+      }
+    },
+    "nova-2-0-omni-reasoning-low": {
+      "gi": 25.28,
+      "sources": {
+        "artificial_analysis": 25.28
+      }
+    },
+    "nova-2-0-omni-reasoning-medium": {
+      "gi": 32.69,
+      "sources": {
+        "artificial_analysis": 32.69
+      }
+    },
+    "nova-2-0-pro": {
+      "gi": 21.58,
+      "sources": {
+        "artificial_analysis": 21.58
+      }
+    },
+    "nova-2-0-pro-reasoning-low": {
+      "gi": 30.6,
+      "sources": {
+        "artificial_analysis": 30.6
+      }
+    },
+    "nova-2-0-pro-reasoning-medium": {
+      "gi": 33.82,
+      "sources": {
+        "artificial_analysis": 33.82
+      }
+    },
+    "nova-lite": {
+      "gi": 9.18,
+      "sources": {
+        "artificial_analysis": 9.18
+      }
+    },
+    "nova-micro": {
+      "gi": 5.48,
+      "sources": {
+        "artificial_analysis": 5.48
+      }
+    },
+    "nova-premier": {
+      "gi": 18.84,
+      "sources": {
+        "artificial_analysis": 18.84
+      }
+    },
+    "nova-pro": {
+      "gi": 10.47,
+      "sources": {
+        "artificial_analysis": 10.47
+      }
+    },
+    "nvidia-nemotron-3-nano-30b-a3b": {
+      "gi": 9.98,
+      "sources": {
+        "artificial_analysis": 9.98
+      }
+    },
+    "nvidia-nemotron-3-nano-30b-a3b-reasoning": {
+      "gi": 21.74,
+      "sources": {
+        "artificial_analysis": 21.74
+      }
+    },
+    "nvidia-nemotron-3-nano-4b": {
+      "gi": 12.56,
+      "sources": {
+        "artificial_analysis": 12.56
+      }
+    },
+    "nvidia-nemotron-3-super-120b-a12b": {
+      "gi": 39.77,
+      "sources": {
+        "artificial_analysis": 39.77
+      }
+    },
+    "nvidia-nemotron-3-ultra-550b-a55b": {
+      "gi": 60.06,
+      "sources": {
+        "artificial_analysis": 60.06
+      }
+    },
+    "nvidia-nemotron-nano-12b-v2-vl": {
+      "gi": 5.15,
+      "sources": {
+        "artificial_analysis": 5.15
+      }
+    },
+    "nvidia-nemotron-nano-12b-v2-vl-reasoning": {
+      "gi": 12.56,
+      "sources": {
+        "artificial_analysis": 12.56
+      }
+    },
+    "nvidia-nemotron-nano-9b-v2": {
+      "gi": 9.98,
+      "sources": {
+        "artificial_analysis": 9.98
+      }
+    },
+    "nvidia-nemotron-nano-9b-v2-reasoning": {
+      "gi": 12.4,
+      "sources": {
+        "artificial_analysis": 12.4
       }
     },
     "nvidia/nemotron-3-super": {
@@ -940,15 +3429,111 @@
       }
     },
     "o1": {
-      "gi": 90.0,
+      "gi": 36.88,
       "sources": {
-        "seed": 90.0
+        "artificial_analysis": 36.88
+      }
+    },
+    "o1-mini": {
+      "gi": 20.93,
+      "sources": {
+        "artificial_analysis": 20.93
+      }
+    },
+    "o1-preview": {
+      "gi": 26.09,
+      "sources": {
+        "artificial_analysis": 26.09
+      }
+    },
+    "o1-pro": {
+      "gi": 29.15,
+      "sources": {
+        "artificial_analysis": 29.15
       }
     },
     "o3": {
-      "gi": 90.0,
+      "gi": 48.47,
       "sources": {
-        "seed": 90.0
+        "artificial_analysis": 48.47
+      }
+    },
+    "o3-mini": {
+      "gi": 29.31,
+      "sources": {
+        "artificial_analysis": 29.31
+      }
+    },
+    "o3-mini-high": {
+      "gi": 23.67,
+      "sources": {
+        "artificial_analysis": 23.67
+      }
+    },
+    "o3-pro": {
+      "gi": 52.01,
+      "sources": {
+        "artificial_analysis": 52.01
+      }
+    },
+    "o4-mini": {
+      "gi": 40.42,
+      "sources": {
+        "artificial_analysis": 40.42
+      }
+    },
+    "olmo-2-32b": {
+      "gi": 5.96,
+      "sources": {
+        "artificial_analysis": 5.96
+      }
+    },
+    "olmo-2-7b": {
+      "gi": 4.03,
+      "sources": {
+        "artificial_analysis": 4.03
+      }
+    },
+    "olmo-3-1-32b-instruct": {
+      "gi": 8.37,
+      "sources": {
+        "artificial_analysis": 8.37
+      }
+    },
+    "olmo-3-1-32b-think": {
+      "gi": 11.11,
+      "sources": {
+        "artificial_analysis": 11.11
+      }
+    },
+    "olmo-3-32b-think": {
+      "gi": 8.21,
+      "sources": {
+        "artificial_analysis": 8.21
+      }
+    },
+    "olmo-3-7b-instruct": {
+      "gi": 2.25,
+      "sources": {
+        "artificial_analysis": 2.25
+      }
+    },
+    "olmo-3-7b-think": {
+      "gi": 4.19,
+      "sources": {
+        "artificial_analysis": 4.19
+      }
+    },
+    "openchat-35": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
+      }
+    },
+    "palm-2": {
+      "gi": 2.9,
+      "sources": {
+        "artificial_analysis": 2.9
       }
     },
     "phi-3-medium": {
@@ -958,9 +3543,9 @@
       }
     },
     "phi-3-mini": {
-      "gi": 30.0,
+      "gi": 5.31,
       "sources": {
-        "seed": 30.0
+        "artificial_analysis": 5.31
       }
     },
     "phi-3.5": {
@@ -976,9 +3561,21 @@
       }
     },
     "phi-4": {
-      "gi": 72.0,
+      "gi": 5.8,
       "sources": {
-        "seed": 72.0
+        "artificial_analysis": 5.8
+      }
+    },
+    "phi-4-mini": {
+      "gi": 8.37,
+      "sources": {
+        "artificial_analysis": 8.37
+      }
+    },
+    "phi-4-multimodal": {
+      "gi": 5.15,
+      "sources": {
+        "artificial_analysis": 5.15
       }
     },
     "phi-4-reasoning": {
@@ -987,16 +3584,82 @@
         "seed": 72.0
       }
     },
+    "pixtral-large-2411": {
+      "gi": 11.27,
+      "sources": {
+        "artificial_analysis": 11.27
+      }
+    },
+    "qwen-2-5-max": {
+      "gi": 14.65,
+      "sources": {
+        "artificial_analysis": 14.65
+      }
+    },
     "qwen-72b": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
       }
     },
+    "qwen-chat-14b": {
+      "gi": 1.13,
+      "sources": {
+        "artificial_analysis": 1.13
+      }
+    },
+    "qwen-chat-72b": {
+      "gi": 3.22,
+      "sources": {
+        "artificial_analysis": 3.22
+      }
+    },
+    "qwen-turbo": {
+      "gi": 8.05,
+      "sources": {
+        "artificial_analysis": 8.05
+      }
+    },
+    "qwen1.5-110b-chat": {
+      "gi": 4.35,
+      "sources": {
+        "artificial_analysis": 4.35
+      }
+    },
+    "qwen2-5-72b-instruct": {
+      "gi": 13.53,
+      "sources": {
+        "artificial_analysis": 13.53
+      }
+    },
+    "qwen2-5-coder-32b-instruct": {
+      "gi": 9.5,
+      "sources": {
+        "artificial_analysis": 9.5
+      }
+    },
+    "qwen2-5-coder-7b-instruct": {
+      "gi": 4.99,
+      "sources": {
+        "artificial_analysis": 4.99
+      }
+    },
+    "qwen2-72b-instruct": {
+      "gi": 7.57,
+      "sources": {
+        "artificial_analysis": 7.57
+      }
+    },
     "qwen2.5-32b": {
       "gi": 50.0,
       "sources": {
         "seed": 50.0
+      }
+    },
+    "qwen2.5-32b-instruct": {
+      "gi": 9.98,
+      "sources": {
+        "artificial_analysis": 9.98
       }
     },
     "qwen2.5-72b": {
@@ -1011,10 +3674,46 @@
         "seed": 30.0
       }
     },
+    "qwen3-0.6b-instruct": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "qwen3-0.6b-instruct-reasoning": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "qwen3-1.7b-instruct": {
+      "gi": 0.16,
+      "sources": {
+        "artificial_analysis": 0.16
+      }
+    },
+    "qwen3-1.7b-instruct-reasoning": {
+      "gi": 1.93,
+      "sources": {
+        "artificial_analysis": 1.93
+      }
+    },
     "qwen3-14b": {
       "gi": 50.0,
       "sources": {
         "seed": 50.0
+      }
+    },
+    "qwen3-14b-instruct": {
+      "gi": 9.34,
+      "sources": {
+        "artificial_analysis": 9.34
+      }
+    },
+    "qwen3-14b-instruct-reasoning": {
+      "gi": 15.14,
+      "sources": {
+        "artificial_analysis": 15.14
       }
     },
     "qwen3-235b": {
@@ -1023,10 +3722,70 @@
         "seed": 90.0
       }
     },
+    "qwen3-235b-a22b-instruct": {
+      "gi": 15.78,
+      "sources": {
+        "artificial_analysis": 15.78
+      }
+    },
+    "qwen3-235b-a22b-instruct-2507": {
+      "gi": 28.02,
+      "sources": {
+        "artificial_analysis": 28.02
+      }
+    },
+    "qwen3-235b-a22b-instruct-2507-reasoning": {
+      "gi": 30.43,
+      "sources": {
+        "artificial_analysis": 30.43
+      }
+    },
+    "qwen3-235b-a22b-instruct-reasoning": {
+      "gi": 20.13,
+      "sources": {
+        "artificial_analysis": 20.13
+      }
+    },
+    "qwen3-30b-a3b-2507": {
+      "gi": 12.72,
+      "sources": {
+        "artificial_analysis": 12.72
+      }
+    },
+    "qwen3-30b-a3b-2507-reasoning": {
+      "gi": 21.9,
+      "sources": {
+        "artificial_analysis": 21.9
+      }
+    },
+    "qwen3-30b-a3b-instruct": {
+      "gi": 9.02,
+      "sources": {
+        "artificial_analysis": 9.02
+      }
+    },
+    "qwen3-30b-a3b-instruct-reasoning": {
+      "gi": 13.2,
+      "sources": {
+        "artificial_analysis": 13.2
+      }
+    },
     "qwen3-32b": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
+      }
+    },
+    "qwen3-32b-instruct": {
+      "gi": 12.08,
+      "sources": {
+        "artificial_analysis": 12.08
+      }
+    },
+    "qwen3-32b-instruct-reasoning": {
+      "gi": 16.75,
+      "sources": {
+        "artificial_analysis": 16.75
       }
     },
     "qwen3-4b": {
@@ -1035,10 +3794,196 @@
         "seed": 30.0
       }
     },
+    "qwen3-4b-2507-instruct": {
+      "gi": 9.5,
+      "sources": {
+        "artificial_analysis": 9.5
+      }
+    },
+    "qwen3-4b-2507-instruct-reasoning": {
+      "gi": 17.55,
+      "sources": {
+        "artificial_analysis": 17.55
+      }
+    },
+    "qwen3-4b-instruct": {
+      "gi": 8.86,
+      "sources": {
+        "artificial_analysis": 8.86
+      }
+    },
+    "qwen3-4b-instruct-reasoning": {
+      "gi": 11.59,
+      "sources": {
+        "artificial_analysis": 11.59
+      }
+    },
+    "qwen3-5-0-8b": {
+      "gi": 6.44,
+      "sources": {
+        "artificial_analysis": 6.44
+      }
+    },
+    "qwen3-5-0-8b-non-reasoning": {
+      "gi": 4.03,
+      "sources": {
+        "artificial_analysis": 4.03
+      }
+    },
+    "qwen3-5-122b-a10b": {
+      "gi": 51.21,
+      "sources": {
+        "artificial_analysis": 51.21
+      }
+    },
+    "qwen3-5-122b-a10b-non-reasoning": {
+      "gi": 43.8,
+      "sources": {
+        "artificial_analysis": 43.8
+      }
+    },
+    "qwen3-5-27b": {
+      "gi": 54.11,
+      "sources": {
+        "artificial_analysis": 54.11
+      }
+    },
+    "qwen3-5-27b-non-reasoning": {
+      "gi": 46.7,
+      "sources": {
+        "artificial_analysis": 46.7
+      }
+    },
+    "qwen3-5-2b": {
+      "gi": 10.47,
+      "sources": {
+        "artificial_analysis": 10.47
+      }
+    },
+    "qwen3-5-2b-non-reasoning": {
+      "gi": 7.57,
+      "sources": {
+        "artificial_analysis": 7.57
+      }
+    },
+    "qwen3-5-35b-a3b": {
+      "gi": 46.54,
+      "sources": {
+        "artificial_analysis": 46.54
+      }
+    },
+    "qwen3-5-35b-a3b-non-reasoning": {
+      "gi": 37.52,
+      "sources": {
+        "artificial_analysis": 37.52
+      }
+    },
+    "qwen3-5-397b-a17b": {
+      "gi": 53.62,
+      "sources": {
+        "artificial_analysis": 53.62
+      }
+    },
+    "qwen3-5-397b-a17b-non-reasoning": {
+      "gi": 51.05,
+      "sources": {
+        "artificial_analysis": 51.05
+      }
+    },
+    "qwen3-5-4b": {
+      "gi": 31.24,
+      "sources": {
+        "artificial_analysis": 31.24
+      }
+    },
+    "qwen3-5-4b-non-reasoning": {
+      "gi": 24.32,
+      "sources": {
+        "artificial_analysis": 24.32
+      }
+    },
+    "qwen3-5-9b": {
+      "gi": 33.49,
+      "sources": {
+        "artificial_analysis": 33.49
+      }
+    },
+    "qwen3-5-9b-non-reasoning": {
+      "gi": 31.56,
+      "sources": {
+        "artificial_analysis": 31.56
+      }
+    },
+    "qwen3-5-omni-flash": {
+      "gi": 29.31,
+      "sources": {
+        "artificial_analysis": 29.31
+      }
+    },
+    "qwen3-5-omni-plus": {
+      "gi": 48.79,
+      "sources": {
+        "artificial_analysis": 48.79
+      }
+    },
+    "qwen3-6-27b": {
+      "gi": 59.1,
+      "sources": {
+        "artificial_analysis": 59.1
+      }
+    },
+    "qwen3-6-27b-non-reasoning": {
+      "gi": 48.79,
+      "sources": {
+        "artificial_analysis": 48.79
+      }
+    },
+    "qwen3-6-35b-a3b": {
+      "gi": 50.08,
+      "sources": {
+        "artificial_analysis": 50.08
+      }
+    },
+    "qwen3-6-35b-a3b-non-reasoning": {
+      "gi": 37.84,
+      "sources": {
+        "artificial_analysis": 37.84
+      }
+    },
+    "qwen3-6-max": {
+      "gi": 64.57,
+      "sources": {
+        "artificial_analysis": 64.57
+      }
+    },
+    "qwen3-6-plus": {
+      "gi": 63.61,
+      "sources": {
+        "artificial_analysis": 63.61
+      }
+    },
+    "qwen3-7-max": {
+      "gi": 73.59,
+      "sources": {
+        "artificial_analysis": 73.59
+      }
+    },
+    "qwen3-7-plus": {
+      "gi": 61.84,
+      "sources": {
+        "artificial_analysis": 61.84
+      }
+    },
     "qwen3-72b": {
       "gi": 90.0,
       "sources": {
         "seed": 90.0
+      }
+    },
+    "qwen3-8-max": {
+      "gi": 91.95,
+      "sources": {
+        "artificial_analysis": 91.95
       }
     },
     "qwen3-8b": {
@@ -1047,10 +3992,143 @@
         "seed": 50.0
       }
     },
-    "qwen3-coder-480b-a35b-instruct": {
-      "gi": 35.67,
+    "qwen3-8b-instruct": {
+      "gi": 6.12,
       "sources": {
-        "lmsys": 35.67
+        "artificial_analysis": 6.12
+      }
+    },
+    "qwen3-8b-instruct-reasoning": {
+      "gi": 11.76,
+      "sources": {
+        "artificial_analysis": 11.76
+      }
+    },
+    "qwen3-coder-30b-a3b-instruct": {
+      "gi": 20.29,
+      "sources": {
+        "artificial_analysis": 20.29
+      }
+    },
+    "qwen3-coder-480b-a35b-instruct": {
+      "gi": 31.69,
+      "sources": {
+        "lmsys": 35.67,
+        "artificial_analysis": 27.7
+      }
+    },
+    "qwen3-coder-next": {
+      "gi": 32.69,
+      "sources": {
+        "artificial_analysis": 32.69
+      }
+    },
+    "qwen3-max": {
+      "gi": 37.84,
+      "sources": {
+        "artificial_analysis": 37.84
+      }
+    },
+    "qwen3-max-preview": {
+      "gi": 29.63,
+      "sources": {
+        "artificial_analysis": 29.63
+      }
+    },
+    "qwen3-max-thinking": {
+      "gi": 50.72,
+      "sources": {
+        "artificial_analysis": 50.72
+      }
+    },
+    "qwen3-max-thinking-preview": {
+      "gi": 39.45,
+      "sources": {
+        "artificial_analysis": 39.45
+      }
+    },
+    "qwen3-next-80b-a3b-instruct": {
+      "gi": 20.61,
+      "sources": {
+        "artificial_analysis": 20.61
+      }
+    },
+    "qwen3-next-80b-a3b-reasoning": {
+      "gi": 25.6,
+      "sources": {
+        "artificial_analysis": 25.6
+      }
+    },
+    "qwen3-omni-30b-a3b-instruct": {
+      "gi": 6.12,
+      "sources": {
+        "artificial_analysis": 6.12
+      }
+    },
+    "qwen3-omni-30b-a3b-reasoning": {
+      "gi": 13.69,
+      "sources": {
+        "artificial_analysis": 13.69
+      }
+    },
+    "qwen3-vl-235b-a22b-instruct": {
+      "gi": 21.58,
+      "sources": {
+        "artificial_analysis": 21.58
+      }
+    },
+    "qwen3-vl-235b-a22b-reasoning": {
+      "gi": 32.05,
+      "sources": {
+        "artificial_analysis": 32.05
+      }
+    },
+    "qwen3-vl-30b-a3b-instruct": {
+      "gi": 14.33,
+      "sources": {
+        "artificial_analysis": 14.33
+      }
+    },
+    "qwen3-vl-30b-a3b-reasoning": {
+      "gi": 19.97,
+      "sources": {
+        "artificial_analysis": 19.97
+      }
+    },
+    "qwen3-vl-32b-instruct": {
+      "gi": 16.1,
+      "sources": {
+        "artificial_analysis": 16.1
+      }
+    },
+    "qwen3-vl-32b-reasoning": {
+      "gi": 27.54,
+      "sources": {
+        "artificial_analysis": 27.54
+      }
+    },
+    "qwen3-vl-4b-instruct": {
+      "gi": 4.35,
+      "sources": {
+        "artificial_analysis": 4.35
+      }
+    },
+    "qwen3-vl-4b-reasoning": {
+      "gi": 10.79,
+      "sources": {
+        "artificial_analysis": 10.79
+      }
+    },
+    "qwen3-vl-8b-instruct": {
+      "gi": 11.59,
+      "sources": {
+        "artificial_analysis": 11.59
+      }
+    },
+    "qwen3-vl-8b-reasoning": {
+      "gi": 15.3,
+      "sources": {
+        "artificial_analysis": 15.3
       }
     },
     "qwen3.5-122b-a10b": {
@@ -1083,10 +4161,16 @@
         "lmsys": 29.39
       }
     },
-    "qwen3.6-max-preview": {
-      "gi": 73.75,
+    "qwen3.5-max-preview": {
+      "gi": 71.35,
       "sources": {
-        "lmsys": 73.75
+        "lmsys": 71.35
+      }
+    },
+    "qwen3.6-max-preview": {
+      "gi": 72.09,
+      "sources": {
+        "lmsys": 72.09
       }
     },
     "qwen3.6-plus": {
@@ -1096,9 +4180,9 @@
       }
     },
     "qwen3.7-max-20260517": {
-      "gi": 81.15,
+      "gi": 80.78,
       "sources": {
-        "lmsys": 81.15
+        "lmsys": 80.78
       }
     },
     "qwen3.7-max-preview": {
@@ -1107,22 +4191,215 @@
         "lmsys": 73.2
       }
     },
-    "qwen3.8-max": {
-      "gi": 77.08,
+    "qwen3.7-plus": {
+      "gi": 70.06,
       "sources": {
-        "lmsys": 77.08
+        "lmsys": 70.06
+      }
+    },
+    "qwen3.8-max": {
+      "gi": 92.98,
+      "sources": {
+        "lmsys": 92.98
+      }
+    },
+    "qwq-32b": {
+      "gi": 19.97,
+      "sources": {
+        "artificial_analysis": 19.97
+      }
+    },
+    "qwq-32b-preview": {
+      "gi": 13.04,
+      "sources": {
+        "artificial_analysis": 13.04
+      }
+    },
+    "r1-1776": {
+      "gi": 8.05,
+      "sources": {
+        "artificial_analysis": 8.05
+      }
+    },
+    "reka-flash": {
+      "gi": 8.05,
+      "sources": {
+        "artificial_analysis": 8.05
+      }
+    },
+    "reka-flash-3": {
+      "gi": 4.35,
+      "sources": {
+        "artificial_analysis": 4.35
+      }
+    },
+    "ring-1t": {
+      "gi": 24.64,
+      "sources": {
+        "artificial_analysis": 24.64
+      }
+    },
+    "ring-2-6-1t": {
+      "gi": 48.47,
+      "sources": {
+        "artificial_analysis": 48.47
+      }
+    },
+    "ring-flash-2-0": {
+      "gi": 11.27,
+      "sources": {
+        "artificial_analysis": 11.27
+      }
+    },
+    "sarvam-105b": {
+      "gi": 17.55,
+      "sources": {
+        "artificial_analysis": 17.55
+      }
+    },
+    "sarvam-30b": {
+      "gi": 8.7,
+      "sources": {
+        "artificial_analysis": 8.7
+      }
+    },
+    "sarvam-m-reasoning": {
+      "gi": 2.58,
+      "sources": {
+        "artificial_analysis": 2.58
       }
     },
     "seed-2.1-pro-preview": {
-      "gi": 82.81,
+      "gi": 82.26,
       "sources": {
-        "lmsys": 82.81
+        "lmsys": 82.26
+      }
+    },
+    "seed-oss-36b-instruct": {
+      "gi": 28.18,
+      "sources": {
+        "artificial_analysis": 28.18
+      }
+    },
+    "solar-mini": {
+      "gi": 8.05,
+      "sources": {
+        "artificial_analysis": 8.05
+      }
+    },
+    "solar-open-100b-reasoning": {
+      "gi": 22.87,
+      "sources": {
+        "artificial_analysis": 22.87
+      }
+    },
+    "solar-pro-2": {
+      "gi": 10.63,
+      "sources": {
+        "artificial_analysis": 10.63
+      }
+    },
+    "solar-pro-2-preview": {
+      "gi": 14.33,
+      "sources": {
+        "artificial_analysis": 14.33
+      }
+    },
+    "solar-pro-2-preview-reasoning": {
+      "gi": 18.52,
+      "sources": {
+        "artificial_analysis": 18.52
+      }
+    },
+    "solar-pro-2-reasoning": {
+      "gi": 12.56,
+      "sources": {
+        "artificial_analysis": 12.56
+      }
+    },
+    "solar-pro-3": {
+      "gi": 21.74,
+      "sources": {
+        "artificial_analysis": 21.74
+      }
+    },
+    "sonar": {
+      "gi": 13.53,
+      "sources": {
+        "artificial_analysis": 13.53
+      }
+    },
+    "sonar-pro": {
+      "gi": 13.04,
+      "sources": {
+        "artificial_analysis": 13.04
+      }
+    },
+    "sonar-reasoning": {
+      "gi": 17.07,
+      "sources": {
+        "artificial_analysis": 17.07
+      }
+    },
+    "sonar-reasoning-pro": {
+      "gi": 27.38,
+      "sources": {
+        "artificial_analysis": 27.38
+      }
+    },
+    "step-3-5-flash": {
+      "gi": 41.06,
+      "sources": {
+        "artificial_analysis": 41.06
+      }
+    },
+    "step-3-5-flash-0202": {
+      "gi": 40.26,
+      "sources": {
+        "artificial_analysis": 40.26
+      }
+    },
+    "step-3-7-flash": {
+      "gi": 48.15,
+      "sources": {
+        "artificial_analysis": 48.15
+      }
+    },
+    "step-3-vl-10b": {
+      "gi": 13.37,
+      "sources": {
+        "artificial_analysis": 13.37
+      }
+    },
+    "tiny-aya-global": {
+      "gi": 0.0,
+      "sources": {
+        "artificial_analysis": 0.0
+      }
+    },
+    "tri-21b-think-preview": {
+      "gi": 20.29,
+      "sources": {
+        "artificial_analysis": 20.29
+      }
+    },
+    "tri-21b-think-v0-5": {
+      "gi": 18.2,
+      "sources": {
+        "artificial_analysis": 18.2
       }
     },
     "trinity-large-thinking": {
-      "gi": 29.57,
+      "gi": 28.96,
       "sources": {
-        "lmsys": 29.57
+        "lmsys": 29.57,
+        "artificial_analysis": 28.34
+      }
+    },
+    "tulu3-405b": {
+      "gi": 11.43,
+      "sources": {
+        "artificial_analysis": 11.43
       }
     },
     "wizardlm-2-7b": {
@@ -1161,5 +4438,16 @@
         "seed": 30.0
       }
     }
-  }
+  },
+  "coverage": {
+    "matched": 962,
+    "total": 962,
+    "pct": 100.0,
+    "via": {
+      "deterministic": 962,
+      "alias_prior": 0,
+      "unmatched": 0
+    }
+  },
+  "note": "LMSYS Arena text+code Elo via arena-ai-leaderboards 2026-08-10 (truncated dump overlay: new Elo wins, prior Elo retained for missing ids); Artificial Analysis Intelligence Index via Data API dump; seed retained for models not on those snapshots."
 }
