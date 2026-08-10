@@ -12,6 +12,7 @@
     "claude-sonnet-4": "claude-sonnet",
     "deepseek-chat": "deepseek-v3",
     "deepseek-chat-v3": "deepseek-v3",
+    "deepseek-v4-flash-0731": "deepseek-v4-flash",
     "gemini-2.5-flash-preview": "gemini-2.5-flash",
     "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
     "gemini-flash-latest": "gemini-3.5-flash",
