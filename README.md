@@ -179,6 +179,7 @@ The `./install.sh` step puts `hr` (and the full name `hermes-router`) on your PA
 | `hr start` | Run the router (same as `python router.py`) |
 | `hr service install` | Run as a service that **survives reboots** (systemd; `status`/`uninstall` too) |
 | `hr status` | Live dashboard — per-provider health, latency, cache stats |
+| `hr pace` | Pool capacity signal for cron pacing (`advice` / skip / multiplier) |
 | `hr restart` | Restart the router so key/config changes take effect |
 | `hr doctor` | Diagnose installation issues (Python, venv, keys, PATH, router health) |
 | `hr update` | Update to the latest version (safe; auto-rolls-back on failure) |

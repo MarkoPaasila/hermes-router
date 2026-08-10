@@ -19,6 +19,7 @@
 #   hr service status|uninstall       Show / remove the boot service
 #   hr start                          Run the router (same as: python router.py)
 #   hr status                         Live health dashboard for the running router
+#   hr pace [--json]                  Pool capacity signal for cron pacing (stretch/skip)
 #   hr restart                        Restart the router so key/config changes take effect
 #   hr doctor                         Diagnose installation issues
 #   hr update [--check]               Update to the latest version (safe; auto-rollback)
@@ -75,6 +76,9 @@ case "$cmd" in
     ;;
   status)
     exec "$REPO/scripts/status.sh" "$@"
+    ;;
+  pace)
+    exec "$REPO/scripts/pace.sh" "$@"
     ;;
   restart)
     exec "$REPO/scripts/restart.sh" "$@"

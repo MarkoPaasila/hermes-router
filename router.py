@@ -29,6 +29,7 @@ from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
 from rate_limiter import AdaptiveRateLimiter, RATE_HEADROOM_THRESHOLD, RATE_EXHAUSTED_WAIT_S, RATE_ADMIT_WAIT_S
+from capacity import score_pool
 from token_caps import (
     TokenCapTracker,
     classify_token_limit_error,
@@ -2496,6 +2497,34 @@ def _configured_rate_group_ids() -> set[str]:
             for m in models:
                 ids.add(AdaptiveRateLimiter._group_key(name, key, m))
     return ids
+
+
+def _capacity_candidates() -> list[dict]:
+    """Configured (provider, model) rows for /v1/capacity scoring."""
+    now = time.time()
+    out: list[dict] = []
+    for p in PROVIDERS:
+        name = p["name"]
+        models = list(p.get("models") or ([p.get("model")] if p.get("model") else []))
+        models = [m for m in dict.fromkeys(models) if m]
+        breaker_open = stats.breaker_open(name)
+        bucket = stats.health_bucket(name)
+        for model in models:
+            key = pool.peek_key(name, model)
+            if key:
+                headroom = rate_limiter.model_headroom(name, key, model)
+                blocked_until = rate_limiter.model_blocked_until(name, key, model)
+                blocked = bool(blocked_until and blocked_until > now)
+            else:
+                headroom = 1.0
+                blocked = False
+            out.append({
+                "headroom": headroom,
+                "health_bucket": bucket,
+                "breaker_open": breaker_open,
+                "blocked": blocked,
+            })
+    return out
 
 
 # Background: always re-read GI snapshot + manual overrides from disk on process
@@ -7500,6 +7529,17 @@ def status():
         },
         "features": _features_snapshot(),
     })
+
+
+@app.route("/v1/capacity")
+def capacity():
+    """Compact pool capacity signal for client pacing (interval stretch / skip)."""
+    err = _auth_check()
+    if err:
+        return err
+    body = score_pool(_capacity_candidates())
+    body["generated_at"] = time.time()
+    return jsonify(body)
 
 
 @app.route("/v1/rate-limits")

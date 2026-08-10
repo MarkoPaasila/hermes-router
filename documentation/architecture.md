@@ -204,12 +204,14 @@ Clients speak OpenAI Chat Completions; the proxy adapts to whatever the chosen p
 | `POST /v1/embeddings` | access key | OpenAI embeddings (stable provider order) |
 | `GET /v1/models` | access key | Advertises `hermes-router` (and `:fast` when local is configured) plus every live chat catalog model id |
 | `GET /v1/status` | access key | Per-provider health, latency, keys, key-affinity mode, cache |
+| `GET /v1/capacity` | access key | Compact pool capacity for client pacing (`advice` / `interval_multiplier` / `skip`) |
 | `GET /health` | none | Liveness check for uptime monitors |
 
 ## Observability
 
 `hr status` renders a live terminal summary (provider health, latency, key cooldowns, cache) from
-`/v1/status`. The web dashboard at `/dashboard` shows the same picture interactively. Rate
+`/v1/status`. `hr pace` reads `/v1/capacity` for a one-line cron pacing signal. The web dashboard
+at `/dashboard` shows the same picture interactively. Rate
 headroom appears on the dashboard **Providers** (provider-wide buckets) and **Models**
 (combined capabilities + per-model headroom) pages. See [Monitoring](monitoring.md).
 

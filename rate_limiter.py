@@ -1145,6 +1145,26 @@ class AdaptiveRateLimiter:
                 scores.append(mg.headroom())
             return min(scores) if scores else 1.0
 
+    def model_headroom(self, provider_name: str, key: str, model: str) -> float:
+        """Read-only authoritative model-scope headroom. Missing group → 1.0."""
+        with self._lock:
+            mg = self._groups.get(self._group_key(provider_name, key, model))
+            if mg is None:
+                return 1.0
+            return mg.headroom()
+
+    def model_blocked_until(self, provider_name: str, key: str,
+                            model: str) -> float | None:
+        """Read-only model-scope Retry-After hold, or None if not held."""
+        with self._lock:
+            mg = self._groups.get(self._group_key(provider_name, key, model))
+            if mg is None:
+                return None
+            now = time.time()
+            if mg.blocked_until > now:
+                return mg.blocked_until
+            return None
+
     def snapshot(self, provider_name: str, key: str, model: str) -> dict:
         """Read-only view for /v1/status. Does not create bucket groups."""
         with self._lock:

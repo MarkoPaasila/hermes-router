@@ -108,6 +108,35 @@ The `rotation` block reports key selection mode (`{"rotation": {"mode": "key-aff
 the `limits` block reports per-key budgets and live usage; `hr status` shows limits in the footer.
 See [configuration.md](configuration.md) for details.
 
+## Capacity / pacing (`/v1/capacity`)
+
+`GET /v1/capacity` (access key required) returns a **compact pool capacity signal** for clients
+that should slow down or pause work when free-tier headroom is thin — for example Hermes Agent
+cron jobs that stretch their interval or skip a tick.
+
+The score blends authoritative **model-scope** rate-limit headroom with provider health
+(circuit breaker + recent health bucket). Response fields:
+
+- `capacity` — float in `[0, 1]`
+- `advice` — `fast` | `normal` | `slow` | `skip`
+- `interval_multiplier` — multiply your base cron interval by this (e.g. `2.0` → wait twice as long)
+- `skip` — when `true`, do not start work this tick
+- `reasons` / `components` — diagnostics for humans
+
+```bash
+curl -H "Authorization: Bearer sk-router-1" http://localhost:8319/v1/capacity
+hr pace            # one-liner: advice=… skip=… mult=… capacity=…
+hr pace --json     # raw JSON for scripts
+```
+
+### Hermes Agent cron contract
+
+1. At tick start: `hr pace --json` (or curl `/v1/capacity`).
+2. If `skip` is true → exit without starting work.
+3. Otherwise run the job; schedule the next run as `base_interval × interval_multiplier`.
+4. If the endpoint is unreachable → fail-open: treat as `slow` / multiplier `2.0` / `skip=false`
+   (`hr pace` prints those defaults and exits non-zero).
+
 ## Request log (`/v1/logs`)
 
 `GET /v1/logs` (access key required) returns the most recent requests from an **in-memory ring
