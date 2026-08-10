@@ -6366,6 +6366,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 )
             except TtftDeadlineExceeded as _ttft_ex:
                 _rl_release()
+                # Slow/queued upstream never delivers headers, so success-only EWMA
+                # stays optimistic and the deadline stays tight — record the abort
+                # wait so the baseline loosens instead of abort-looping forever.
+                ttft_baselines.record(name, model, _ttft_ex.waited_s)
                 _sum = ttft_baselines.summary(name, model)
                 log.warning(
                     f"  {name}/{model} TTFT abort after {_ttft_ex.waited_s:.1f}s "

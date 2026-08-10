@@ -6,7 +6,15 @@ def test_cold_deadline_until_min_samples():
     assert s.deadline_s("groq", "llama") == 20.0
     for _ in range(4):
         s.record("groq", "llama", 2.0)
-    assert s.deadline_s("groq", "llama") == 20.0  # still cold (n=4)
+    # Still below min_samples: max(cold=20, warm=max(3, 3*ewma≈2))=20
+    assert s.deadline_s("groq", "llama") == 20.0
+
+
+def test_abort_ewma_loosens_before_min_samples():
+    s = TtftBaselineStore(floor_s=3.0, mult=3.0, min_samples=5, cold_deadline_s=20.0, alpha=1.0)
+    s.record("opencode", "deepseek", 20.0)  # first abort wait
+    # warm = max(3, 3*20)=60 → max(cold 20, 60)=60 even with n=1
+    assert s.deadline_s("opencode", "deepseek") == 60.0
 
 
 def test_warm_deadline_max_floor_and_mult_ewma():
@@ -39,6 +47,20 @@ def test_ttft_deadline_exceeded_attrs():
     e = TtftDeadlineExceeded(8.0, 9.2)
     assert e.deadline_s == 8.0
     assert e.waited_s == 9.2
+
+
+def test_abort_waits_raise_warm_deadline():
+    """Success-only EWMA stays tight while the provider is slow; recording the
+    abort wait must loosen the deadline (same path the router uses on TTFT abort)."""
+    s = TtftBaselineStore(floor_s=3.0, mult=3.0, min_samples=5, cold_deadline_s=20.0, alpha=0.2)
+    for _ in range(5):
+        s.record("opencode", "deepseek", 1.0)
+    assert s.deadline_s("opencode", "deepseek") == 3.0  # max(3, 3*1)
+    before = s.summary("opencode", "deepseek")["ewma_s"]
+    s.record("opencode", "deepseek", 4.2)  # abort waited ~deadline
+    after = s.summary("opencode", "deepseek")
+    assert after["ewma_s"] > before
+    assert s.deadline_s("opencode", "deepseek") > 3.0
 
 
 def test_abort_enabled(monkeypatch):

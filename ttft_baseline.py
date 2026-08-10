@@ -65,9 +65,15 @@ class TtftBaselineStore:
     def deadline_s(self, provider: str, model: str) -> float:
         with self._lock:
             e = self._data.get(self._key(provider, model))
-            if not e or e["sample_count"] < self.min_samples:
+            if not e:
                 return self.cold_deadline_s
-            return max(self.floor_s, self.mult * e["ewma_s"])
+            warm = max(self.floor_s, self.mult * e["ewma_s"])
+            if e["sample_count"] < self.min_samples:
+                # Abort-inflated EWMA must loosen the deadline immediately; staying
+                # pinned at cold until min_samples re-aborts at the same cap forever.
+                # Fast early samples still get at least the cold window.
+                return max(self.cold_deadline_s, warm)
+            return warm
 
     def record(self, provider: str, model: str, ttft_s: float) -> None:
         ttft_s = float(ttft_s)
