@@ -4,6 +4,7 @@ Adaptive multi-window token bucket rate limiter for hermes-router.
 from __future__ import annotations
 import csv
 import os
+import statistics
 import time
 import threading
 import json
@@ -702,11 +703,11 @@ class BucketGroup:
             return 1.0
         return min(b.headroom() for b in active)
 
-    def comparable_headroom(self, pool_max_caps: dict[str, float]) -> float:
-        """Cap-scaled score: remaining on locally binding window / peer max for that window.
+    def comparable_headroom(self, peer_caps: dict[str, float]) -> float:
+        """Cap-scaled score: remaining on locally binding window / peer scale for that window.
 
-        Binding window is argmin(tokens/cap) among active buckets (raw %). Peer max
-        should be global model-scope maxima per window key.
+        Binding window is argmin(tokens/cap) among active buckets (raw %). Peer scale
+        should be the median of active model-scope caps per window key.
         """
         if time.time() < self.blocked_until:
             return 0.0
@@ -717,10 +718,10 @@ class BucketGroup:
         for _, b in active:
             b.refill(now)
         name, b = min(active, key=lambda x: x[1].headroom())
-        max_cap = float((pool_max_caps or {}).get(name, 0.0) or 0.0)
-        if max_cap <= 0:
+        scale = float((peer_caps or {}).get(name, 0.0) or 0.0)
+        if scale <= 0:
             return b.headroom()
-        return max(0.0, min(1.0, b.tokens / max_cap))
+        return max(0.0, min(1.0, b.tokens / scale))
 
     def on_success(self, token_count: float,
                    streak: int | None = None, nudge_pct: float | None = None) -> list[tuple[str, CapChange]]:
@@ -1165,16 +1166,20 @@ class AdaptiveRateLimiter:
                 scores.append(mg.headroom())
             return min(scores) if scores else 1.0
 
-    def _pool_max_caps_unlocked(self) -> dict[str, float]:
-        """Max cap per window key across model-scope groups only."""
-        maxima = {k: 0.0 for k in ALL_LIMIT_KEYS}
+    def _pool_peer_caps_unlocked(self) -> dict[str, float]:
+        """Median active cap per window key across model-scope groups only."""
+        values: dict[str, list[float]] = {k: [] for k in ALL_LIMIT_KEYS}
         for gk, g in self._groups.items():
             if "|model:" not in gk:
                 continue
             for name, b in g.buckets.items():
-                if name in maxima and float(b.cap) > maxima[name]:
-                    maxima[name] = float(b.cap)
-        return maxima
+                if name not in values or not b.active:
+                    continue
+                values[name].append(float(b.cap))
+        return {
+            k: (float(statistics.median(caps)) if caps else 0.0)
+            for k, caps in values.items()
+        }
 
     def comparable_headroom(self, provider_name: str, key: str, model: str) -> float:
         """Model-scope cap-scaled headroom for capacity. Missing group → 1.0."""
@@ -1182,13 +1187,13 @@ class AdaptiveRateLimiter:
             mg = self._groups.get(self._group_key(provider_name, key, model))
             if mg is None:
                 return 1.0
-            return mg.comparable_headroom(self._pool_max_caps_unlocked())
+            return mg.comparable_headroom(self._pool_peer_caps_unlocked())
 
     def rank_comparable_headroom(self, provider_name: str, key: str,
                                  model: str) -> float:
         """min(PW, model) comparable headroom for routing rank. Missing → 1.0."""
         with self._lock:
-            caps = self._pool_max_caps_unlocked()
+            caps = self._pool_peer_caps_unlocked()
             pw = self._groups.get(self._group_key(provider_name, key, None))
             mg = self._groups.get(self._group_key(provider_name, key, model))
             if pw is None and mg is None:
@@ -1255,7 +1260,7 @@ class AdaptiveRateLimiter:
         now = time.time()
         out = []
         with self._lock:
-            pool_max = self._pool_max_caps_unlocked()
+            peer_caps = self._pool_peer_caps_unlocked()
             for gk, g in self._groups.items():
                 is_cfg = gk in configured_ids
                 if not include_orphans and not is_cfg:
@@ -1278,7 +1283,7 @@ class AdaptiveRateLimiter:
                 if active:
                     binding, bd = min(active, key=lambda x: x[1]["headroom"])
                     headroom = bd["headroom"]
-                    comparable = round(g.comparable_headroom(pool_max), 3)
+                    comparable = round(g.comparable_headroom(peer_caps), 3)
                 else:
                     binding, headroom, comparable = None, None, None
                 out.append({

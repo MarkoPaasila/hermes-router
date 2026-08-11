@@ -1396,10 +1396,10 @@ def test_bucketgroup_comparable_prefers_absolute_remaining():
     large.buckets["RPM"].last_refill = time.time()
     large.buckets["TPM"].tokens = 100_000.0
     large.buckets["TPM"].last_refill = time.time()
-    pool_max = {"RPM": 100.0, "TPM": 100_000.0}
+    peer_caps = {"RPM": 100.0, "TPM": 100_000.0}
     # tiny: RPM binds at 90% → 9/100 = 0.09; large: RPM binds at 20% → 20/100 = 0.20
     assert tiny.headroom() > large.headroom()
-    assert tiny.comparable_headroom(pool_max) < large.comparable_headroom(pool_max)
+    assert tiny.comparable_headroom(peer_caps) < large.comparable_headroom(peer_caps)
 
 
 def test_comparable_rpm_bound_not_crushed_by_peer_tpm():
@@ -1408,9 +1408,9 @@ def test_comparable_rpm_bound_not_crushed_by_peer_tpm():
     g.buckets["RPM"].last_refill = time.time()
     g.buckets["TPM"].tokens = 90.0
     g.buckets["TPM"].last_refill = time.time()
-    pool_max = {"RPM": 10.0, "TPM": 250_000.0}
+    peer_caps = {"RPM": 10.0, "TPM": 250_000.0}
     # RPM binds (50% < 90%); score = 5/10, not 90/250000
-    assert g.comparable_headroom(pool_max) == pytest.approx(0.5, abs=0.01)
+    assert g.comparable_headroom(peer_caps) == pytest.approx(0.5, abs=0.01)
 
 
 def test_comparable_blocked_is_zero():
@@ -1419,7 +1419,7 @@ def test_comparable_blocked_is_zero():
     assert g.comparable_headroom({"RPM": 10.0, "TPM": 1000.0}) == 0.0
 
 
-def test_comparable_empty_pool_max_falls_back_to_raw():
+def test_comparable_empty_peer_caps_falls_back_to_raw():
     g = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 1000.0})
     g.buckets["RPM"].tokens = 5.0
     g.buckets["RPM"].last_refill = time.time()
@@ -1451,7 +1451,7 @@ def test_limiter_comparable_and_rank(tmp_path):
     large.buckets["RPM"].last_refill = time.time()
     large.buckets["TPM"].tokens = 100_000.0
     large.buckets["TPM"].last_refill = time.time()
-    # Inflated PW group should not enter pool_max (model-scope only)
+    # Inflated PW group should not enter peer scale (model-scope only)
     pw_gk = AdaptiveRateLimiter._group_key("p", key, None)
     pw = BucketGroup(provider_name="p", caps={"RPM": 1000.0, "TPM": 1_000_000.0})
     for b in pw.buckets.values():
@@ -1487,3 +1487,67 @@ def test_list_groups_includes_comparable_headroom(tmp_path):
     row = next(r for r in rows if r["id"] == gk)
     assert "comparable_headroom" in row
     assert row["comparable_headroom"] == pytest.approx(0.5, abs=0.01)
+
+
+def test_peer_caps_median_ignores_outlier_max(tmp_path):
+    """One absurd-cap model must not collapse a full normal peer's comparable score."""
+    rl = make_limiter(tmp_path)
+    key = "key-abc12345"
+    now = time.time()
+
+    def _full_group(rpm: float, tpm: float) -> BucketGroup:
+        g = BucketGroup(provider_name="p", caps={"RPM": rpm, "TPM": tpm})
+        for b in g.buckets.values():
+            b.tokens = b.cap
+            b.last_refill = now
+        return g
+
+    normals = []
+    for i, rpm in enumerate((10.0, 12.0, 15.0, 20.0, 25.0)):
+        gk = AdaptiveRateLimiter._group_key("p", key, f"n{i}")
+        g = _full_group(rpm, 100_000.0)
+        normals.append((gk, g, f"n{i}"))
+    huge_gk = AdaptiveRateLimiter._group_key("p", key, "huge")
+    huge = _full_group(2e9, 4e16)
+    with rl._lock:
+        for gk, g, _ in normals:
+            rl._groups[gk] = g
+        rl._groups[huge_gk] = huge
+    # Median RPM among 6 groups: sorted 10,12,15,20,25,2e9 → (15+20)/2 = 17.5
+    # Full normal at RPM=20 → comparable = 20/17.5 > 1 → clamp 1.0
+    assert rl.comparable_headroom("p", key, "n3") == pytest.approx(1.0, abs=0.01)
+    # Under max-scale this would be ~20/2e9 ≈ 0; ensure we stayed usable
+    assert rl.comparable_headroom("p", key, "n3") > 0.05
+
+
+def test_peer_caps_even_n_median_averages_central(tmp_path):
+    rl = make_limiter(tmp_path)
+    key = "key-abc12345"
+    now = time.time()
+    for name, rpm in (("a", 10.0), ("b", 30.0)):
+        gk = AdaptiveRateLimiter._group_key("p", key, name)
+        g = BucketGroup(provider_name="p", caps={"RPM": rpm, "TPM": 1000.0})
+        g.buckets["RPM"].tokens = rpm
+        g.buckets["RPM"].last_refill = now
+        g.buckets["TPM"].tokens = 1000.0
+        g.buckets["TPM"].last_refill = now
+        with rl._lock:
+            rl._groups[gk] = g
+    with rl._lock:
+        peer = rl._pool_peer_caps_unlocked()
+    assert peer["RPM"] == pytest.approx(20.0, abs=0.01)
+
+
+def test_raw_headroom_unchanged_by_peer_scale(tmp_path):
+    rl = make_limiter(tmp_path)
+    key = "key-abc12345"
+    gk = AdaptiveRateLimiter._group_key("p", key, "m")
+    g = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 1000.0})
+    g.buckets["RPM"].tokens = 5.0
+    g.buckets["RPM"].last_refill = time.time()
+    g.buckets["TPM"].tokens = 1000.0
+    g.buckets["TPM"].last_refill = time.time()
+    with rl._lock:
+        rl._groups[gk] = g
+    assert rl.headroom("p", key, "m") == pytest.approx(0.5, abs=0.01)
+    assert rl.model_headroom("p", key, "m") == pytest.approx(0.5, abs=0.01)
