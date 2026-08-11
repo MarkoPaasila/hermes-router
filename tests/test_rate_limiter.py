@@ -1381,3 +1381,109 @@ def test_header_missing_remaining_preserves_usage():
         # no remaining header
     })
     assert _format_bucket_metrics("TPH", g.buckets["TPH"])["used"] == pytest.approx(before)
+
+
+# ── Comparable headroom (cap-scaled binding window) ───────────────────────────
+
+def test_bucketgroup_comparable_prefers_absolute_remaining():
+    tiny = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 100_000.0})
+    tiny.buckets["RPM"].tokens = 9.0
+    tiny.buckets["RPM"].last_refill = time.time()
+    tiny.buckets["TPM"].tokens = 100_000.0
+    tiny.buckets["TPM"].last_refill = time.time()
+    large = BucketGroup(provider_name="p", caps={"RPM": 100.0, "TPM": 100_000.0})
+    large.buckets["RPM"].tokens = 20.0
+    large.buckets["RPM"].last_refill = time.time()
+    large.buckets["TPM"].tokens = 100_000.0
+    large.buckets["TPM"].last_refill = time.time()
+    pool_max = {"RPM": 100.0, "TPM": 100_000.0}
+    # tiny: RPM binds at 90% → 9/100 = 0.09; large: RPM binds at 20% → 20/100 = 0.20
+    assert tiny.headroom() > large.headroom()
+    assert tiny.comparable_headroom(pool_max) < large.comparable_headroom(pool_max)
+
+
+def test_comparable_rpm_bound_not_crushed_by_peer_tpm():
+    g = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 100.0})
+    g.buckets["RPM"].tokens = 5.0
+    g.buckets["RPM"].last_refill = time.time()
+    g.buckets["TPM"].tokens = 90.0
+    g.buckets["TPM"].last_refill = time.time()
+    pool_max = {"RPM": 10.0, "TPM": 250_000.0}
+    # RPM binds (50% < 90%); score = 5/10, not 90/250000
+    assert g.comparable_headroom(pool_max) == pytest.approx(0.5, abs=0.01)
+
+
+def test_comparable_blocked_is_zero():
+    g = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 1000.0})
+    g.blocked_until = time.time() + 60
+    assert g.comparable_headroom({"RPM": 10.0, "TPM": 1000.0}) == 0.0
+
+
+def test_comparable_empty_pool_max_falls_back_to_raw():
+    g = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 1000.0})
+    g.buckets["RPM"].tokens = 5.0
+    g.buckets["RPM"].last_refill = time.time()
+    g.buckets["TPM"].tokens = 1000.0
+    g.buckets["TPM"].last_refill = time.time()
+    assert g.comparable_headroom({}) == pytest.approx(0.5, abs=0.01)
+
+
+def test_comparable_missing_group_is_one(tmp_path):
+    rl = make_limiter(tmp_path)
+    assert rl.comparable_headroom("gemini", "sk-testkeyxx", "gemini-flash") == 1.0
+    assert rl.rank_comparable_headroom("gemini", "sk-testkeyxx", "gemini-flash") == 1.0
+
+
+def test_limiter_comparable_and_rank(tmp_path):
+    rl = make_limiter(tmp_path)
+    key = "key-abc12345"
+    # Tiny model group: high raw %, low absolute RPM remaining
+    tiny_gk = AdaptiveRateLimiter._group_key("p", key, "tiny")
+    tiny = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 100_000.0})
+    tiny.buckets["RPM"].tokens = 9.0
+    tiny.buckets["RPM"].last_refill = time.time()
+    tiny.buckets["TPM"].tokens = 100_000.0
+    tiny.buckets["TPM"].last_refill = time.time()
+    # Large model group
+    large_gk = AdaptiveRateLimiter._group_key("p", key, "large")
+    large = BucketGroup(provider_name="p", caps={"RPM": 100.0, "TPM": 100_000.0})
+    large.buckets["RPM"].tokens = 20.0
+    large.buckets["RPM"].last_refill = time.time()
+    large.buckets["TPM"].tokens = 100_000.0
+    large.buckets["TPM"].last_refill = time.time()
+    # Inflated PW group should not enter pool_max (model-scope only)
+    pw_gk = AdaptiveRateLimiter._group_key("p", key, None)
+    pw = BucketGroup(provider_name="p", caps={"RPM": 1000.0, "TPM": 1_000_000.0})
+    for b in pw.buckets.values():
+        b.tokens = b.cap
+        b.last_refill = time.time()
+    with rl._lock:
+        rl._groups[tiny_gk] = tiny
+        rl._groups[large_gk] = large
+        rl._groups[pw_gk] = pw
+    assert rl.comparable_headroom("p", key, "tiny") < rl.comparable_headroom("p", key, "large")
+    # PW full → rank for large is model comparable (min of full PW and model)
+    assert rl.rank_comparable_headroom("p", key, "large") == pytest.approx(
+        rl.comparable_headroom("p", key, "large"), abs=0.01
+    )
+    # PW near empty should pull rank down
+    pw.buckets["RPM"].tokens = 1.0
+    pw.buckets["RPM"].last_refill = time.time()
+    assert rl.rank_comparable_headroom("p", key, "large") < rl.comparable_headroom("p", key, "large")
+
+
+def test_list_groups_includes_comparable_headroom(tmp_path):
+    rl = make_limiter(tmp_path)
+    key = "key-abc12345"
+    gk = AdaptiveRateLimiter._group_key("p", key, "m")
+    g = BucketGroup(provider_name="p", caps={"RPM": 10.0, "TPM": 1000.0})
+    g.buckets["RPM"].tokens = 5.0
+    g.buckets["RPM"].last_refill = time.time()
+    g.buckets["TPM"].tokens = 1000.0
+    g.buckets["TPM"].last_refill = time.time()
+    with rl._lock:
+        rl._groups[gk] = g
+    rows = rl.list_groups(include_orphans=True)
+    row = next(r for r in rows if r["id"] == gk)
+    assert "comparable_headroom" in row
+    assert row["comparable_headroom"] == pytest.approx(0.5, abs=0.01)

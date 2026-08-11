@@ -140,6 +140,9 @@ def test_tool_last_resort_tries_deferred_candidate(monkeypatch):
     monkeypatch.setattr(router.stats, "breaker_open", lambda n: False)
 
     # capable always rate-blocked; deferred succeeds
+    def fake_rank_comparable(name, key, model):
+        return 0.0 if name == "capable" else 1.0
+
     def fake_headroom(name, key, model):
         return 0.0 if name == "capable" else 1.0
 
@@ -148,6 +151,7 @@ def test_tool_last_resort_tries_deferred_candidate(monkeypatch):
             return False, 60.0
         return True, 0.0
 
+    monkeypatch.setattr(router.rate_limiter, "rank_comparable_headroom", fake_rank_comparable)
     monkeypatch.setattr(router.rate_limiter, "headroom", fake_headroom)
     monkeypatch.setattr(router.rate_limiter, "check_and_consume", fake_check)
     monkeypatch.setattr(router.rate_limiter, "restore", lambda *a, **k: None)

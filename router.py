@@ -1978,11 +1978,12 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
         # are constant (0), leaving the existing tie order untouched.
         breaker_open = 1 if stats.breaker_open(name) else 0  # open breakers sink within tier
         health       = stats.health_bucket(name)             # 0 healthy / 1 degraded / 2 bad
-        # Rate headroom: 0.0 = full headroom (best sort position), 1.0 = empty (worst)
+        # Rate headroom: 0.0 = full comparable headroom (best), 1.0 = empty (worst)
         _peek_key = pool.peek_key(name, model)
         _rate_score = 0.0
         if _peek_key:
-            _rate_score = 1.0 - rate_limiter.headroom(name, _peek_key, model)
+            _rate_score = 1.0 - rate_limiter.rank_comparable_headroom(
+                name, _peek_key, model)
         price   = _price_rank(model)
         if gi >= min_gi:
             tier        = 0
@@ -2519,7 +2520,7 @@ def _capacity_candidates() -> list[dict]:
         for model in models:
             key = pool.peek_key(name, model)
             if key:
-                headroom = rate_limiter.model_headroom(name, key, model)
+                headroom = rate_limiter.comparable_headroom(name, key, model)
                 blocked_until = rate_limiter.model_blocked_until(name, key, model)
                 blocked = bool(blocked_until and blocked_until > now)
             else:

@@ -35,4 +35,5 @@ def test_model_headroom_missing_group_is_full(tmp_path):
     from rate_limiter import AdaptiveRateLimiter
     lim = AdaptiveRateLimiter(state_file=tmp_path / "rl.json")
     assert lim.model_headroom("gemini", "sk-testkeyxx", "gemini-flash") == 1.0
+    assert lim.comparable_headroom("gemini", "sk-testkeyxx", "gemini-flash") == 1.0
     assert lim.model_blocked_until("gemini", "sk-testkeyxx", "gemini-flash") is None
