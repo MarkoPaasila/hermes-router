@@ -20,7 +20,7 @@ RPM and TPM (or minute vs month) as the same physical unit.
 - Large free-tier with more absolute remaining on its binding window outranks a
   smaller tier that only looks fuller as a percentage.
 - Cross-type crush avoided: binding window is chosen by local `%`, then scaled
-  only in that window’s peer-max-cap units.
+  only in that window’s peer-scale units.
 
 ## Decisions
 
@@ -28,7 +28,8 @@ RPM and TPM (or minute vs month) as the same physical unit.
 |-------|--------|
 | Preference | Absolute remaining room wins over raw fullness `%` |
 | Surfaces | Both routing rank and `/v1/capacity` |
-| Normalize | Cap-scaled: `remaining / pool_max_cap[W]` per window type |
+| Normalize | Cap-scaled: `remaining / peer_scale[W]` per window type |
+| Peer scale | **Median** of active model-scope caps (see `2026-08-11-median-peer-scale-design.md`; was max) |
 | Peer pool | Global TBF inventory of **model-scope** groups only |
 | Combine | Local `%` picks binding window; score that window only |
 | Raw headroom | Unchanged API; still used for thin/learn/dashboard bars |
@@ -37,31 +38,33 @@ RPM and TPM (or minute vs month) as the same physical unit.
 
 ## Why not naive min-across-types
 
-`min_W(remaining_W / global_max_cap_W)` lets a Gemini-scale TPM max crush every
+`min_W(remaining_W / global_peer_scale_W)` lets a Gemini-scale TPM peer crush every
 small-TPM provider even when that provider is RPM-bound. Binding is therefore
 chosen with local `tokens/cap` first; peer scale applies only to that window.
 
 ## Scoring
 
-### Peer max caps
+### Peer scale caps
 
 For each full-grid window key `W` (e.g. `RPM`, `TPM`, … `TPMo`):
 
 ```
-pool_max_cap[W] = max(bucket[W].cap) over all model-scope groups
+peer_scale[W] = median(bucket[W].cap) over active buckets on model-scope groups
 ```
 
-Provider-wide groups are **excluded** from the max (their ×10 soft caps would
+Provider-wide groups are **excluded** from the peer scale (their ×10 soft caps would
 inflate the scale). Recompute under the limiter lock whenever comparable scores
 are read (inventory is small; no separate cache required for correctness).
+Peer scale is **median** (not max) so one runaway learned cap cannot collapse
+all peers — see `2026-08-11-median-peer-scale-design.md`.
 
 ### Per BucketGroup
 
 1. If `blocked_until` in the future → comparable `0.0`.
 2. If no active buckets → `1.0`.
 3. `binding = argmin_active(tokens/cap)` (same notion as today’s binding bucket).
-4. `comparable = clamp(remaining[binding] / pool_max_cap[binding], 0, 1)`.
-5. If `pool_max_cap[binding] <= 0` → fall back to raw `tokens/cap`.
+4. `comparable = clamp(remaining[binding] / peer_scale[binding], 0, 1)`.
+5. If `peer_scale[binding] <= 0` → fall back to raw `tokens/cap`.
 
 ### AdaptiveRateLimiter API
 
@@ -85,19 +88,19 @@ Empty inventory for a window → raw `%` fallback for that binding.
 ```
 Active buckets → raw pct = tokens/cap
               → binding = argmin pct
-Global model-scope max caps → comparable = remaining / pool_max_cap[binding]
+Global model-scope median caps → comparable = remaining / peer_scale[binding]
 comparable → routing rank and /v1/capacity
 ```
 
 ## Wire-up
 
-- Implement `BucketGroup.comparable_headroom(pool_max_caps: dict[str, float])`.
-- `AdaptiveRateLimiter` builds `pool_max_caps` by scanning model-scope `_groups`
+- Implement `BucketGroup.comparable_headroom(peer_caps: dict[str, float])`.
+- `AdaptiveRateLimiter` builds `peer_caps` (median) by scanning model-scope `_groups`
   only (`parse_group_key` / `|model:` present).
-- PW comparable uses the **same** model-scope `pool_max_caps`. PW remaining may
-  exceed the model max (×10 priors); clamp to `[0, 1]`.
+- PW comparable uses the **same** model-scope `peer_caps`. PW remaining may
+  exceed the model median (×10 priors); clamp to `[0, 1]`.
 - Cap learning, header pins, and soft cuts continue to mutate raw caps; the next
-  comparable read sees updated maxima automatically.
+  comparable read sees updated peer scales automatically.
 - `capacity.py` stays pure; no API change beyond the semantic of `headroom` input.
 
 ## Telemetry and UX
@@ -112,20 +115,23 @@ comparable → routing rank and /v1/capacity
 
 ## Testing
 
-- Unit: binding by raw `%`, then scale by peer max (large low-% beats tiny high-%).
-- Unit: TPM-max peer does not crush an RPM-bound small-TPM group when RPM `%` is
+- Unit: binding by raw `%`, then scale by peer median (large low-% beats tiny high-%).
+- Unit: TPM-scale peer does not crush an RPM-bound small-TPM group when RPM `%` is
   lower.
-- Unit: blocked → 0; missing group → 1.0; zero/empty max → raw fallback.
+- Unit: blocked → 0; missing group → 1.0; zero/empty peer scale → raw fallback.
 - Unit: `rank_comparable_headroom` takes min of PW and model.
 - Capacity path: candidates use comparable values; advice thresholds unchanged.
 - Regression: raw `headroom()` / thin-threshold behavior unchanged.
+- Outlier: one huge-cap group must not collapse normal peers’ comparable scores
+  (see median-peer-scale design).
 
 ## Capacity advice impact
 
 Comparable scores are typically smaller than raw `%` when the binding cap is
-below the fleet max. Existing advice bands (`fast`/`normal`/`slow`/`skip`) are
+below the fleet peer scale. Existing advice bands (`fast`/`normal`/`slow`/`skip`) are
 **not** retuned in this work; operators may see more `slow`/`skip` until bands
-are revisited later.
+are revisited later. Median peer scale mitigates perpetual `skip` from a single
+runaway max.
 
 ## Out of scope
 

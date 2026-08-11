@@ -116,8 +116,9 @@ cron jobs that stretch their interval or skip a tick.
 
 The score blends authoritative **model-scope** rate-limit headroom with provider health
 (circuit breaker + recent health bucket). The headroom input is **comparable**: remaining
-tokens on the group's binding window, divided by the global max cap for that window across
-model-scope TBF groups (not the raw fill fraction of the group's own cap). Response fields:
+tokens on the group's binding window, divided by the **median** cap for that window across
+active model-scope TBF groups (not the raw fill fraction of the group's own cap, and not
+the fleet max — median resists one runaway learned cap). Response fields:
 
 - `capacity` — float in `[0, 1]`
 - `advice` — `fast` | `normal` | `slow` | `skip`
