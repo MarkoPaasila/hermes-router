@@ -68,7 +68,7 @@ def test_on_429_with_history_cuts_cap():
     b._period_consumed = 10.0
     b.on_429(observed_rate=10.0)
     assert b.cap == pytest.approx(8.0)   # 10 * 0.8
-    assert b.tokens == 0.0
+    assert b.tokens == pytest.approx(8.0)  # keep fill, clamped to new cap
 
 def test_on_429_without_history_halves():
     b = make_bucket(cap=60.0, tokens=30.0)
@@ -82,7 +82,7 @@ def test_on_429_soft_with_history():
     b.on_429(observed_rate=10.0, soft=True)
     # Soft cuts floor at RATE_LEARN_SOFT_FLOOR_FRAC * _floor_cap (0.5 * 60 = 30)
     assert b.cap == pytest.approx(30.0)
-    # Soft path keeps tokens (clamped to new cap); hard cuts still zero.
+    # Soft path keeps tokens (clamped to new cap); hard cuts do the same.
     assert b.tokens == pytest.approx(30.0)
 
 
@@ -154,6 +154,18 @@ def test_on_success_nudge():
     for _ in range(20):
         b.on_success()
     assert b.cap > 10.0
+    # Opened capacity is granted so headroom % does not collapse.
+    assert b.tokens == pytest.approx(b.cap)
+
+
+def test_on_success_nudge_grants_opened_capacity():
+    b = make_bucket(cap=100.0, tokens=50.0)
+    for _ in range(rate_limiter.RATE_LEARN_SUCCESS_STREAK):
+        b.on_success()
+    assert b.cap == pytest.approx(105.0)
+    assert b.tokens == pytest.approx(55.0)  # 50 + 5 granted
+    assert b.headroom() == pytest.approx(55.0 / 105.0, abs=0.01)
+
 
 def test_on_success_nudge_past_former_ceiling():
     """Caps keep growing even above the old 10× initial-default ceiling."""
@@ -188,7 +200,7 @@ def test_non_header_429_clears_pin_and_cuts():
     b.on_429(observed_rate=10.0)
     assert b._header_pinned is False
     assert b.cap == pytest.approx(8.0)  # 10 * 0.8
-    assert b.tokens == 0.0
+    assert b.tokens == pytest.approx(8.0)  # clamped remaining, not hard-zeroed
 
 def test_older_observed_at_ignored():
     b = make_bucket(cap=100.0, tokens=50.0)
@@ -1305,6 +1317,39 @@ def test_reclamp_upper_bounds_long_from_short():
     g.buckets["TPH"].cap = 1_000_000.0
     reclamp_bucket_caps(g.buckets)
     assert g.buckets["TPH"].cap <= g.buckets["TPM"].cap * 60 + 1e-6
+
+
+def test_reclamp_order_raise_long_grants_opened_capacity():
+    """Hard 429 zeros Mo then reclamp raises Mo back to W — must not sticky-empty Mo."""
+    from rate_limiter import BucketGroup, reclamp_bucket_caps, _load_caps_for
+    g = BucketGroup(provider_name="opencode", caps=_load_caps_for("opencode"))
+    # Simulate post-hard-429: Mo halved+zeroed while W still healthy/full.
+    g.buckets["RPW"].cap = 100_800.0
+    g.buckets["RPW"].tokens = 100_800.0
+    g.buckets["RPMo"].cap = 50_400.0
+    g.buckets["RPMo"].tokens = 0.0
+    reclamp_bucket_caps(g.buckets)
+    assert g.buckets["RPMo"].cap == pytest.approx(100_800.0)
+    assert g.buckets["RPMo"].tokens == pytest.approx(50_400.0)
+    assert g.buckets["RPMo"].headroom() == pytest.approx(0.5, abs=0.01)
+
+
+def test_headerless_429_does_not_sticky_empty_mo():
+    """When shorter windows are clear, ladder blames Mo; reclamp must not leave Mo at 0%."""
+    from rate_limiter import BucketGroup, _load_caps_for
+    caps = _load_caps_for("opencode")
+    g = BucketGroup(provider_name="opencode", caps=caps)
+    for b in g.buckets.values():
+        b.tokens = b.cap
+        b._period_consumed = 0.0
+    before_mo = g.buckets["RPMo"].cap
+    g.on_429({})  # headerless → ladder → hard cut → reclamp
+    # Cap should be restored to at least the weekly floor; tokens must recover with it.
+    assert g.buckets["RPMo"].cap >= g.buckets["RPW"].cap - 1e-6
+    assert g.buckets["RPMo"].tokens > 0.0
+    assert g.buckets["RPMo"].headroom() >= 0.4
+    # And we must not have permanently collapsed below the pre-cut Mo when W held.
+    assert g.buckets["RPMo"].cap >= min(before_mo, g.buckets["RPW"].cap) - 1e-6
 
 
 def test_force_consume_admits_when_empty():

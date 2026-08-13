@@ -240,8 +240,17 @@ def reclamp_bucket_caps(buckets: dict[str, "TokenBucket"]) -> list[tuple[str, Ca
                         old_cap=old, event="clamp", reason="order_pull_short")))
             else:
                 old = bl.cap
+                tok_before = bl.tokens
                 bl.cap = bl._coerce_cap(bs.cap)
-                bl.tokens = min(bl.tokens, bl.cap)
+                # Raising C_long to satisfy C_long ≥ C_short means a prior cut was
+                # inconsistent with a healthier shorter window. Grant the newly
+                # opened capacity; otherwise hard_429 tokens=0 + this raise leaves
+                # Mo/W permanently empty while shorter windows stay full.
+                granted = bl.cap - old
+                if granted > 0:
+                    bl.tokens = min(bl.cap, tok_before + granted)
+                else:
+                    bl.tokens = min(bl.tokens, bl.cap)
                 if bl.cap != old:
                     changes.append((longer, CapChange(
                         old_cap=old, event="clamp", reason="order_raise_long")))
@@ -401,6 +410,12 @@ class TokenBucket:
             return None
         old = self.cap
         self.cap = self._coerce_cap(self.cap * (1.0 + pct / 100.0))
+        # Raising the estimated limit opens capacity — grant it. Otherwise
+        # repeated nudges inflate cap while tokens stay flat and headroom %
+        # collapses even when sliding-window spend (dashboard bars) is near 0.
+        granted = self.cap - old
+        if granted > 0:
+            self.tokens = min(self.cap, self.tokens + granted)
         log.info(f"[rate] nudged cap up to {self.cap:.1f}")
         self._consecutive_successes = 0
         return CapChange(old_cap=old, event="nudge", reason="success_streak")
@@ -431,12 +446,10 @@ class TokenBucket:
         new_cap = self._coerce_cap(new_cap)
         log.info(f"[rate] 429 {'soft ' if soft else ''}cut cap {self.cap:.1f} → {new_cap:.1f}")
         self.cap = new_cap
-        if soft:
-            # Soft tick / soft cut: keep fill level, only clamp to new_cap.
-            # Zeroing would empty full long windows on a single PW 429.
-            self.tokens = min(self.tokens, new_cap)
-        else:
-            self.tokens = 0.0
+        # Keep remaining fill (clamped). Hard-zeroing a falsely ladder-blamed
+        # long window (Mo/W) sticky-empties it for weeks because refill is tiny
+        # and reclamp may immediately restore the cap without tokens.
+        self.tokens = min(self.tokens, new_cap)
         self._consecutive_successes = 0
         self._period_consumed = 0.0
         self._header_pinned = False
@@ -1365,6 +1378,21 @@ class AdaptiveRateLimiter:
                             b.tokens = target
                             lifted_floors += 1
                     self._backfill_group_buckets(g, pname, provider_wide=is_pw)
+                    # Heal continuous fill when it lags sliding-window remaining.
+                    # Success nudges / hard-429 sticky-empty left tokens/cap low
+                    # while used/cap (dashboard bars) still showed ample room.
+                    now_heal = time.time()
+                    for name, b in g.buckets.items():
+                        if not b.active or b.cap <= 0:
+                            continue
+                        used = b.usage_in_window(now_heal)
+                        cont = b.tokens / b.cap
+                        sw_hr = max(0.0, 1.0 - (used / b.cap))
+                        if sw_hr - cont < 0.10:
+                            continue
+                        repaired = max(0.0, b.cap - used)
+                        b.tokens = repaired
+                        b.last_refill = now_heal
                     self._groups[gk] = g
                 n = len(self._groups)
             log.info(f"[rate] loaded {n} bucket groups from {self.state_file}")
