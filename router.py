@@ -4700,7 +4700,8 @@ let apiKey = localStorage.getItem('hermes_dash_key') || '';
 let statusData = null, usageData = null, logsData = [], accessKeysData = [];
 let rateLimitsData = [];
 let excludedModelsData = [];
-let selectedRateGroupId = null;   // provider-wide detail
+let selectedRateGroupId = null;   // provider-wide detail (single key group)
+let selectedProviderName = null;  // provider card → all provider-wide groups
 let selectedModelRow = null;      // {provider, model} for combined Models modal
 let rlSortPw = {key: 'headroom', dir: 1};
 let rlSortModel = {key: 'headroom', dir: 1};
@@ -4988,12 +4989,15 @@ function renderProviderCards() {
       erp > 25 ? '<span class="pill pill-err">check</span>' :
       erp > 5 ? '<span class="pill pill-warn">watch</span>' :
       '<span class="pill pill-ok">ready</span>';
-    return `<div class="provider-card ${cls}">
+    return `<div class="provider-card ${cls}" data-provider="${attr(name)}" style="cursor:pointer">
       <div class="provider-head"><span class="provider-name">${name}</span>${pill}</div>
       <div class="provider-model" title="${p.model || ''}">${p.model || 'no model'}</div>
       <div class="provider-meta"><span>${ready} ready key${ready===1?'':'s'}</span><span>${fmt.ms(p.stats?.avg_latency_ms)}</span></div>
     </div>`;
   }).join('');
+  grid.querySelectorAll('[data-provider]').forEach(el => {
+    el.addEventListener('click', () => selectProviderRow(el.getAttribute('data-provider')));
+  });
 }
 
 // ── stat cards ────────────────────────────────────────────────────────────────
@@ -5658,13 +5662,20 @@ function renderCombinedModels() {
 
 function selectModelRow(provider, model) {
   selectedRateGroupId = null;
+  selectedProviderName = null;
   selectedModelRow = {provider, model};
+  renderRateLimitsTables();
+}
+
+function selectProviderRow(provider) {
+  selectedModelRow = null;
+  selectedRateGroupId = null;
+  selectedProviderName = provider;
   renderRateLimitsTables();
 }
 
 // ── rate limits (token bucket filters) ───────────────────────────────────────
 async function refreshRateLimits() {
-  if (!apiKey) return;
   try {
     const orphansPw = document.getElementById('rl-orphans-pw')?.checked;
     const orphansModel = document.getElementById('rl-orphans-model')?.checked;
@@ -5693,6 +5704,10 @@ function renderRateLimitsTables() {
       // Still open title for a model with no rate groups yet
       renderRateDetail([]);
     }
+  } else if (selectedProviderName) {
+    const groups = (rateLimitsData || []).filter(g =>
+      g.scope === 'provider_wide' && g.provider === selectedProviderName);
+    renderRateDetail(groups);
   } else if (selectedRateGroupId) {
     const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
     if (g) renderRateDetail([g]);
@@ -5706,7 +5721,7 @@ function sortRateLimits(scope, key) {
   else { st.key = key; st.dir = 1; }
   if (scope === 'provider_wide') renderProviderWideRateLimits();
   else renderCombinedModels();
-  if (selectedModelRow || selectedRateGroupId) {
+  if (selectedModelRow || selectedProviderName || selectedRateGroupId) {
     // re-apply open modal after sort re-render
     if (selectedModelRow) {
       const groups = (rateLimitsData || []).filter(g =>
@@ -5714,6 +5729,10 @@ function sortRateLimits(scope, key) {
         && g.provider === selectedModelRow.provider
         && g.model === selectedModelRow.model);
       if (groups.length) renderRateDetail(groups);
+    } else if (selectedProviderName) {
+      const groups = (rateLimitsData || []).filter(g =>
+        g.scope === 'provider_wide' && g.provider === selectedProviderName);
+      renderRateDetail(groups);
     } else if (selectedRateGroupId) {
       const g = rateLimitsData.find(r => r.id === selectedRateGroupId);
       if (g) renderRateDetail([g]);
@@ -5804,12 +5823,14 @@ function renderProviderWideRateLimits() {
 
 function selectRateGroup(id) {
   selectedModelRow = null;
+  selectedProviderName = null;
   selectedRateGroupId = id;
   renderRateLimitsTables();
 }
 
 function closeRateDetail() {
   selectedRateGroupId = null;
+  selectedProviderName = null;
   selectedModelRow = null;
   const modal = document.getElementById('rl-detail-modal');
   if (modal) modal.classList.add('hidden');
@@ -5936,6 +5957,12 @@ function renderRateDetail(groups) {
       list.length
         ? `${list.length} key group${list.length === 1 ? '' : 's'} · authoritative model buckets`
         : '<span class="muted">No rate-limit groups yet for this model</span>';
+  } else if (selectedProviderName) {
+    document.getElementById('rl-detail-title').textContent = selectedProviderName;
+    document.getElementById('rl-detail-meta').innerHTML =
+      list.length
+        ? `${list.length} key group${list.length === 1 ? '' : 's'} · provider-wide estimates`
+        : '<span class="muted">No provider-wide rate groups yet</span>';
   } else if (list.length) {
     const g = list[0];
     document.getElementById('rl-detail-title').textContent =
@@ -6043,8 +6070,8 @@ async function clearRateGroup(id) {
       const err = await r.json().catch(() => ({}));
       alert(err.error || ('Clear failed: HTTP ' + r.status));
     }
-    // Keep model row selection so modal refreshes for remaining keys
-    if (!selectedModelRow) closeRateDetail();
+    // Keep model/provider selection so modal refreshes for remaining keys
+    if (!selectedModelRow && !selectedProviderName) closeRateDetail();
     await refreshRateLimits();
   } catch (e) {
     alert('Clear failed: ' + e);
@@ -6052,7 +6079,6 @@ async function clearRateGroup(id) {
 }
 
 async function refreshExcludedModels() {
-  if (!apiKey) return;
   try {
     const r = await fetch('/v1/config/excluded-models', {
       headers: dashHeaders(),
