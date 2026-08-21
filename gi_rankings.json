@@ -1,11 +1,12 @@
 {
   "version": 1,
-  "generated_at": "2026-08-10T19:18:16Z",
+  "generated_at": "2026-08-21T12:15:17Z",
   "sources": [
     "artificial_analysis",
     "lmsys",
     "seed"
   ],
+  "note": "LMSYS Arena 2026-08-21 text(10-truncated)+code Elo overlaid onto prior scores (retained for missing ids); AA export 2026-08-21; legacy seed retained for models missing from both so catalog coverage stays complete.",
   "aliases": {
     "claude-3-5-sonnet": "claude-3-5",
     "claude-3.5-sonnet": "claude-3-5",
@@ -13,22 +14,44 @@
     "deepseek-chat": "deepseek-v3",
     "deepseek-chat-v3": "deepseek-v3",
     "deepseek-v4-flash-0731": "deepseek-v4-flash",
+    "deepseek-v4-pro-high": "deepseek-v4-pro",
+    "deepseek-v4-pro-non-reasoning": "deepseek-v4-pro",
     "gemini-2.5-flash-preview": "gemini-2.5-flash",
     "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
     "gemini-flash-latest": "gemini-3.5-flash",
     "gemini-flash-lite-latest": "gemini-3.5-flash-lite",
     "gemini-pro-latest": "gemini-3.1-pro-preview",
+    "glm-4.5-flash": "glm-4.5",
     "glm-4.7-flash": "glm-4.7",
+    "gpt-4.5": "gpt-4",
     "gpt-4o-mini": "gpt-4o",
+    "gpt-5.3-codex": "gpt-5",
     "grok-3": "grok-2",
     "laguna-xs-2.1": "laguna-xs.2",
     "llama-3.3-70b-instruct": "llama-3.3-70b",
     "mistral-small-3.1-24b-instruct": "mistral-small",
     "nemotron-3-super": "nvidia/nemotron-3-super",
     "nemotron-3-super-120b-a12b": "nvidia/nemotron-3-super",
+    "phi-4-reasoning": "phi-4",
     "qwen-2.5-72b-instruct": "qwen2.5-72b"
   },
+  "coverage": {
+    "matched": 962,
+    "total": 962,
+    "pct": 100.0,
+    "via": {
+      "deterministic": 962,
+      "alias_prior": 0,
+      "unmatched": 0
+    }
+  },
   "models": {
+    "a-x-k2": {
+      "gi": 54.75,
+      "sources": {
+        "artificial_analysis": 54.75
+      }
+    },
     "agnes-2-5-pro-alpha": {
       "gi": 62.32,
       "sources": {
@@ -72,9 +95,9 @@
       }
     },
     "celeris-1": {
-      "gi": 18.52,
+      "gi": 18.36,
       "sources": {
-        "artificial_analysis": 18.52
+        "artificial_analysis": 18.36
       }
     },
     "claude-2": {
@@ -96,9 +119,9 @@
       }
     },
     "claude-3-5-haiku": {
-      "gi": 18.36,
+      "gi": 18.04,
       "sources": {
-        "artificial_analysis": 18.36
+        "artificial_analysis": 18.04
       }
     },
     "claude-3-7": {
@@ -210,16 +233,16 @@
       }
     },
     "claude-fable-5": {
-      "gi": 94.44,
+      "gi": 89.02,
       "sources": {
-        "lmsys": 90.48,
+        "lmsys": 79.66,
         "artificial_analysis": 98.39
       }
     },
     "claude-haiku-4-5-20251001": {
-      "gi": 45.47,
+      "gi": 40.2,
       "sources": {
-        "lmsys": 45.47
+        "lmsys": 40.2
       }
     },
     "claude-instant": {
@@ -241,9 +264,9 @@
       }
     },
     "claude-opus-4-1-20250805": {
-      "gi": 57.3,
+      "gi": 50.65,
       "sources": {
-        "lmsys": 57.3
+        "lmsys": 50.65
       }
     },
     "claude-opus-4-5": {
@@ -253,15 +276,21 @@
       }
     },
     "claude-opus-4-5-20251101": {
-      "gi": 71.9,
+      "gi": 63.56,
       "sources": {
-        "lmsys": 71.9
+        "lmsys": 63.56
+      }
+    },
+    "claude-opus-4-5-20251101-high-32k": {
+      "gi": 67.81,
+      "sources": {
+        "lmsys": 67.81
       }
     },
     "claude-opus-4-5-20251101-thinking-32k": {
-      "gi": 74.77,
+      "gi": 66.09,
       "sources": {
-        "lmsys": 74.77
+        "lmsys": 66.09
       }
     },
     "claude-opus-4-5-thinking": {
@@ -271,9 +300,9 @@
       }
     },
     "claude-opus-4-6": {
-      "gi": 70.96,
+      "gi": 66.22,
       "sources": {
-        "lmsys": 81.05,
+        "lmsys": 71.57,
         "artificial_analysis": 60.87
       }
     },
@@ -283,17 +312,29 @@
         "artificial_analysis": 70.69
       }
     },
-    "claude-opus-4-6-thinking": {
-      "gi": 82.44,
+    "claude-opus-4-6-high": {
+      "gi": 72.96,
       "sources": {
-        "lmsys": 82.44
+        "lmsys": 72.96
+      }
+    },
+    "claude-opus-4-6-thinking": {
+      "gi": 72.88,
+      "sources": {
+        "lmsys": 72.88
       }
     },
     "claude-opus-4-7": {
-      "gi": 84.84,
+      "gi": 80.0,
       "sources": {
-        "lmsys": 82.72,
+        "lmsys": 73.04,
         "artificial_analysis": 86.96
+      }
+    },
+    "claude-opus-4-7-high": {
+      "gi": 73.61,
+      "sources": {
+        "lmsys": 73.61
       }
     },
     "claude-opus-4-7-non-reasoning": {
@@ -303,22 +344,28 @@
       }
     },
     "claude-opus-4-7-thinking": {
-      "gi": 83.27,
+      "gi": 73.61,
       "sources": {
-        "lmsys": 83.27
+        "lmsys": 73.61
       }
     },
     "claude-opus-4-8": {
-      "gi": 84.79,
+      "gi": 82.91,
       "sources": {
-        "lmsys": 78.93,
+        "lmsys": 75.16,
         "artificial_analysis": 90.66
       }
     },
-    "claude-opus-4-8-thinking": {
-      "gi": 82.26,
+    "claude-opus-4-8-high": {
+      "gi": 79.25,
       "sources": {
-        "lmsys": 82.26
+        "lmsys": 79.25
+      }
+    },
+    "claude-opus-4-8-thinking": {
+      "gi": 72.71,
+      "sources": {
+        "lmsys": 72.71
       }
     },
     "claude-opus-5": {
@@ -328,9 +375,9 @@
       }
     },
     "claude-opus-5-high": {
-      "gi": 95.15,
+      "gi": 89.44,
       "sources": {
-        "lmsys": 92.88,
+        "lmsys": 81.45,
         "artificial_analysis": 97.42
       }
     },
@@ -341,9 +388,9 @@
       }
     },
     "claude-opus-5-max": {
-      "gi": 93.9,
+      "gi": 100.0,
       "sources": {
-        "lmsys": 93.9
+        "lmsys": 100.0
       }
     },
     "claude-opus-5-medium": {
@@ -365,21 +412,21 @@
       }
     },
     "claude-sonnet-4-5-20250929": {
-      "gi": 56.56,
+      "gi": 50.0,
       "sources": {
-        "lmsys": 56.56
+        "lmsys": 50.0
       }
     },
     "claude-sonnet-4-5-20250929-thinking-32k": {
-      "gi": 57.86,
+      "gi": 51.14,
       "sources": {
-        "lmsys": 57.86
+        "lmsys": 51.14
       }
     },
     "claude-sonnet-4-6": {
-      "gi": 67.46,
+      "gi": 65.1,
       "sources": {
-        "lmsys": 77.26,
+        "lmsys": 72.55,
         "artificial_analysis": 57.65
       }
     },
@@ -402,9 +449,9 @@
       }
     },
     "claude-sonnet-5-high": {
-      "gi": 78.19,
+      "gi": 75.33,
       "sources": {
-        "lmsys": 78.19
+        "lmsys": 75.33
       }
     },
     "claude-sonnet-5-non-reasoning": {
@@ -594,9 +641,9 @@
       }
     },
     "deepseek-v3-1-terminus-reasoning": {
-      "gi": 47.67,
+      "gi": 48.95,
       "sources": {
-        "artificial_analysis": 47.67
+        "artificial_analysis": 48.95
       }
     },
     "deepseek-v3-2": {
@@ -612,9 +659,9 @@
       }
     },
     "deepseek-v3-2-reasoning": {
-      "gi": 50.89,
+      "gi": 51.21,
       "sources": {
-        "artificial_analysis": 50.89
+        "artificial_analysis": 51.21
       }
     },
     "deepseek-v3-2-reasoning-0925": {
@@ -630,21 +677,21 @@
       }
     },
     "deepseek-v3.2": {
-      "gi": 45.1,
+      "gi": 39.87,
       "sources": {
-        "lmsys": 45.1
+        "lmsys": 39.87
       }
     },
     "deepseek-v3.2-exp": {
-      "gi": 35.67,
+      "gi": 31.54,
       "sources": {
-        "lmsys": 35.67
+        "lmsys": 31.54
       }
     },
     "deepseek-v3.2-thinking": {
-      "gi": 52.13,
+      "gi": 46.08,
       "sources": {
-        "lmsys": 52.13
+        "lmsys": 46.08
       }
     },
     "deepseek-v4": {
@@ -672,15 +719,15 @@
       }
     },
     "deepseek-v4-flash-high": {
-      "gi": 92.79,
+      "gi": 81.54,
       "sources": {
-        "lmsys": 92.79
+        "lmsys": 81.54
       }
     },
     "deepseek-v4-flash-high-preview": {
-      "gi": 65.25,
+      "gi": 57.68,
       "sources": {
-        "lmsys": 65.25
+        "lmsys": 57.68
       }
     },
     "deepseek-v4-flash-non-reasoning": {
@@ -690,34 +737,46 @@
       }
     },
     "deepseek-v4-pro": {
-      "gi": 70.1,
+      "gi": 72.01,
       "sources": {
-        "lmsys": 68.85,
+        "lmsys": 59.97,
+        "artificial_analysis": 84.06
+      }
+    },
+    "deepseek-v4-pro-0424": {
+      "gi": 71.34,
+      "sources": {
         "artificial_analysis": 71.34
       }
     },
-    "deepseek-v4-pro-high": {
+    "deepseek-v4-pro-0424-high": {
       "gi": 68.76,
       "sources": {
         "artificial_analysis": 68.76
       }
     },
-    "deepseek-v4-pro-high-preview": {
-      "gi": 71.16,
-      "sources": {
-        "lmsys": 71.16
-      }
-    },
-    "deepseek-v4-pro-non-reasoning": {
+    "deepseek-v4-pro-0424-non-reasoning": {
       "gi": 49.76,
       "sources": {
         "artificial_analysis": 49.76
       }
     },
-    "devstral-2": {
-      "gi": 25.28,
+    "deepseek-v4-pro-high-20260813": {
+      "gi": 82.19,
       "sources": {
-        "lmsys": 21.26,
+        "lmsys": 82.19
+      }
+    },
+    "deepseek-v4-pro-high-preview": {
+      "gi": 62.91,
+      "sources": {
+        "lmsys": 62.91
+      }
+    },
+    "devstral-2": {
+      "gi": 24.05,
+      "sources": {
+        "lmsys": 18.79,
         "artificial_analysis": 29.31
       }
     },
@@ -752,9 +811,9 @@
       }
     },
     "diffusiongemma-26b-a4b": {
-      "gi": 20.61,
+      "gi": 20.13,
       "sources": {
-        "artificial_analysis": 20.61
+        "artificial_analysis": 20.13
       }
     },
     "doubao-seed-code": {
@@ -776,9 +835,9 @@
       }
     },
     "ernie-5.1": {
-      "gi": 71.72,
+      "gi": 63.4,
       "sources": {
-        "lmsys": 71.72
+        "lmsys": 63.4
       }
     },
     "exaone-4-0-1-2b": {
@@ -818,15 +877,15 @@
       }
     },
     "g9v3-39a5b": {
-      "gi": 48.95,
+      "gi": 53.14,
       "sources": {
-        "artificial_analysis": 48.95
+        "artificial_analysis": 53.14
       }
     },
     "g9v3-3b": {
-      "gi": 24.96,
+      "gi": 24.48,
       "sources": {
-        "artificial_analysis": 24.96
+        "artificial_analysis": 24.48
       }
     },
     "gemini-1-0-pro": {
@@ -1022,9 +1081,9 @@
       }
     },
     "gemini-2.5-pro": {
-      "gi": 26.8,
+      "gi": 23.69,
       "sources": {
-        "lmsys": 26.8
+        "lmsys": 23.69
       }
     },
     "gemini-3-1-flash-lite-preview": {
@@ -1069,17 +1128,35 @@
         "artificial_analysis": 81.48
       }
     },
-    "gemini-3-flash": {
-      "gi": 56.46,
+    "gemini-3-7-flash": {
+      "gi": 88.57,
       "sources": {
-        "lmsys": 69.59,
+        "artificial_analysis": 88.57
+      }
+    },
+    "gemini-3-7-flash-low": {
+      "gi": 80.35,
+      "sources": {
+        "artificial_analysis": 80.35
+      }
+    },
+    "gemini-3-7-flash-medium": {
+      "gi": 84.38,
+      "sources": {
+        "artificial_analysis": 84.38
+      }
+    },
+    "gemini-3-flash": {
+      "gi": 50.99,
+      "sources": {
+        "lmsys": 58.66,
         "artificial_analysis": 43.32
       }
     },
     "gemini-3-flash (thinking-minimal)": {
-      "gi": 70.24,
+      "gi": 62.09,
       "sources": {
-        "lmsys": 70.24
+        "lmsys": 62.09
       }
     },
     "gemini-3-flash-reasoning": {
@@ -1089,9 +1166,9 @@
       }
     },
     "gemini-3-pro": {
-      "gi": 67.28,
+      "gi": 63.17,
       "sources": {
-        "lmsys": 70.79,
+        "lmsys": 62.58,
         "artificial_analysis": 63.77
       }
     },
@@ -1102,45 +1179,57 @@
       }
     },
     "gemini-3.1-flash-lite-preview": {
-      "gi": 32.72,
+      "gi": 28.92,
       "sources": {
-        "lmsys": 32.72
+        "lmsys": 28.92
       }
     },
     "gemini-3.1-pro-preview": {
-      "gi": 71.63,
+      "gi": 60.13,
       "sources": {
-        "lmsys": 71.63
+        "lmsys": 60.13
       }
     },
     "gemini-3.5-flash": {
-      "gi": 76.52,
+      "gi": 67.65,
       "sources": {
-        "lmsys": 76.52
+        "lmsys": 67.65
       }
     },
     "gemini-3.5-flash-high": {
-      "gi": 76.43,
+      "gi": 68.63,
       "sources": {
-        "lmsys": 76.43
+        "lmsys": 68.63
       }
     },
     "gemini-3.5-flash-lite": {
-      "gi": 69.69,
+      "gi": 60.46,
       "sources": {
-        "lmsys": 69.69
+        "lmsys": 60.46
       }
     },
     "gemini-3.5-flash-medium": {
-      "gi": 74.21,
+      "gi": 67.16,
       "sources": {
-        "lmsys": 74.21
+        "lmsys": 67.16
       }
     },
     "gemini-3.6-flash": {
-      "gi": 79.76,
+      "gi": 70.51,
       "sources": {
-        "lmsys": 79.76
+        "lmsys": 70.51
+      }
+    },
+    "gemini-3.6-flash-high": {
+      "gi": 75.0,
+      "sources": {
+        "lmsys": 75.0
+      }
+    },
+    "gemini-3.7-flash-high": {
+      "gi": 75.16,
+      "sources": {
+        "lmsys": 75.16
       }
     },
     "gemma-3-12b": {
@@ -1192,9 +1281,9 @@
       }
     },
     "gemma-4-12b": {
-      "gi": 34.3,
+      "gi": 34.14,
       "sources": {
-        "artificial_analysis": 34.3
+        "artificial_analysis": 34.14
       }
     },
     "gemma-4-12b-non-reasoning": {
@@ -1204,9 +1293,9 @@
       }
     },
     "gemma-4-26b-a4b": {
-      "gi": 46.83,
+      "gi": 43.74,
       "sources": {
-        "lmsys": 53.23,
+        "lmsys": 47.06,
         "artificial_analysis": 40.42
       }
     },
@@ -1217,9 +1306,9 @@
       }
     },
     "gemma-4-31b": {
-      "gi": 49.36,
+      "gi": 46.31,
       "sources": {
-        "lmsys": 52.5,
+        "lmsys": 46.41,
         "artificial_analysis": 46.22
       }
     },
@@ -1230,9 +1319,9 @@
       }
     },
     "gemma-4-e2b": {
-      "gi": 14.17,
+      "gi": 13.69,
       "sources": {
-        "artificial_analysis": 14.17
+        "artificial_analysis": 13.69
       }
     },
     "gemma-4-e2b-non-reasoning": {
@@ -1242,9 +1331,9 @@
       }
     },
     "gemma-4-e4b": {
-      "gi": 18.36,
+      "gi": 18.04,
       "sources": {
-        "artificial_analysis": 18.36
+        "artificial_analysis": 18.04
       }
     },
     "gemma-4-e4b-non-reasoning": {
@@ -1332,15 +1421,15 @@
       }
     },
     "glm-4.6": {
-      "gi": 48.06,
+      "gi": 42.48,
       "sources": {
-        "lmsys": 48.06
+        "lmsys": 42.48
       }
     },
     "glm-4.7": {
-      "gi": 65.43,
+      "gi": 57.84,
       "sources": {
-        "lmsys": 65.43
+        "lmsys": 57.84
       }
     },
     "glm-4.7-flash": {
@@ -1350,9 +1439,9 @@
       }
     },
     "glm-5": {
-      "gi": 64.79,
+      "gi": 60.97,
       "sources": {
-        "lmsys": 65.8,
+        "lmsys": 58.17,
         "artificial_analysis": 63.77
       }
     },
@@ -1380,6 +1469,12 @@
         "artificial_analysis": 54.43
       }
     },
+    "glm-5-3": {
+      "gi": 94.2,
+      "sources": {
+        "artificial_analysis": 94.2
+      }
+    },
     "glm-5-non-reasoning": {
       "gi": 51.85,
       "sources": {
@@ -1393,21 +1488,27 @@
       }
     },
     "glm-5.1": {
-      "gi": 76.25,
+      "gi": 70.42,
       "sources": {
-        "lmsys": 76.25
+        "lmsys": 70.42
       }
     },
     "glm-5.2-max": {
-      "gi": 83.27,
+      "gi": 82.19,
       "sources": {
-        "lmsys": 83.27
+        "lmsys": 82.19
+      }
+    },
+    "glm-5.3-max": {
+      "gi": 84.64,
+      "sources": {
+        "lmsys": 84.64
       }
     },
     "glm-5v-turbo": {
-      "gi": 57.19,
+      "gi": 53.76,
       "sources": {
-        "lmsys": 59.15,
+        "lmsys": 52.29,
         "artificial_analysis": 55.23
       }
     },
@@ -1778,9 +1879,9 @@
       }
     },
     "gpt-5-medium": {
-      "gi": 58.48,
+      "gi": 54.83,
       "sources": {
-        "lmsys": 62.85,
+        "lmsys": 55.56,
         "artificial_analysis": 54.11
       }
     },
@@ -1827,45 +1928,45 @@
       }
     },
     "gpt-5.1": {
-      "gi": 48.43,
+      "gi": 42.81,
       "sources": {
-        "lmsys": 48.43
+        "lmsys": 42.81
       }
     },
     "gpt-5.1-codex": {
-      "gi": 47.5,
+      "gi": 41.99,
       "sources": {
-        "lmsys": 47.5
+        "lmsys": 41.99
       }
     },
     "gpt-5.1-codex-mini": {
-      "gi": 30.5,
+      "gi": 26.96,
       "sources": {
-        "lmsys": 30.5
+        "lmsys": 26.96
       }
     },
     "gpt-5.1-medium": {
-      "gi": 57.67,
+      "gi": 50.98,
       "sources": {
-        "lmsys": 57.67
+        "lmsys": 50.98
       }
     },
     "gpt-5.2": {
-      "gi": 62.85,
+      "gi": 55.56,
       "sources": {
-        "lmsys": 62.85
+        "lmsys": 55.56
       }
     },
     "gpt-5.2-chat-latest-20260210": {
-      "gi": 73.38,
+      "gi": 64.87,
       "sources": {
-        "lmsys": 73.38
+        "lmsys": 64.87
       }
     },
     "gpt-5.2-codex": {
-      "gi": 47.87,
+      "gi": 42.32,
       "sources": {
-        "lmsys": 47.87
+        "lmsys": 42.32
       }
     },
     "gpt-5.3-codex": {
@@ -1875,105 +1976,105 @@
       }
     },
     "gpt-5.3-codex (codex-harness)": {
-      "gi": 53.6,
+      "gi": 47.39,
       "sources": {
-        "lmsys": 53.6
+        "lmsys": 47.39
       }
     },
     "gpt-5.4": {
-      "gi": 71.35,
+      "gi": 63.07,
       "sources": {
-        "lmsys": 71.35
+        "lmsys": 63.07
       }
     },
     "gpt-5.4-high": {
-      "gi": 73.57,
+      "gi": 65.03,
       "sources": {
-        "lmsys": 73.57
+        "lmsys": 65.03
       }
     },
     "gpt-5.4-high (codex-harness)": {
-      "gi": 70.79,
+      "gi": 62.75,
       "sources": {
-        "lmsys": 70.79
+        "lmsys": 62.75
       }
     },
     "gpt-5.4-medium (codex-harness)": {
-      "gi": 67.28,
+      "gi": 59.31,
       "sources": {
-        "lmsys": 67.28
+        "lmsys": 59.31
       }
     },
     "gpt-5.4-mini-high": {
-      "gi": 59.15,
+      "gi": 52.29,
       "sources": {
-        "lmsys": 59.15
+        "lmsys": 52.29
       }
     },
     "gpt-5.5": {
-      "gi": 73.57,
+      "gi": 65.03,
       "sources": {
-        "lmsys": 73.57
+        "lmsys": 65.03
       }
     },
     "gpt-5.5 (codex-harness)": {
-      "gi": 70.06,
+      "gi": 61.76,
       "sources": {
-        "lmsys": 70.06
+        "lmsys": 61.76
       }
     },
     "gpt-5.5-high": {
-      "gi": 74.49,
+      "gi": 65.85,
       "sources": {
-        "lmsys": 74.49
+        "lmsys": 65.85
       }
     },
     "gpt-5.5-high (codex-harness)": {
-      "gi": 75.23,
+      "gi": 66.5,
       "sources": {
-        "lmsys": 75.23
+        "lmsys": 66.5
       }
     },
     "gpt-5.5-instant": {
-      "gi": 73.01,
+      "gi": 64.54,
       "sources": {
-        "lmsys": 73.01
+        "lmsys": 64.54
       }
     },
     "gpt-5.5-xhigh (codex-harness)": {
-      "gi": 79.48,
+      "gi": 70.1,
       "sources": {
-        "lmsys": 79.48
+        "lmsys": 70.1
       }
     },
     "gpt-5.6-luna-xhigh (codex-harness)": {
-      "gi": 82.07,
+      "gi": 71.57,
       "sources": {
-        "lmsys": 82.07
+        "lmsys": 71.57
       }
     },
     "gpt-5.6-sol-xhigh": {
-      "gi": 74.49,
+      "gi": 65.85,
       "sources": {
-        "lmsys": 74.49
+        "lmsys": 65.85
       }
     },
     "gpt-5.6-sol-xhigh (codex-harness)": {
-      "gi": 100.0,
+      "gi": 88.24,
       "sources": {
-        "lmsys": 100.0
+        "lmsys": 88.24
       }
     },
     "gpt-5.6-terra-xhigh": {
-      "gi": 71.72,
+      "gi": 63.4,
       "sources": {
-        "lmsys": 71.72
+        "lmsys": 63.4
       }
     },
     "gpt-5.6-terra-xhigh (codex-harness)": {
-      "gi": 82.62,
+      "gi": 72.06,
       "sources": {
-        "lmsys": 82.62
+        "lmsys": 72.06
       }
     },
     "gpt-oss-120b": {
@@ -2043,15 +2144,15 @@
       }
     },
     "granite-4-1-30b": {
-      "gi": 12.72,
+      "gi": 12.4,
       "sources": {
-        "artificial_analysis": 12.72
+        "artificial_analysis": 12.4
       }
     },
     "granite-4-1-3b": {
-      "gi": 5.96,
+      "gi": 5.48,
       "sources": {
-        "artificial_analysis": 5.96
+        "artificial_analysis": 5.48
       }
     },
     "granite-4-1-8b": {
@@ -2061,9 +2162,9 @@
       }
     },
     "granite-4.1-8b": {
-      "gi": 21.26,
+      "gi": 18.79,
       "sources": {
-        "lmsys": 21.26
+        "lmsys": 18.79
       }
     },
     "grok-1": {
@@ -2115,9 +2216,9 @@
       }
     },
     "grok-4-1-fast-reasoning": {
-      "gi": 39.28,
+      "gi": 37.55,
       "sources": {
-        "lmsys": 29.76,
+        "lmsys": 26.31,
         "artificial_analysis": 48.79
       }
     },
@@ -2175,6 +2276,12 @@
         "artificial_analysis": 88.24
       }
     },
+    "grok-4-6": {
+      "gi": 96.46,
+      "sources": {
+        "artificial_analysis": 96.46
+      }
+    },
     "grok-4-fast": {
       "gi": 25.12,
       "sources": {
@@ -2182,52 +2289,58 @@
       }
     },
     "grok-4-fast-reasoning": {
-      "gi": 29.14,
+      "gi": 28.28,
       "sources": {
-        "lmsys": 14.97,
+        "lmsys": 13.24,
         "artificial_analysis": 43.32
       }
     },
     "grok-4.1": {
-      "gi": 70.43,
+      "gi": 62.25,
       "sources": {
-        "lmsys": 70.43
+        "lmsys": 62.25
       }
     },
     "grok-4.1-thinking": {
-      "gi": 71.53,
+      "gi": 63.24,
       "sources": {
-        "lmsys": 71.53
+        "lmsys": 63.24
       }
     },
     "grok-4.20-beta-0309-reasoning": {
-      "gi": 72.64,
+      "gi": 64.22,
       "sources": {
-        "lmsys": 72.64
+        "lmsys": 64.22
       }
     },
     "grok-4.20-beta1": {
-      "gi": 73.01,
+      "gi": 64.54,
       "sources": {
-        "lmsys": 73.01
+        "lmsys": 64.54
       }
     },
     "grok-4.20-multi-agent-beta-0309": {
-      "gi": 72.46,
+      "gi": 64.05,
       "sources": {
-        "lmsys": 72.46
+        "lmsys": 64.05
       }
     },
     "grok-4.3": {
-      "gi": 51.39,
+      "gi": 45.42,
       "sources": {
-        "lmsys": 51.39
+        "lmsys": 45.42
       }
     },
     "grok-4.5": {
-      "gi": 79.67,
+      "gi": 78.1,
       "sources": {
-        "lmsys": 79.67
+        "lmsys": 78.1
+      }
+    },
+    "grok-4.6-high": {
+      "gi": 89.87,
+      "sources": {
+        "lmsys": 89.87
       }
     },
     "grok-beta": {
@@ -2243,9 +2356,9 @@
       }
     },
     "grok-code-fast-1": {
-      "gi": 24.67,
+      "gi": 23.77,
       "sources": {
-        "lmsys": 15.53,
+        "lmsys": 13.73,
         "artificial_analysis": 33.82
       }
     },
@@ -2280,15 +2393,15 @@
       }
     },
     "hunyuan-hy3-preview": {
-      "gi": 51.39,
+      "gi": 45.42,
       "sources": {
-        "lmsys": 51.39
+        "lmsys": 45.42
       }
     },
     "hy3": {
-      "gi": 74.12,
+      "gi": 68.96,
       "sources": {
-        "lmsys": 81.89,
+        "lmsys": 71.57,
         "artificial_analysis": 66.34
       }
     },
@@ -2317,9 +2430,9 @@
       }
     },
     "inkling": {
-      "gi": 64.03,
+      "gi": 60.46,
       "sources": {
-        "lmsys": 61.55,
+        "lmsys": 54.41,
         "artificial_analysis": 66.51
       }
     },
@@ -2384,9 +2497,9 @@
       }
     },
     "jt-4-1-flash-236b-a21b": {
-      "gi": 62.48,
+      "gi": 62.64,
       "sources": {
-        "artificial_analysis": 62.48
+        "artificial_analysis": 62.64
       }
     },
     "jt-mini": {
@@ -2396,9 +2509,15 @@
       }
     },
     "k-exaone": {
-      "gi": 34.46,
+      "gi": 34.62,
       "sources": {
-        "artificial_analysis": 34.46
+        "artificial_analysis": 34.62
+      }
+    },
+    "k-exaone-2-0-0803": {
+      "gi": 48.31,
+      "sources": {
+        "artificial_analysis": 48.31
       }
     },
     "k-exaone-non-reasoning": {
@@ -2408,9 +2527,9 @@
       }
     },
     "k2-think-v2": {
-      "gi": 26.09,
+      "gi": 26.41,
       "sources": {
-        "artificial_analysis": 26.09
+        "artificial_analysis": 26.41
       }
     },
     "k2-v2": {
@@ -2432,16 +2551,16 @@
       }
     },
     "kat-coder-pro-v1": {
-      "gi": 38.73,
+      "gi": 36.84,
       "sources": {
-        "lmsys": 32.53,
+        "lmsys": 28.76,
         "artificial_analysis": 44.93
       }
     },
     "kat-coder-pro-v2": {
-      "gi": 52.98,
+      "gi": 52.66,
       "sources": {
-        "artificial_analysis": 52.98
+        "artificial_analysis": 52.66
       }
     },
     "kimi-k2": {
@@ -2493,33 +2612,33 @@
       }
     },
     "kimi-k2-thinking-turbo": {
-      "gi": 44.92,
+      "gi": 39.71,
       "sources": {
-        "lmsys": 44.92
+        "lmsys": 39.71
       }
     },
     "kimi-k2.5-instant": {
-      "gi": 60.26,
+      "gi": 53.27,
       "sources": {
-        "lmsys": 60.26
+        "lmsys": 53.27
       }
     },
     "kimi-k2.5-thinking": {
-      "gi": 65.99,
+      "gi": 58.33,
       "sources": {
-        "lmsys": 65.99
+        "lmsys": 58.33
       }
     },
     "kimi-k2.6": {
-      "gi": 75.14,
+      "gi": 70.26,
       "sources": {
-        "lmsys": 75.14
+        "lmsys": 70.26
       }
     },
     "kimi-k2.7-code": {
-      "gi": 72.83,
+      "gi": 64.38,
       "sources": {
-        "lmsys": 72.83
+        "lmsys": 64.38
       }
     },
     "kimi-k3": {
@@ -2535,9 +2654,9 @@
       }
     },
     "kimi-k3-max": {
-      "gi": 92.61,
+      "gi": 82.19,
       "sources": {
-        "lmsys": 92.61
+        "lmsys": 82.19
       }
     },
     "kimi-linear-48b-a3b-instruct": {
@@ -2547,15 +2666,15 @@
       }
     },
     "laguna-m.1": {
-      "gi": 49.91,
+      "gi": 44.12,
       "sources": {
-        "lmsys": 49.91
+        "lmsys": 44.12
       }
     },
     "laguna-xs.2": {
-      "gi": 41.59,
+      "gi": 36.76,
       "sources": {
-        "lmsys": 41.59
+        "lmsys": 36.76
       }
     },
     "lfm-40b": {
@@ -2685,9 +2804,9 @@
       }
     },
     "llama-3-1-instruct-8b": {
-      "gi": 10.95,
+      "gi": 10.31,
       "sources": {
-        "artificial_analysis": 10.95
+        "artificial_analysis": 10.31
       }
     },
     "llama-3-1-nemotron-instruct-70b": {
@@ -2817,9 +2936,9 @@
       }
     },
     "longcat-2-0": {
-      "gi": 52.98,
+      "gi": 53.14,
       "sources": {
-        "artificial_analysis": 52.98
+        "artificial_analysis": 53.14
       }
     },
     "longcat-flash-lite": {
@@ -2853,9 +2972,9 @@
       }
     },
     "mercury-2": {
-      "gi": 24.87,
+      "gi": 23.94,
       "sources": {
-        "lmsys": 16.08,
+        "lmsys": 14.22,
         "artificial_analysis": 33.66
       }
     },
@@ -2890,21 +3009,21 @@
       }
     },
     "mimo-v2-flash": {
-      "gi": 38.65,
+      "gi": 38.81,
       "sources": {
-        "artificial_analysis": 38.65
+        "artificial_analysis": 38.81
       }
     },
     "mimo-v2-flash (non-thinking)": {
-      "gi": 46.58,
+      "gi": 41.18,
       "sources": {
-        "lmsys": 46.58
+        "lmsys": 41.18
       }
     },
     "mimo-v2-flash (thinking)": {
-      "gi": 39.19,
+      "gi": 34.64,
       "sources": {
-        "lmsys": 39.19
+        "lmsys": 34.64
       }
     },
     "mimo-v2-flash-reasoning": {
@@ -2926,28 +3045,28 @@
       }
     },
     "mimo-v2-pro": {
-      "gi": 65.25,
+      "gi": 61.45,
       "sources": {
-        "lmsys": 65.43,
+        "lmsys": 57.84,
         "artificial_analysis": 65.06
       }
     },
     "mimo-v2.5": {
-      "gi": 66.17,
+      "gi": 58.5,
       "sources": {
-        "lmsys": 66.17
+        "lmsys": 58.5
       }
     },
     "mimo-v2.5-pro": {
-      "gi": 72.37,
+      "gi": 64.87,
       "sources": {
-        "lmsys": 72.37
+        "lmsys": 64.87
       }
     },
     "minicpm-v4-6-1-3b": {
-      "gi": 5.31,
+      "gi": 4.51,
       "sources": {
-        "artificial_analysis": 5.31
+        "artificial_analysis": 4.51
       }
     },
     "minicpm5-1b": {
@@ -2975,9 +3094,9 @@
       }
     },
     "minimax-m2": {
-      "gi": 42.61,
+      "gi": 40.27,
       "sources": {
-        "lmsys": 40.3,
+        "lmsys": 35.62,
         "artificial_analysis": 44.93
       }
     },
@@ -3000,27 +3119,27 @@
       }
     },
     "minimax-m2.1-preview": {
-      "gi": 57.12,
+      "gi": 50.49,
       "sources": {
-        "lmsys": 57.12
+        "lmsys": 50.49
       }
     },
     "minimax-m2.5": {
-      "gi": 56.75,
+      "gi": 50.16,
       "sources": {
-        "lmsys": 56.75
+        "lmsys": 50.16
       }
     },
     "minimax-m2.7": {
-      "gi": 58.96,
+      "gi": 52.12,
       "sources": {
-        "lmsys": 58.96
+        "lmsys": 52.12
       }
     },
     "minimax-m3": {
-      "gi": 73.83,
+      "gi": 69.25,
       "sources": {
-        "lmsys": 76.16,
+        "lmsys": 66.99,
         "artificial_analysis": 71.5
       }
     },
@@ -3079,9 +3198,9 @@
       }
     },
     "mistral-large-3": {
-      "gi": 25.95,
+      "gi": 24.33,
       "sources": {
-        "lmsys": 27.91,
+        "lmsys": 24.67,
         "artificial_analysis": 23.99
       }
     },
@@ -3110,9 +3229,9 @@
       }
     },
     "mistral-medium-3.5": {
-      "gi": 34.75,
+      "gi": 30.72,
       "sources": {
-        "lmsys": 34.75
+        "lmsys": 30.72
       }
     },
     "mistral-saba": {
@@ -3200,9 +3319,9 @@
       }
     },
     "motif-0714": {
-      "gi": 70.69,
+      "gi": 71.34,
       "sources": {
-        "artificial_analysis": 70.69
+        "artificial_analysis": 71.34
       }
     },
     "motif-2-12-7b": {
@@ -3211,11 +3330,23 @@
         "artificial_analysis": 19.0
       }
     },
-    "muse-spark": {
-      "gi": 72.02,
+    "motif-3": {
+      "gi": 74.72,
       "sources": {
-        "lmsys": 75.6,
-        "artificial_analysis": 68.44
+        "artificial_analysis": 74.72
+      }
+    },
+    "muse-glimmer": {
+      "gi": 54.91,
+      "sources": {
+        "artificial_analysis": 54.91
+      }
+    },
+    "muse-spark": {
+      "gi": 68.28,
+      "sources": {
+        "lmsys": 66.83,
+        "artificial_analysis": 69.73
       }
     },
     "muse-spark-1-1": {
@@ -3231,27 +3362,33 @@
       }
     },
     "muse-spark-1.1": {
-      "gi": 79.94,
+      "gi": 71.24,
       "sources": {
-        "lmsys": 79.94
+        "lmsys": 71.24
       }
     },
     "muse-spark-1.2 (xhigh)": {
-      "gi": 81.7,
+      "gi": 71.41,
       "sources": {
-        "lmsys": 81.7
+        "lmsys": 71.41
       }
     },
     "nanbeige4-1-3b": {
-      "gi": 16.43,
+      "gi": 16.1,
       "sources": {
-        "artificial_analysis": 16.43
+        "artificial_analysis": 16.1
       }
     },
     "nemotron": {
       "gi": 72.0,
       "sources": {
         "seed": 72.0
+      }
+    },
+    "nemotron-3-5-lightning": {
+      "gi": 36.39,
+      "sources": {
+        "artificial_analysis": 36.39
       }
     },
     "nemotron-3-nano-omni-30b-a3b": {
@@ -3267,9 +3404,9 @@
       }
     },
     "nemotron-cascade-2-30b-a3b": {
-      "gi": 27.38,
+      "gi": 27.05,
       "sources": {
-        "artificial_analysis": 27.38
+        "artificial_analysis": 27.05
       }
     },
     "nex-n2-pro": {
@@ -3291,9 +3428,9 @@
       }
     },
     "nova-2-0-lite-reasoning": {
-      "gi": 28.02,
+      "gi": 31.88,
       "sources": {
-        "artificial_analysis": 28.02
+        "artificial_analysis": 31.88
       }
     },
     "nova-2-0-lite-reasoning-low": {
@@ -3333,15 +3470,15 @@
       }
     },
     "nova-2-0-pro-reasoning-low": {
-      "gi": 30.6,
+      "gi": 30.27,
       "sources": {
-        "artificial_analysis": 30.6
+        "artificial_analysis": 30.27
       }
     },
     "nova-2-0-pro-reasoning-medium": {
-      "gi": 33.82,
+      "gi": 33.98,
       "sources": {
-        "artificial_analysis": 33.82
+        "artificial_analysis": 33.98
       }
     },
     "nova-lite": {
@@ -3381,9 +3518,9 @@
       }
     },
     "nvidia-nemotron-3-nano-4b": {
-      "gi": 12.56,
+      "gi": 12.24,
       "sources": {
-        "artificial_analysis": 12.56
+        "artificial_analysis": 12.24
       }
     },
     "nvidia-nemotron-3-super-120b-a12b": {
@@ -3567,9 +3704,9 @@
       }
     },
     "phi-4-mini": {
-      "gi": 8.37,
+      "gi": 7.57,
       "sources": {
-        "artificial_analysis": 8.37
+        "artificial_analysis": 7.57
       }
     },
     "phi-4-multimodal": {
@@ -3819,15 +3956,15 @@
       }
     },
     "qwen3-5-0-8b": {
-      "gi": 6.44,
+      "gi": 6.76,
       "sources": {
-        "artificial_analysis": 6.44
+        "artificial_analysis": 6.76
       }
     },
     "qwen3-5-0-8b-non-reasoning": {
-      "gi": 4.03,
+      "gi": 3.06,
       "sources": {
-        "artificial_analysis": 4.03
+        "artificial_analysis": 3.06
       }
     },
     "qwen3-5-122b-a10b": {
@@ -3855,15 +3992,15 @@
       }
     },
     "qwen3-5-2b": {
-      "gi": 10.47,
+      "gi": 10.31,
       "sources": {
-        "artificial_analysis": 10.47
+        "artificial_analysis": 10.31
       }
     },
     "qwen3-5-2b-non-reasoning": {
-      "gi": 7.57,
+      "gi": 6.92,
       "sources": {
-        "artificial_analysis": 7.57
+        "artificial_analysis": 6.92
       }
     },
     "qwen3-5-35b-a3b": {
@@ -3945,9 +4082,9 @@
       }
     },
     "qwen3-6-35b-a3b-non-reasoning": {
-      "gi": 37.84,
+      "gi": 38.0,
       "sources": {
-        "artificial_analysis": 37.84
+        "artificial_analysis": 38.0
       }
     },
     "qwen3-6-max": {
@@ -3978,6 +4115,18 @@
       "gi": 90.0,
       "sources": {
         "seed": 90.0
+      }
+    },
+    "qwen3-8-2-4t-a95b": {
+      "gi": 91.3,
+      "sources": {
+        "artificial_analysis": 91.3
+      }
+    },
+    "qwen3-8-27b": {
+      "gi": 82.13,
+      "sources": {
+        "artificial_analysis": 82.13
       }
     },
     "qwen3-8-max": {
@@ -4011,9 +4160,9 @@
       }
     },
     "qwen3-coder-480b-a35b-instruct": {
-      "gi": 31.69,
+      "gi": 29.62,
       "sources": {
-        "lmsys": 35.67,
+        "lmsys": 31.54,
         "artificial_analysis": 27.7
       }
     },
@@ -4132,75 +4281,75 @@
       }
     },
     "qwen3.5-122b-a10b": {
-      "gi": 51.76,
+      "gi": 45.75,
       "sources": {
-        "lmsys": 51.76
+        "lmsys": 45.75
       }
     },
     "qwen3.5-27b": {
-      "gi": 51.57,
+      "gi": 45.59,
       "sources": {
-        "lmsys": 51.57
+        "lmsys": 45.59
       }
     },
     "qwen3.5-35b-a3b": {
-      "gi": 31.79,
+      "gi": 28.1,
       "sources": {
-        "lmsys": 31.79
+        "lmsys": 28.1
       }
     },
     "qwen3.5-397b-a17b": {
-      "gi": 59.33,
+      "gi": 52.45,
       "sources": {
-        "lmsys": 59.33
+        "lmsys": 52.45
       }
     },
     "qwen3.5-flash": {
-      "gi": 29.39,
+      "gi": 25.98,
       "sources": {
-        "lmsys": 29.39
+        "lmsys": 25.98
       }
     },
     "qwen3.5-max-preview": {
-      "gi": 71.35,
+      "gi": 63.07,
       "sources": {
-        "lmsys": 71.35
+        "lmsys": 63.07
       }
     },
     "qwen3.6-max-preview": {
-      "gi": 72.09,
+      "gi": 65.36,
       "sources": {
-        "lmsys": 72.09
+        "lmsys": 65.36
       }
     },
     "qwen3.6-plus": {
-      "gi": 70.06,
+      "gi": 62.25,
       "sources": {
-        "lmsys": 70.06
+        "lmsys": 62.25
       }
     },
     "qwen3.7-max-20260517": {
-      "gi": 80.78,
+      "gi": 71.57,
       "sources": {
-        "lmsys": 80.78
+        "lmsys": 71.57
       }
     },
     "qwen3.7-max-preview": {
-      "gi": 73.2,
+      "gi": 64.71,
       "sources": {
-        "lmsys": 73.2
+        "lmsys": 64.71
       }
     },
     "qwen3.7-plus": {
-      "gi": 70.06,
+      "gi": 61.93,
       "sources": {
-        "lmsys": 70.06
+        "lmsys": 61.93
       }
     },
     "qwen3.8-max": {
-      "gi": 92.98,
+      "gi": 96.41,
       "sources": {
-        "lmsys": 92.98
+        "lmsys": 96.41
       }
     },
     "qwq-32b": {
@@ -4240,9 +4389,9 @@
       }
     },
     "ring-2-6-1t": {
-      "gi": 48.47,
+      "gi": 49.44,
       "sources": {
-        "artificial_analysis": 48.47
+        "artificial_analysis": 49.44
       }
     },
     "ring-flash-2-0": {
@@ -4270,9 +4419,9 @@
       }
     },
     "seed-2.1-pro-preview": {
-      "gi": 82.26,
+      "gi": 72.22,
       "sources": {
-        "lmsys": 82.26
+        "lmsys": 72.22
       }
     },
     "seed-oss-36b-instruct": {
@@ -4291,6 +4440,12 @@
       "gi": 22.87,
       "sources": {
         "artificial_analysis": 22.87
+      }
+    },
+    "solar-open2-250b": {
+      "gi": 58.62,
+      "sources": {
+        "artificial_analysis": 58.62
       }
     },
     "solar-pro-2": {
@@ -4321,6 +4476,12 @@
       "gi": 21.74,
       "sources": {
         "artificial_analysis": 21.74
+      }
+    },
+    "solar-pro4": {
+      "gi": 65.38,
+      "sources": {
+        "artificial_analysis": 65.38
       }
     },
     "sonar": {
@@ -4390,10 +4551,10 @@
       }
     },
     "trinity-large-thinking": {
-      "gi": 28.96,
+      "gi": 27.32,
       "sources": {
-        "lmsys": 29.57,
-        "artificial_analysis": 28.34
+        "lmsys": 26.14,
+        "artificial_analysis": 28.5
       }
     },
     "tulu3-405b": {
@@ -4438,16 +4599,5 @@
         "seed": 30.0
       }
     }
-  },
-  "coverage": {
-    "matched": 962,
-    "total": 962,
-    "pct": 100.0,
-    "via": {
-      "deterministic": 962,
-      "alias_prior": 0,
-      "unmatched": 0
-    }
-  },
-  "note": "LMSYS Arena text+code Elo via arena-ai-leaderboards 2026-08-10 (truncated dump overlay: new Elo wins, prior Elo retained for missing ids); Artificial Analysis Intelligence Index via Data API dump; seed retained for models not on those snapshots."
+  }
 }
