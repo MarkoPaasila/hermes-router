@@ -4708,6 +4708,19 @@ let rlSortModel = {key: 'headroom', dir: 1};
 let editingKeyTail = null;
 let INTERVAL = 5000;
 let timer = null;
+let _pollPausedForModal = false;
+let _giInputDirty = false;
+
+function _pausePollForModal() {
+  if (timer) { clearInterval(timer); timer = null; }
+  _pollPausedForModal = true;
+}
+
+function _resumePollForModal() {
+  if (!_pollPausedForModal) return;
+  _pollPausedForModal = false;
+  if (!timer) timer = setInterval(refresh, INTERVAL);
+}
 
 // ── sidebar navigation ───────────────────────────────────────────────────────
 const PAGES = ['overview', 'providers', 'keys', 'access', 'models', 'addons', 'logs'];
@@ -5664,6 +5677,7 @@ function selectModelRow(provider, model) {
   selectedRateGroupId = null;
   selectedProviderName = null;
   selectedModelRow = {provider, model};
+  _giInputDirty = false;
   renderRateLimitsTables();
 }
 
@@ -5671,6 +5685,7 @@ function selectProviderRow(provider) {
   selectedModelRow = null;
   selectedRateGroupId = null;
   selectedProviderName = provider;
+  _giInputDirty = false;
   renderRateLimitsTables();
 }
 
@@ -5825,6 +5840,7 @@ function selectRateGroup(id) {
   selectedModelRow = null;
   selectedProviderName = null;
   selectedRateGroupId = id;
+  _giInputDirty = false;
   renderRateLimitsTables();
 }
 
@@ -5832,6 +5848,8 @@ function closeRateDetail() {
   selectedRateGroupId = null;
   selectedProviderName = null;
   selectedModelRow = null;
+  _giInputDirty = false;
+  _resumePollForModal();
   const modal = document.getElementById('rl-detail-modal');
   if (modal) modal.classList.add('hidden');
   document.querySelectorAll('#rl-tbody-pw tr.rl-selected, #rl-tbody-model tr.rl-selected').forEach(tr => tr.classList.remove('rl-selected'));
@@ -5901,6 +5919,7 @@ function renderRateDetail(groups) {
   const list = Array.isArray(groups) ? groups.slice() : (groups ? [groups] : []);
   const modal = document.getElementById('rl-detail-modal');
   if (modal) modal.classList.remove('hidden');
+  _pausePollForModal();
 
   const blockTop = document.getElementById('rl-detail-block-top');
   if (blockTop) {
@@ -5932,18 +5951,26 @@ function renderRateDetail(groups) {
         r.provider === selectedModelRow.provider && r.model === selectedModelRow.model);
       const gi = row && row.gi != null ? row.gi : '';
       const src = row && row.gi_source ? row.gi_source : '';
-      const clearBtn = src === 'override'
-        ? `<button class="btn" type="button" onclick="clearGiOverride()">Clear override</button>`
-        : '';
-      giBox.innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-          <strong>GI</strong> ${giBadge(gi === '' ? null : gi, src || null)}
-          <label class="muted">Set <input id="rl-gi-input" type="number" min="0" max="100" step="0.1"
-            value="${gi === '' ? '' : Number(gi).toFixed(1)}"
-            style="width:72px;margin-left:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px"></label>
-          <button class="btn" type="button" onclick="saveGiOverride()">Save</button>
-          ${clearBtn}
-        </div>`;
+      const prevFocused = document.activeElement && document.activeElement.id === 'rl-gi-input';
+      const preserveEdit = prevFocused || _giInputDirty;
+      if (!preserveEdit) {
+        const clearBtn = src === 'override'
+          ? `<button class="btn" type="button" onclick="clearGiOverride()">Clear override</button>`
+          : '';
+        giBox.innerHTML = `
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+            <strong>GI</strong> ${giBadge(gi === '' ? null : gi, src || null)}
+            <label class="muted">Set <input id="rl-gi-input" type="number" min="0" max="100" step="0.1"
+              value="${gi === '' ? '' : Number(gi).toFixed(1)}"
+              style="width:72px;margin-left:4px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:2px 6px"></label>
+            <button class="btn" type="button" onclick="saveGiOverride()">Save</button>
+            ${clearBtn}
+          </div>`;
+        const giInput = document.getElementById('rl-gi-input');
+        if (giInput) {
+          giInput.addEventListener('input', () => { _giInputDirty = true; });
+        }
+      }
     } else {
       giBox.classList.add('hidden');
       giBox.innerHTML = '';
@@ -6004,7 +6031,8 @@ function renderRateDetail(groups) {
 }
 
 async function saveGiOverride() {
-  if (!selectedModelRow || !apiKey) return;
+  // DASHBOARD_OPEN may leave apiKey empty; auth is handled by the server.
+  if (!selectedModelRow) return;
   const input = document.getElementById('rl-gi-input');
   const gi = Number(input && input.value);
   if (!isFinite(gi) || gi < 0 || gi > 100) {
@@ -6026,6 +6054,7 @@ async function saveGiOverride() {
       alert((data.error && data.error.message) || ('Save failed: HTTP ' + r.status));
       return;
     }
+    _giInputDirty = false;
     await refresh();
     await refreshRateLimits();
   } catch (e) {
@@ -6034,7 +6063,8 @@ async function saveGiOverride() {
 }
 
 async function clearGiOverride() {
-  if (!selectedModelRow || !apiKey) return;
+  // DASHBOARD_OPEN may leave apiKey empty; auth is handled by the server.
+  if (!selectedModelRow) return;
   try {
     const r = await fetch('/v1/config/gi-override', {
       method: 'DELETE',
@@ -6049,6 +6079,7 @@ async function clearGiOverride() {
       alert((data.error && data.error.message) || ('Clear failed: HTTP ' + r.status));
       return;
     }
+    _giInputDirty = false;
     await refresh();
     await refreshRateLimits();
   } catch (e) {
