@@ -139,6 +139,29 @@ fi
 # failure here leaves you exactly where you started — no rollback needed.
 log "pulling latest…"
 merge_out="$(git merge --ff-only "origin/${BRANCH}" 2>&1)"; merge_rc=$?
+
+# If the merge would overwrite untracked files that are already byte-identical to
+# the incoming tree, remove those leftovers and retry once. Differing untracked
+# files are still left alone (user must move/delete them).
+if [ "$merge_rc" -ne 0 ] && printf '%s' "$merge_out" | grep -q "untracked working tree files"; then
+  cleared=0
+  while IFS= read -r path; do
+    path="${path#"${path%%[![:space:]]*}"}"
+    path="${path%"${path##*[![:space:]]}"}"
+    [ -z "$path" ] && continue
+    [ -f "$path" ] || continue
+    if git cat-file -e "origin/${BRANCH}:${path}" 2>/dev/null \
+      && cmp -s "$path" <(git show "origin/${BRANCH}:${path}"); then
+      rm -f "$path"
+      log "removed identical untracked file (same as incoming): ${path}"
+      cleared=1
+    fi
+  done < <(printf '%s\n' "$merge_out" | grep -E '^[[:space:]]+[^[:space:]]')
+  if [ "$cleared" -eq 1 ]; then
+    merge_out="$(git merge --ff-only "origin/${BRANCH}" 2>&1)"; merge_rc=$?
+  fi
+fi
+
 if [ "$merge_rc" -ne 0 ]; then
   if printf '%s' "$merge_out" | grep -q "untracked working tree files"; then
     err "the update adds files that you already have locally (untracked), so it"
