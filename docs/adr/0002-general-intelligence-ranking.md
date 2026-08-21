@@ -16,7 +16,11 @@ Capability as a discrete 1–5 score was too coarse, overloaded with “feature 
 - Snapshot file is re-loaded on every process start/restart (and on file mtime
   change). Snapshot GI is never written into `router_state.json`.
 - Only manual overrides (`gi_overrides.json`) persist operator-set scores.
-- Complexity maps to a minimum GI (defaults 0/20/40/60/80); selection picks the cheapest candidate that clears the bar.
+- Complexity maps to a **catalog-relative** minimum GI: complexity 1 → 0; complexities
+  2–5 → nearest-rank 20/40/60/80th percentiles of this process’s `(provider, model)` GI
+  scores (including default 0). Bars refresh when the catalog or GI scores change.
+  Selection picks the cheapest candidate that clears the bar. Live mins appear on
+  `/v1/status` as `complexity_min_gi`.
 - Wire/status field: `gi` + `gi_source`. Drop `MODEL_QUALITY_RANKS`.
 - Feature probing (tools/vision/reasoning) stays separate.
 

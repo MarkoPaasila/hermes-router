@@ -31,10 +31,53 @@ def test_normalize_min_max():
     assert gi.normalize_min_max([7.0, 7.0]) == [50.0, 50.0]
 
 
-def test_min_gi_for_complexity():
+def test_min_gi_for_complexity_after_recompute():
+    gi.recompute_complexity_thresholds([0.0, 20.0, 40.0, 60.0, 80.0, 100.0])
     assert gi.min_gi_for_complexity(1) == 0.0
     assert gi.min_gi_for_complexity(3) == 40.0
     assert gi.min_gi_for_complexity(5) == 80.0
+
+
+def test_recompute_empty_all_zero():
+    m = gi.recompute_complexity_thresholds([])
+    assert m == {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
+    assert gi.min_gi_for_complexity(1) == 0.0
+    assert gi.min_gi_for_complexity(5) == 0.0
+
+
+def test_recompute_even_ladder():
+    scores = [0.0, 20.0, 40.0, 60.0, 80.0, 100.0]
+    m = gi.recompute_complexity_thresholds(scores)
+    assert m[1] == 0.0
+    assert m[2] == 20.0
+    assert m[3] == 40.0
+    assert m[4] == 60.0
+    assert m[5] == 80.0
+
+
+def test_recompute_tiny_n_bars_may_coincide():
+    m = gi.recompute_complexity_thresholds([42.0])
+    assert m[1] == 0.0
+    assert m[2] == m[3] == m[4] == m[5] == 42.0
+
+
+def test_complexity_1_always_zero_even_if_scores_high():
+    m = gi.recompute_complexity_thresholds([90.0, 95.0, 99.0])
+    assert m[1] == 0.0
+
+
+def test_mark_dirty_and_need_refresh():
+    gi.recompute_complexity_thresholds([0.0, 50.0, 100.0])
+    assert gi.complexity_thresholds_need_refresh() is False
+    gi.mark_complexity_thresholds_dirty()
+    assert gi.complexity_thresholds_need_refresh() is True
+
+
+def test_set_override_marks_thresholds_dirty():
+    gi.recompute_complexity_thresholds([0.0, 50.0, 100.0])
+    assert gi.complexity_thresholds_need_refresh() is False
+    gi.set_override("gemini", "x", 66.0)
+    assert gi.complexity_thresholds_need_refresh() is True
 
 
 def test_resolve_default_without_snapshot():

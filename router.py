@@ -302,8 +302,8 @@ BREAKER_COOLDOWN    = int(os.environ.get("BREAKER_COOLDOWN", 60))       # second
 _FAST_PROVIDERS = {"groq", "cerebras", "sambanova", "mistral"}
 
 # ── Selection: general intelligence ranking (GI, 0–100) ───────────────────────
-# Higher = stronger. Complexity maps to a minimum GI threshold; pick cheapest
-# eligible. See CONTEXT.md / ADR-0002. Snapshot: gi_rankings.json.
+# Higher = stronger. Complexity maps to a catalog-relative min GI (percentiles);
+# pick cheapest eligible. See CONTEXT.md / ADR-0002. Snapshot: gi_rankings.json.
 CAPABILITY_SCALE_VERSION = 2  # legacy probe-state migration only (old rating field)
 _COMPLEXITY_LABELS = {1: "trivial", 2: "simple", 3: "standard", 4: "complex", 5: "critical"}
 
@@ -473,6 +473,7 @@ def _apply_model_block_live(provider_name: str, model: str, blocked: bool) -> No
                             f"{_exclude_env_key(provider_name)} — provider has no usable models")
             p["models"] = kept
             p["model"] = kept[0] if kept else ""
+            gi_ranking.mark_complexity_thresholds_dirty()
         else:
             if not any(m.lower() == lower for m in models):
                 models.append(model)
@@ -480,6 +481,7 @@ def _apply_model_block_live(provider_name: str, model: str, blocked: bool) -> No
             if not p.get("model") and models:
                 p["model"] = models[0]
             pool.ensure_model(provider_name, model, list(p.get("keys") or []))
+            gi_ranking.mark_complexity_thresholds_dirty()
         return
 
 
@@ -909,6 +911,7 @@ def _build_providers() -> list[dict]:
                         f"{p['name'].upper()}_EXCLUDE_MODELS — provider has no usable models")
         p["models"] = filtered
         p["model"]  = filtered[0] if filtered else ""
+    gi_ranking.mark_complexity_thresholds_dirty()
 
     # Per-provider "skip when the request is too big" ceiling. Some free tiers
     # reject large payloads outright, so trying them with a big prompt just wastes
@@ -997,6 +1000,7 @@ def _restore_catalog_models_from_state(providers: list, state_file: Path | None 
         if p.get("model") not in merged:
             p["model"] = merged[0]
         restored += 1
+        gi_ranking.mark_complexity_thresholds_dirty()
         log.info(
             f"[catalog] {p['name']}: restored {len(merged)} model(s) from prior state "
             f"(was {len(configured)} configured)"
@@ -1541,6 +1545,7 @@ def _refresh_discovered_models(provider: dict, key: str, pool_ref) -> None:
     provider["models"] = refreshed
     old_primary = provider["model"]
     provider["model"] = refreshed[0]
+    gi_ranking.mark_complexity_thresholds_dirty()
     for m in refreshed:
         try:
             pool_ref.ensure_model(name, m, provider["keys"])
@@ -1945,6 +1950,30 @@ def classify_complexity(messages: list) -> int:
     return 1
 
 
+def _catalog_gi_scores(providers: list) -> list[float]:
+    """Resolved GI for every (provider, model) chat candidate in providers."""
+    scores: list[float] = []
+    for p in providers:
+        for m in (p.get("models") or [p.get("model") or ""]):
+            if not m:
+                continue
+            gi, _ = gi_ranking.resolve_gi(p["name"], m)
+            scores.append(float(gi))
+    return scores
+
+
+def _refresh_complexity_thresholds_if_needed(providers: list | None = None) -> None:
+    """Recompute complexity→min-GI from catalog scores when the dirty flag is set.
+
+    Uses the provided providers list (production passes PROVIDERS; selection uses
+    the same list being ranked so tests stay self-contained).
+    """
+    if not gi_ranking.complexity_thresholds_need_refresh():
+        return
+    src = providers if providers is not None else PROVIDERS
+    gi_ranking.recompute_complexity_thresholds(_catalog_gi_scores(src))
+
+
 def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
                        prefer_local: bool = False, sticky: dict | None = None) -> list:
     """
@@ -1965,6 +1994,7 @@ def _get_smart_ordered(providers: list, complexity: int, est_tokens: int = 0,
     When sticky (session affinity) is provided and its (provider, model) is still in the
     catalog, that candidate is moved to the front after scoring.
     """
+    _refresh_complexity_thresholds_if_needed(providers)
     fast_first = FAST_ROUTE_TOKENS > 0 and 0 < est_tokens < FAST_ROUTE_TOKENS
     min_gi = gi_ranking.min_gi_for_complexity(complexity)
 
@@ -2202,6 +2232,7 @@ def _initialize_ratings(providers: list, pool_ref):
             if p.get("models"):
                 p["models"][0] = actual
                 p["models"] = list(dict.fromkeys(p["models"]))
+                gi_ranking.mark_complexity_thresholds_dirty()
             pool_ref.rename_model(name, original, actual)
         # Per-model feature probes for the whole list (primary = models[0] = actual).
         # Always re-resolve with catalog + prior sticky state so catalog can upgrade
@@ -7480,6 +7511,7 @@ def status():
         return err
 
     now  = time.time()
+    _refresh_complexity_thresholds_if_needed()
     keys = {}
     with pool.lock:
         for name, model_pools in pool.pools.items():
@@ -7552,6 +7584,7 @@ def status():
 
     return jsonify({
         "providers": provider_stats,
+        "complexity_min_gi": gi_ranking.complexity_min_gi_map(),
         "cache": {
             "enabled":    CACHE_TTL > 0,
             "ttl_s":      CACHE_TTL,

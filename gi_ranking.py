@@ -3,6 +3,9 @@
 Replaces the old 1–5 Capability score. Scale is 0–100 (higher = stronger).
 Resolution: dashboard override → snapshot → 0 (bottom of pack).
 
+Complexity → min GI is catalog-relative (nearest-rank percentiles of live
+`(provider, model)` scores), not a fixed 0/20/40/60/80 ladder.
+
 Persistence:
   • Snapshot scores (`gi_rankings.json`) are read-only defaults. They are re-loaded
     from disk on every process start/restart (and when the file mtime changes).
@@ -13,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import statistics
@@ -22,13 +26,9 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-COMPLEXITY_MIN_GI: dict[int, float] = {
-    1: 0.0,
-    2: 20.0,
-    3: 40.0,
-    4: 60.0,
-    5: 80.0,
-}
+# Cached complexity → min GI (catalog-relative percentiles). Complexity 1 is always 0.
+_complexity_min_gi: dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
+_complexity_thresholds_dirty: bool = True
 
 # Substring snapshot keys shorter than this are exact/alias-only (no fuzzy hit).
 MIN_SUBSTRING_KEY_LEN = 4
@@ -132,13 +132,64 @@ def normalize_min_max(raw_scores: list[float]) -> list[float]:
     return [100.0 * (x - lo) / (hi - lo) for x in raw_scores]
 
 
+def mark_complexity_thresholds_dirty() -> None:
+    """Signal that catalog or GI scores changed; router should recompute mins."""
+    global _complexity_thresholds_dirty
+    with _lock:
+        _complexity_thresholds_dirty = True
+
+
+def complexity_thresholds_need_refresh() -> bool:
+    with _lock:
+        return _complexity_thresholds_dirty
+
+
+def _percentile_nearest_rank(sorted_scores: list[float], p: float) -> float:
+    """Nearest-rank percentile: index ceil(p/100 * n) - 1, clamped."""
+    n = len(sorted_scores)
+    if n == 0:
+        return 0.0
+    idx = int(math.ceil(p / 100.0 * n)) - 1
+    idx = max(0, min(n - 1, idx))
+    return float(sorted_scores[idx])
+
+
+def recompute_complexity_thresholds(scores: list[float]) -> dict[int, float]:
+    """Set complexity mins from catalog GI scores (approx equal headcount bands).
+
+    Complexity 1 → 0. Complexities 2–5 → nearest-rank 20/40/60/80th percentiles.
+    Empty scores → all zeros. Clears the dirty flag.
+    """
+    sorted_scores = sorted(float(s) for s in scores)
+    out: dict[int, float] = {1: 0.0}
+    for c, p in ((2, 20.0), (3, 40.0), (4, 60.0), (5, 80.0)):
+        out[c] = _percentile_nearest_rank(sorted_scores, p)
+    global _complexity_min_gi, _complexity_thresholds_dirty
+    with _lock:
+        _complexity_min_gi = dict(out)
+        _complexity_thresholds_dirty = False
+    log.info(
+        "[gi] complexity min-GI thresholds n=%d → %s",
+        len(sorted_scores),
+        {k: round(v, 2) for k, v in out.items()},
+    )
+    return dict(out)
+
+
+def complexity_min_gi_map() -> dict[int, float]:
+    """Copy of cached complexity → min GI map."""
+    with _lock:
+        return dict(_complexity_min_gi)
+
+
 def min_gi_for_complexity(complexity: int) -> float:
     c = int(complexity)
-    if c in COMPLEXITY_MIN_GI:
-        return COMPLEXITY_MIN_GI[c]
-    if c <= 1:
-        return COMPLEXITY_MIN_GI[1]
-    return COMPLEXITY_MIN_GI[5]
+    with _lock:
+        if c in _complexity_min_gi:
+            return _complexity_min_gi[c]
+        if c <= 1:
+            return _complexity_min_gi[1]
+        return _complexity_min_gi[5]
 
 
 def _file_mtime(path: Path) -> float | None:
@@ -198,6 +249,7 @@ def _match_snapshot(model: str) -> float | None:
 
 def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
     global _snapshot, _aliases, _snapshot_loaded, _snapshot_mtime
+    global _complexity_thresholds_dirty
     p = path or rankings_path()
     mtime = _file_mtime(p)
     with _lock:
@@ -211,6 +263,7 @@ def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
             log.warning("[gi] snapshot missing at %s — all models default to 0 unless overridden", p)
             _snapshot_mtime = None
             _snapshot_loaded = True
+            _complexity_thresholds_dirty = True
             return
         try:
             doc = json.loads(p.read_text())
@@ -260,10 +313,12 @@ def load_snapshot(path: Path | None = None, *, force: bool = False) -> None:
             _aliases = {}
         _snapshot_mtime = _file_mtime(p)
         _snapshot_loaded = True
+        _complexity_thresholds_dirty = True
 
 
 def load_overrides(path: Path | None = None, *, force: bool = False) -> None:
     global _overrides, _overrides_loaded, _overrides_mtime
+    global _complexity_thresholds_dirty
     p = path or overrides_path()
     mtime = _file_mtime(p)
     with _lock:
@@ -275,6 +330,7 @@ def load_overrides(path: Path | None = None, *, force: bool = False) -> None:
         if not p.exists():
             _overrides_mtime = None
             _overrides_loaded = True
+            _complexity_thresholds_dirty = True
             return
         try:
             doc = json.loads(p.read_text())
@@ -302,6 +358,7 @@ def load_overrides(path: Path | None = None, *, force: bool = False) -> None:
             _overrides = {}
         _overrides_mtime = _file_mtime(p)
         _overrides_loaded = True
+        _complexity_thresholds_dirty = True
 
 
 def _ensure_loaded() -> None:
@@ -344,6 +401,7 @@ def set_override(provider: str, model: str, gi: float, path: Path | None = None)
         _persist_overrides(path)
         global _overrides_mtime
         _overrides_mtime = _file_mtime(path or overrides_path())
+    mark_complexity_thresholds_dirty()
     return g
 
 
@@ -358,7 +416,9 @@ def clear_override(provider: str, model: str, path: Path | None = None) -> bool:
             _persist_overrides(path)
             global _overrides_mtime
             _overrides_mtime = _file_mtime(path or overrides_path())
-        return existed
+    if existed:
+        mark_complexity_thresholds_dirty()
+    return existed
 
 
 def _persist_overrides(path: Path | None = None) -> None:
@@ -376,6 +436,7 @@ def reset_for_tests() -> None:
     """Clear in-memory state (tests only)."""
     global _snapshot, _aliases, _overrides, _snapshot_loaded, _overrides_loaded
     global _snapshot_mtime, _overrides_mtime
+    global _complexity_min_gi, _complexity_thresholds_dirty
     with _lock:
         _snapshot = {}
         _aliases = {}
@@ -384,3 +445,5 @@ def reset_for_tests() -> None:
         _overrides_loaded = False
         _snapshot_mtime = None
         _overrides_mtime = None
+        _complexity_min_gi = {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
+        _complexity_thresholds_dirty = True
