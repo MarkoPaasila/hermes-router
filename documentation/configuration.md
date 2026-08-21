@@ -37,6 +37,7 @@ hr restart                            # apply
 | `local_model` | `LOCAL_BASE_URL` / `LOCAL_MODEL` | off | Route to a model on your own machine — manage with `hr model set local` |
 | `request_log` | `REQUEST_LOG_SIZE` | **on** | In-memory ring buffer of recent requests |
 | `dashboard` | — | **on** | Browser UI at `/dashboard` |
+| `dashboard_open` | `DASHBOARD_OPEN` | off | Dashboard + monitoring/config APIs without an access key (chat stays keyed) |
 
 `hr features enable/disable` toggles the simple **flag** add-ons by writing their variable to
 `.env`. Config-kind add-ons show status and point you to the command that manages them. The live
@@ -68,7 +69,7 @@ subscription) logins are stored separately under `codex_accounts` (via
 |---|---|---|
 | `PORT` | `8319` | Port to listen on |
 | `HOST` | `0.0.0.0` | Bind address. Set `127.0.0.1` to listen on localhost only (recommended on a shared/VPS host — reach it via localhost or an SSH tunnel). |
-| `PROXY_API_KEYS` | *(auto-generated)* | Comma-separated keys your app uses to authenticate — and the key needed to open the web dashboard. If left unset (or on the `.env.example` placeholder), the proxy generates a real random key on first boot and saves it back to `.env`, logging it once. Add more from the dashboard's **Access Keys** page, or set your own here. |
+| `PROXY_API_KEYS` | *(auto-generated)* | Comma-separated keys your app uses to authenticate — and, unless `DASHBOARD_OPEN=1`, the key needed to open the web dashboard. If left unset (or on the `.env.example` placeholder), the proxy generates a real random key on first boot and saves it back to `.env`, logging it once. Add more from the dashboard's **Access Keys** page, or set your own here. |
 | `ROUTER_AUTH_FILE` | `./auth.json` | Where keys are stored |
 | `CACHE_TTL_SECONDS` | `300` | Response cache lifetime (`0` disables). Entries are namespaced per API key, so different `PROXY_API_KEYS` never share a cached answer — safe for multi-tenant use |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
@@ -89,6 +90,7 @@ Sensible defaults — most users never touch these.
 | `AUTO_DISCOVER_MODELS` | `0` | If `1`, fetch configured providers' `/models` lists at startup, prune listed models that disappeared, and append the best discovered models |
 | `AUTO_DISCOVER_MODEL_LIMIT` | `8` | Max models kept per provider when `AUTO_DISCOVER_MODELS=1` |
 | `FILTER_SPECIALIZED_MODELS` | `0` | If `1`, drop purpose-specific models from auto-discovery catalogs (configured `{PROVIDER}_MODEL` lists are never filtered) |
+| `DASHBOARD_OPEN` | `0` | If `1`, dashboard + monitoring/config APIs work without an access key (chat/embeddings/models stay keyed). Prefer `HOST=127.0.0.1` — exposes admin config to anyone who can reach the port |
 | `UNSUITABLE_MODEL_BASE_S` | `60` | Initial cool-down seconds after a model-unsuitable 404/400 |
 | `UNSUITABLE_MODEL_CAP_S` | `3600` | Max cool-down seconds (exponential backoff caps here) |
 | `{PROVIDER}_EXCLUDE_MODELS` | — | Comma-separated model IDs to block for a provider (case-insensitive). Excluded models are stripped from config and discovery. Dashboard Models page can Block/Unblock the same list without restart. |

@@ -13,8 +13,10 @@ http://localhost:8319/dashboard
 
 On first load it asks for your **access key** (one of `PROXY_API_KEYS` — see
 [below](#proxy-api-keys--the-dashboard-key) if you don't have one yet) and remembers it in the
-browser's local storage. It's a full control panel, not just a read-only view — a left sidebar
-splits it into pages, refreshed every 5 seconds:
+browser's local storage. With **open dashboard** mode (`DASHBOARD_OPEN=1` / add-on
+`dashboard_open`), the key gate is skipped and the dashboard talks to its APIs without a key —
+see [Open dashboard (no key)](#open-dashboard-no-key). It's a full control panel, not just a
+read-only view — a left sidebar splits it into pages, refreshed every 5 seconds:
 
 - **Overview** — a plain-language status card, the endpoint/model to point your client at, a
   setup checklist, and summary stats (requests, tokens, spend, cache hit-rate, error rate)
@@ -44,7 +46,32 @@ It's pure HTML/JS (no framework, no external CDN) and reads/writes only the rout
 > **Accessing it remotely.** By default the proxy binds to `0.0.0.0` (all interfaces). If you
 > set `HOST=127.0.0.1` (localhost-only, recommended on a shared/VPS host), reach the dashboard
 > over an SSH tunnel: `ssh -L 8319:127.0.0.1:8319 user@server`, then open
-> `http://localhost:8319/` locally. The raw API endpoints stay key-protected either way.
+> `http://localhost:8319/` locally. Chat/API endpoints stay key-protected either way; with
+> open dashboard mode, monitoring and `/v1/config/*` are reachable without a key to anyone who
+> can hit the port.
+
+## Open dashboard (no key)
+
+By default the dashboard requires a `PROXY_API_KEYS` value. To run the full control panel
+without pasting a key (local/dev convenience):
+
+```bash
+# .env
+DASHBOARD_OPEN=1
+# or: hr features enable dashboard_open && hr restart
+```
+
+When enabled, `/dashboard` skips the key gate and the routes it uses (`/v1/status`,
+`/v1/usage`, `/v1/capacity`, `/v1/rate-limits`, `/v1/logs`, `/v1/config/*`) accept requests
+without Authorization. **Chat stays keyed** — `/v1/chat/completions`, `/v1/embeddings`, and
+`/v1/models` still need a valid access key.
+
+> **Security.** Open mode exposes admin actions (add provider keys, mint/revoke access keys,
+> restart) to anyone who can reach the port. Prefer `HOST=127.0.0.1` or an SSH tunnel on
+> shared hosts. Default remains keyed (`DASHBOARD_OPEN=0`).
+
+You can still revoke access keys from the UI while open; the last remaining key cannot be
+revoked (chat would otherwise have no credential).
 
 ## Proxy API keys & the dashboard key
 

@@ -137,6 +137,11 @@ AUTO_DISCOVER_MODEL_LIMIT = max(1, int(os.environ.get("AUTO_DISCOVER_MODEL_LIMIT
 # embedding/moderation/rerank) from discovered catalogs. Configured model lists
 # are never filtered. Opt-in.
 FILTER_SPECIALIZED_MODELS = os.environ.get("FILTER_SPECIALIZED_MODELS", "0").strip().lower() not in ("0", "", "false", "no", "off")
+# Opt-in: skip proxy-key auth for dashboard-backing routes (monitoring + /v1/config/*).
+# Chat / embeddings / models stay keyed. Prefer HOST=127.0.0.1 when enabling.
+DASHBOARD_OPEN = os.environ.get("DASHBOARD_OPEN", "0").strip().lower() not in (
+    "0", "", "false", "no", "off",
+)
 # Semantic cache: serve a cached answer for a *similar* (not just identical) prompt,
 # by embedding prompts and comparing cosine similarity. Opt-in (needs an embedding
 # provider); falls back to exact match when off or unavailable.
@@ -3930,7 +3935,31 @@ def _caller_token() -> str:
     return token
 
 
+# Paths the dashboard uses for live monitoring (exact match). /v1/config/* is
+# matched by prefix in _dashboard_open_allowed.
+_DASHBOARD_OPEN_PATHS = frozenset({
+    "/v1/status",
+    "/v1/usage",
+    "/v1/capacity",
+    "/v1/rate-limits",
+    "/v1/rate-limits/clear",
+    "/v1/logs",
+})
+
+
+def _dashboard_open_allowed() -> bool:
+    """True when DASHBOARD_OPEN and this request is a dashboard-backing route."""
+    if not DASHBOARD_OPEN:
+        return False
+    path = request.path or ""
+    if path in _DASHBOARD_OPEN_PATHS:
+        return True
+    return path.startswith("/v1/config/")
+
+
 def _auth_check():
+    if _dashboard_open_allowed():
+        return None
     token = _caller_token()
     # compare_digest keeps the comparison constant-time per key
     if not any(hmac.compare_digest(token, k) for k in PROXY_API_KEYS):
@@ -4660,6 +4689,12 @@ function showPage(name) {
 }
 
 // ── key gate ──────────────────────────────────────────────────────────────────
+function dashHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  if (apiKey) h['Authorization'] = 'Bearer ' + apiKey;
+  return h;
+}
+
 (function init() {
   const initial = (location.hash || '').replace('#', '');
   if (PAGES.includes(initial)) showPage(initial);
@@ -4667,7 +4702,6 @@ function showPage(name) {
     const h = (location.hash || '').replace('#', '');
     if (PAGES.includes(h)) showPage(h);
   });
-  if (apiKey) { document.getElementById('key-gate').classList.add('hidden'); start(); }
   document.getElementById('key-input').addEventListener('keydown', e => { if (e.key==='Enter') submitKey(); });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
@@ -4679,6 +4713,18 @@ function showPage(name) {
     const modal = document.getElementById('rl-detail-modal');
     if (modal && !modal.classList.contains('hidden')) closeRateDetail();
   });
+  if (apiKey) {
+    document.getElementById('key-gate').classList.add('hidden');
+    start();
+    return;
+  }
+  // Open mode (DASHBOARD_OPEN): probe without a key; keep gate on 401.
+  fetch('/v1/status').then(r => {
+    if (r.ok) {
+      document.getElementById('key-gate').classList.add('hidden');
+      start();
+    }
+  }).catch(() => {});
 })();
 
 function submitKey() {
@@ -4697,13 +4743,14 @@ function start() { stop(); refresh(); loadConfigProviders(); timer = setInterval
 
 async function refresh() {
   try {
-    const h = { 'Authorization': 'Bearer ' + apiKey };
+    const h = dashHeaders();
     const logStatus  = document.getElementById('log-filter-status').value;
     const logEp      = document.getElementById('log-filter-endpoint').value;
     let logUrl = '/v1/logs?limit=100';
     if (logStatus) logUrl += '&status=' + logStatus;
     if (logEp)     logUrl += '&endpoint=' + logEp;
 
+    const hadKey = !!apiKey;
     const resps = await Promise.all([
       fetch('/v1/status', {headers:h}),
       fetch('/v1/usage',  {headers:h}),
@@ -4717,7 +4764,9 @@ async function refresh() {
       stop();
       apiKey = '';
       localStorage.removeItem('hermes_dash_key');
-      showGate('That key was rejected (401). It must match one of PROXY_API_KEYS.');
+      showGate(hadKey
+        ? 'That key was rejected (401). It must match one of PROXY_API_KEYS.'
+        : 'Dashboard requires an access key (open mode is off). Enter a PROXY_API_KEYS value.');
       return;
     }
     if (resps.some(r => !r.ok)) { setHeader(false, 'HTTP ' + (resps.find(r=>!r.ok)||{}).status); return; }
@@ -5151,7 +5200,7 @@ async function toggleAddon(name, enable) {
   try {
     const r = await fetch('/v1/config/features/' + name, {
       method: 'POST',
-      headers: {'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json'},
+      headers: dashHeaders({'Content-Type':'application/json'}),
       body: JSON.stringify({enabled: enable}),
     });
     const d = await r.json();
@@ -5170,7 +5219,7 @@ let configProviders = null;
 
 async function loadConfigProviders() {
   try {
-    const r = await fetch('/v1/config/providers', {headers:{'Authorization':'Bearer '+apiKey}});
+    const r = await fetch('/v1/config/providers', {headers:dashHeaders()});
     if (!r.ok) return;
     configProviders = await r.json();
     const keySel = document.getElementById('cfg-key-provider');
@@ -5209,7 +5258,7 @@ async function addKey() {
   try {
     const r = await fetch('/v1/config/keys/' + provider, {
       method: 'POST',
-      headers: {'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json'},
+      headers: dashHeaders({'Content-Type':'application/json'}),
       body: JSON.stringify({key}),
     });
     const d = await r.json();
@@ -5231,7 +5280,7 @@ function dismissBanner() { document.getElementById('restart-banner').classList.r
 async function doRestart() {
   if (!confirm('Restart the router now? It will be unreachable for a few seconds.')) return;
   try {
-    await fetch('/v1/config/restart', {method:'POST', headers:{'Authorization':'Bearer '+apiKey}});
+    await fetch('/v1/config/restart', {method:'POST', headers:dashHeaders()});
   } catch(e) { /* the process may already be going down mid-response — expected */ }
   dismissBanner();
   setStep('step-restart', true, 'restarting');
@@ -5357,7 +5406,7 @@ async function saveEditAccessKey(tail) {
   try {
     const r = await fetch('/v1/config/proxy-keys/' + tail, {
       method: 'POST',
-      headers: {'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json'},
+      headers: dashHeaders({'Content-Type':'application/json'}),
       body: JSON.stringify(body),
     });
     const d = await r.json();
@@ -5373,7 +5422,7 @@ async function revokeAccessKey(tail) {
   try {
     const r = await fetch('/v1/config/proxy-keys/' + tail, {
       method: 'DELETE',
-      headers: {'Authorization':'Bearer '+apiKey},
+      headers: dashHeaders(),
     });
     const d = await r.json();
     if (!r.ok) { alert(d.error?.message || 'Failed to revoke.'); return; }
@@ -5395,7 +5444,7 @@ async function createAccessKey() {
   try {
     const r = await fetch('/v1/config/proxy-keys', {
       method: 'POST',
-      headers: {'Authorization':'Bearer '+apiKey, 'Content-Type':'application/json'},
+      headers: dashHeaders({'Content-Type':'application/json'}),
       body: JSON.stringify(body),
     });
     const d = await r.json();
@@ -5590,7 +5639,7 @@ async function refreshRateLimits() {
     const orphansModel = document.getElementById('rl-orphans-model')?.checked;
     const includeOrphans = (orphansPw || orphansModel) ? '1' : '0';
     const r = await fetch('/v1/rate-limits?include_orphans=' + includeOrphans, {
-      headers: {'Authorization': 'Bearer ' + apiKey},
+      headers: dashHeaders(),
     });
     if (r.status === 401) return;
     if (!r.ok) return;
@@ -5907,7 +5956,7 @@ async function saveGiOverride() {
   try {
     const r = await fetch('/v1/config/gi-override', {
       method: 'PUT',
-      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      headers: dashHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify({
         provider: selectedModelRow.provider,
         model: selectedModelRow.model,
@@ -5931,7 +5980,7 @@ async function clearGiOverride() {
   try {
     const r = await fetch('/v1/config/gi-override', {
       method: 'DELETE',
-      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      headers: dashHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify({
         provider: selectedModelRow.provider,
         model: selectedModelRow.model,
@@ -5956,7 +6005,7 @@ async function clearRateGroup(id) {
   try {
     const r = await fetch('/v1/rate-limits/clear', {
       method: 'POST',
-      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      headers: dashHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify({id: gid}),
     });
     if (!r.ok) {
@@ -5975,7 +6024,7 @@ async function refreshExcludedModels() {
   if (!apiKey) return;
   try {
     const r = await fetch('/v1/config/excluded-models', {
-      headers: {'Authorization': 'Bearer ' + apiKey},
+      headers: dashHeaders(),
     });
     if (r.status === 401 || !r.ok) return;
     const data = await r.json();
@@ -6022,7 +6071,7 @@ async function blockSelectedModel() {
   try {
     const r = await fetch('/v1/config/exclude-model', {
       method: 'POST',
-      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      headers: dashHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify({provider, model, blocked: true}),
     });
     if (!r.ok) {
@@ -6044,7 +6093,7 @@ async function unblockModel(provider, model) {
   try {
     const r = await fetch('/v1/config/exclude-model', {
       method: 'POST',
-      headers: {'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json'},
+      headers: dashHeaders({'Content-Type': 'application/json'}),
       body: JSON.stringify({provider, model, blocked: false}),
     });
     if (!r.ok) {
@@ -7031,6 +7080,9 @@ def _features_snapshot() -> dict:
         {"name": "dashboard", "title": "Monitoring dashboard", "kind": "builtin",
          "enabled": True,
          "desc": "Browser-based live dashboard at /dashboard — provider health, request log, cache stats, key usage."},
+        {"name": "dashboard_open", "title": "Open dashboard (no key)", "kind": "flag",
+         "enabled": DASHBOARD_OPEN, "env": "DASHBOARD_OPEN", "on": "1", "off": "0",
+         "desc": "Allow the dashboard and its monitoring/config APIs without an access key. Chat stays keyed. Prefer HOST=127.0.0.1 — this exposes admin config to anyone who can reach the port."},
     ]
     return {"core": CORE_FEATURES, "addons": addons}
 
