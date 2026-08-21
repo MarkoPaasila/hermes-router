@@ -46,9 +46,18 @@ KEY="${PROXY_API_KEYS:-$(from_env PROXY_API_KEYS || echo 'sk-router-1')}"
 KEY="${KEY%%,*}"
 
 # Fetch the live features snapshot from the running router.
-fetch_features() {
+# Writes JSON to a temp file — /v1/status can exceed Linux MAX_ARG_STRLEN (~128KiB),
+# so we must not pass it via an environment variable into python.
+fetch_features_file() {
   command -v curl >/dev/null 2>&1 || { err "curl is not installed."; return 1; }
-  curl -fsS -H "Authorization: Bearer ${KEY}" "http://localhost:${PORT}/v1/status" 2>/dev/null
+  local out
+  out="$(mktemp)" || return 1
+  if ! curl -fsS -H "Authorization: Bearer ${KEY}" \
+      "http://localhost:${PORT}/v1/status" >"$out" 2>/dev/null; then
+    rm -f "$out"
+    return 1
+  fi
+  printf '%s' "$out"
 }
 
 # Upsert KEY=VALUE in .env (replace an existing line or append).
@@ -73,11 +82,12 @@ shift 2>/dev/null || true
 
 case "$cmd" in
   list)
-    raw="$(fetch_features)" || { err "couldn't reach the router on http://localhost:${PORT}"; \
+    status_file="$(fetch_features_file)" || { err "couldn't reach the router on http://localhost:${PORT}"; \
       err "start it with:  hr start   (or set PORT / PROXY_API_KEYS)"; exit 1; }
-    HR_JSON="$raw" "$PYTHON" - <<'PY'
-import json, os
-d = json.loads(os.environ["HR_JSON"])
+    "$PYTHON" - "$status_file" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
 f = d.get("features", {})
 RST="\033[0m"; BOLD="\033[1m"; GRN="\033[1;32m"; DIM="\033[2m"
 core = f.get("core", [])
@@ -97,16 +107,20 @@ print()
 print(f"  {DIM}Toggle a flag add-on:  hr features enable|disable <name>   then  hr restart{RST}")
 print()
 PY
+    rm -f "$status_file"
     ;;
 
   enable|disable)
     name="${1:-}"
     [ -n "$name" ] || { err "usage: hr features ${cmd} <name>"; exit 1; }
-    raw="$(fetch_features)" || { err "couldn't reach the router on http://localhost:${PORT} — start it first."; exit 1; }
+    status_file="$(fetch_features_file)" || { err "couldn't reach the router on http://localhost:${PORT} — start it first."; exit 1; }
     # Resolve the add-on from the live registry; emit a shell snippet to act on.
-    action="$(HR_JSON="$raw" NAME="$name" WANT="$cmd" "$PYTHON" - <<'PY'
-import json, os
-d = json.loads(os.environ["HR_JSON"]); name = os.environ["NAME"]; want = os.environ["WANT"]
+    # Status JSON is read from a file (argv path only) — never via env (MAX_ARG_STRLEN).
+    action="$("$PYTHON" - "$status_file" "$name" "$cmd" <<'PY'
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+name, want = sys.argv[2], sys.argv[3]
 addons = {a["name"]: a for a in d.get("features", {}).get("addons", [])}
 a = addons.get(name)
 if not a:
@@ -118,6 +132,7 @@ else:
     print(f"SET {a['env']} {a['on'] if want=='enable' else a['off']}")
 PY
 )"
+    rm -f "$status_file"
     case "$action" in
       "SET "*)
         set -- $action; set_env "$2" "$3"
