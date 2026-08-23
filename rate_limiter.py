@@ -595,13 +595,29 @@ def _dim_window_to_limit(dim: str, window: str) -> str:
     return f"{prefix}P{window}"   # e.g. "RPM", "TPD"
 
 
+def _dashboard_used(b: TokenBucket, now: float | None = None) -> float:
+    """Sliding-window spend for dashboard bars (not cap−tokens).
+
+    Net spend is preferred. When reservation release zeros net but gross debits
+    remain (consume + restore pairs from cascaded attempts), show gross so bars
+    reflect traffic the continuous bucket already saw.
+    """
+    t = time.time() if now is None else float(now)
+    b._prune_usage(t)
+    net = max(0.0, sum(a for _, a in b._usage_events))
+    if net > 1e-9:
+        return min(float(b.cap), net)
+    gross = sum(a for _, a in b._usage_events if a > 0)
+    return min(float(b.cap), max(0.0, gross))
+
+
 def _format_bucket_metrics(name: str, b: TokenBucket, *, include_tokens: bool = False) -> dict:
     """Serialize bucket metrics; RPx caps/used/tokens as ints, TPx as 1-dp floats.
 
     `used` is sliding-window spend (not cap−tokens), so continuous refill does not
     zero the dashboard bars seconds after real traffic.
     """
-    used = min(float(b.cap), b.usage_in_window())
+    used = _dashboard_used(b)
     dim = LIMIT_KEYS.get(name, (getattr(b, "dimension", "T"),))[0]
     if dim == "R":
         out = {

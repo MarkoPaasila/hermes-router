@@ -1361,6 +1361,17 @@ def test_force_consume_admits_when_empty():
     assert wait == 0.0
 
 
+def test_format_bucket_used_shows_gross_when_release_zeros_net():
+    """Cascaded consume+release pairs net to zero; dashboard still shows gross spend."""
+    from rate_limiter import TokenBucket, _format_bucket_metrics
+    b = TokenBucket(window_seconds=86400.0, cap=1500.0, tokens=882.0, dimension="R")
+    for _ in range(34):
+        b.record_usage(1.0)
+        b.record_usage(-1.0)
+    assert b.usage_in_window() == 0.0
+    assert _format_bucket_metrics("RPD", b)["used"] == 34
+
+
 def test_format_bucket_used_survives_refill():
     """Dashboard used is sliding-window spend; continuous refill must not zero it."""
     from rate_limiter import TokenBucket, _format_bucket_metrics
