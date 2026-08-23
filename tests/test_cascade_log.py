@@ -45,6 +45,8 @@ def _stub_common(monkeypatch):
             return 1
         def get_key(self, name, model, preferred=None):
             return f"sk-{name}"
+        def ready_in(self, name, model):
+            return 0.0
         def mark_key_down(self, *a, **k):
             pass
         def peek_key(self, name, model):
@@ -110,6 +112,7 @@ def test_http_429_then_success(monkeypatch):
         resp.headers = {}
         if calls["n"] == 1:
             resp.status_code = 429
+            resp.headers = {"Retry-After": "120"}
             resp.text = "rate"
             return resp
         resp.status_code = 200
@@ -124,7 +127,7 @@ def test_http_429_then_success(monkeypatch):
     assert result[0] == "json"
     fields = router._req_ctx.cascade.as_log_fields()
     assert any(s["outcome"] == "failed" and s["reason"] == "http_429"
-               for s in fields["cascade"])
+               and s.get("wait_s") == 120.0 for s in fields["cascade"])
     assert fields["cascade"][-1]["outcome"] == "success"
     assert fields["failed"] >= 1
     assert fields["cascades"] == fields["failed"] + fields["skipped"]
@@ -167,7 +170,7 @@ def test_rate_hold_skip_classified_as_skipped(monkeypatch):
     assert result[0] == "json"
     fields = router._req_ctx.cascade.as_log_fields()
     assert any(s["outcome"] == "skipped" and s["reason"] == "rate_hold"
-               for s in fields["cascade"])
+               and s.get("wait_s") == 60.0 for s in fields["cascade"])
     assert fields["cascade"][-1]["outcome"] == "success"
 
 
@@ -254,6 +257,8 @@ def test_embeddings_success_after_headroom_skip_counts_skipped(monkeypatch):
             return 1
         def get_key(self, name, model, preferred=None):
             return f"sk-{name}"
+        def ready_in(self, name, model):
+            return 0.0
         def mark_key_down(self, *a, **k):
             pass
 
@@ -280,6 +285,6 @@ def test_embeddings_success_after_headroom_skip_counts_skipped(monkeypatch):
     e = router.request_log.snapshot(limit=5)[-1]
     assert e["status"] == "success"
     assert e["skipped"] >= 1
-    assert any(s["reason"] == "rate_hold" for s in e["cascade"])
+    assert any(s["reason"] == "rate_hold" and s.get("wait_s") == 60.0 for s in e["cascade"])
     assert e["cascade"][-1]["outcome"] == "success"
     assert e["cascades"] == e["failed"] + e["skipped"]

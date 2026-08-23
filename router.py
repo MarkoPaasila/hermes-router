@@ -28,7 +28,7 @@ from pathlib import Path
 from collections import deque, OrderedDict, defaultdict
 from flask import Flask, request, jsonify, Response, stream_with_context, redirect
 import requests
-from rate_limiter import AdaptiveRateLimiter, RATE_HEADROOM_THRESHOLD, RATE_EXHAUSTED_WAIT_S, RATE_ADMIT_WAIT_S
+from rate_limiter import AdaptiveRateLimiter, RATE_HEADROOM_THRESHOLD, RATE_EXHAUSTED_WAIT_S, RATE_ADMIT_WAIT_S, _parse_retry_after
 from capacity import score_pool
 from token_caps import (
     TokenCapTracker,
@@ -37,6 +37,14 @@ from token_caps import (
 )
 from session_sticky import SessionStickyStore, resolve_session_id
 from cascade_trail import CascadeTrail, http_reason
+
+
+def _retry_after_from_headers(headers: dict) -> float | None:
+    for k, v in (headers or {}).items():
+        if k.lower() == "retry-after":
+            parsed = _parse_retry_after(v)
+            return float(parsed) if parsed else None
+    return None
 from ttft_baseline import (
     TtftBaselineStore,
     TtftDeadlineExceeded,
@@ -2346,6 +2354,15 @@ class CredentialPool:
         """How many keys exist for (provider, model) — used to bound retry attempts."""
         return len(self.pools.get(provider_name, {}).get(model, ()))
 
+    def ready_in(self, provider_name: str, model: str) -> float:
+        """Seconds until the soonest key for (provider, model) is ready, or 0."""
+        with self.lock:
+            pool = self.pools.get(provider_name, {}).get(model, deque())
+            now = time.time()
+            waits = [max(0.0, entry["cool_until"] - now) for entry in pool
+                     if entry["cool_until"] > now]
+            return min(waits) if waits else 0.0
+
     def first_key(self, provider_name: str) -> str | None:
         """Any key for a provider (from its primary model's deque) — used for probing."""
         for entries in self.pools.get(provider_name, {}).values():
@@ -4346,7 +4363,7 @@ th.sortable.sorted-desc::after{content:'↓'}
       <div id="cascade-detail-meta" class="muted" style="padding:8px 12px;font-size:12px"></div>
       <table>
         <thead><tr>
-          <th>#</th><th>Provider</th><th>Model</th><th>Outcome</th><th>Reason</th>
+          <th>#</th><th>Provider</th><th>Model</th><th>Outcome</th><th>Wait</th><th>Reason</th>
         </tr></thead>
         <tbody id="cascade-detail-tbody"></tbody>
       </table>
@@ -4862,6 +4879,20 @@ const fmt = {
   usd:  n => n == null ? '—' : (n < 0.0001 ? '<$0.0001' : '$' + n.toFixed(4)),
   uptime: s => { if (!s) return '—'; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return (h?h+'h ':'') + m+'m'; },
   time: ts => { if (!ts) return '—'; try { return new Date(ts).toLocaleTimeString(); } catch { return ts; } },
+  duration: s => {
+    if (s == null || s <= 0) return '—';
+    s = Number(s);
+    if (s < 60) return Math.round(s) + 's';
+    if (s < 3600) return Math.round(s / 60) + 'm';
+    if (s < 86400) {
+      const h = Math.floor(s / 3600);
+      const m = Math.round((s % 3600) / 60);
+      return m ? h + 'h ' + m + 'm' : h + 'h';
+    }
+    const d = Math.floor(s / 86400);
+    const h = Math.round((s % 86400) / 3600);
+    return h ? d + 'd ' + h + 'h' : d + 'd';
+  },
 };
 
 function el(tag, cls, html) {
@@ -5143,6 +5174,7 @@ function openCascadeDetail(idx) {
       <td><strong>${s.provider||'—'}</strong></td>
       <td class="mono muted">${s.model||'—'}</td>
       <td>${outcomePill(s.outcome)}</td>
+      <td class="mono muted" title="Remaining at request time">${s.outcome==='success'?'—':fmt.duration(s.wait_s)}</td>
       <td class="muted">${s.outcome==='success'?'—':cascadeReasonLabel(s.reason)}</td>
     </tr>`).join('');
   document.getElementById('cascade-detail-modal').classList.remove('hidden');
@@ -6474,7 +6506,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _fails = unsuitable_models.failures(name, model)
             log.info(f"⏭ skipping {name}/{model} (unsuitable, "
                      f"failures={_fails}, ready in {_ready:.0f}s)")
-            _crec("skip", name, model, "unsuitable_cooling")
+            _crec("skip", name, model, "unsuitable_cooling", wait_s=_ready)
             _leave_sticky_model(name, model)
             _queue_tool_last_resort()
             continue
@@ -6486,7 +6518,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                          else None)
             key = pool.get_key(name, model, preferred=preferred)
             if not key:
-                _crec("note", name, model, "skipped", "keys_cooling")
+                _crec("note", name, model, "skipped", "keys_cooling",
+                      wait_s=pool.ready_in(name, model))
                 break   # all keys for this (provider, model) are cooling → next candidate
 
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
@@ -6520,7 +6553,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
                         _best_rl_wait = float(_rl_wait)
                     log.info(f"  {name}/{model} rate hold ({_rl_wait:.1f}s) — trying next")
-                    _crec("note", name, model, "skipped", "rate_hold")
+                    _crec("note", name, model, "skipped", "rate_hold", wait_s=_rl_wait)
                     continue
             _rl_t0 = time.time()
             _req_ctx.attempts += 1
@@ -6560,7 +6593,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # network/timeout = provider health failure
                 pool.mark_key_down(name, key, retry_after=30)
-                _crec("note", name, model, "failed", "network")
+                _crec("note", name, model, "failed", "network", wait_s=30)
                 continue
 
             if resp.status_code == 429:
@@ -6573,7 +6606,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                     observed_at=_rl_t0,
                 )
                 log.warning(f"  {name}/{model} 429 — rate-limit hold, trying next")
-                _crec("note", name, model, "failed", "http_429")
+                _crec("note", name, model, "failed", "http_429",
+                      wait_s=_retry_after_from_headers(dict(resp.headers)))
                 continue
 
             if resp.status_code in (401, 403):
@@ -6655,7 +6689,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 stats.record_error(name)
                 stats.record_health(name, False)   # 5xx = provider health failure
                 pool.mark_key_down(name, key, retry_after=15)
-                _crec("note", name, model, "failed", "http_5xx")
+                _crec("note", name, model, "failed", "http_5xx", wait_s=15)
                 continue
 
             if not (200 <= resp.status_code < 300):
@@ -6775,7 +6809,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                             observed_at=_rl_t0,
                         )
                     _crec("note", name, model, "failed",
-                          "http_429" if _transient else "empty_response")
+                          "http_429" if _transient else "empty_response",
+                          wait_s=_retry_after_from_headers(dict(resp.headers)) if _transient else None)
                     break
                 if not _completion_has_output(data):
                     _rl_release()
@@ -6998,7 +7033,7 @@ def embeddings():
             key = pool.get_key(name, em)
             if not key:
                 log.warning(f"All {name} keys cooling — skipping provider")
-                trail.note(name, em, "skipped", "keys_cooling")
+                trail.note(name, em, "skipped", "keys_cooling", wait_s=pool.ready_in(name, em))
                 break
 
             log.info(f"→ Trying {name} embeddings ({em}) ...{key[-6:]}")
@@ -7022,7 +7057,7 @@ def embeddings():
                         force=True)
                 if not _rl_ok:
                     log.info(f"  {name}/{em} rate hold ({_rl_wait:.1f}s) — trying next")
-                    trail.note(name, em, "skipped", "rate_hold")
+                    trail.note(name, em, "skipped", "rate_hold", wait_s=_rl_wait)
                     continue
             _rl_t0 = time.time()
             t0   = _rl_t0
@@ -7036,7 +7071,7 @@ def embeddings():
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=30)
-                trail.note(name, em, "failed", "network")
+                trail.note(name, em, "failed", "network", wait_s=30)
                 continue
             if resp.status_code == 429:
                 _rl_release()
@@ -7047,7 +7082,8 @@ def embeddings():
                     observed_at=_rl_t0,
                 )
                 log.warning(f"  {name} embeddings 429 — rate-limit hold, trying next key")
-                trail.note(name, em, "failed", "http_429")
+                trail.note(name, em, "failed", "http_429",
+                           wait_s=_retry_after_from_headers(dict(resp.headers)))
                 continue
             if resp.status_code in (400, 401, 403, 404):
                 _rl_release()
@@ -7059,7 +7095,7 @@ def embeddings():
                 _rl_release()
                 stats.record_error(name); stats.record_health(name, False)
                 pool.mark_key_down(name, key, retry_after=15)
-                trail.note(name, em, "failed", "http_5xx")
+                trail.note(name, em, "failed", "http_5xx", wait_s=15)
                 continue
             if not (200 <= resp.status_code < 300):
                 _rl_release()

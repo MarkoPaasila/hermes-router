@@ -33,6 +33,15 @@ def test_get_key_falls_back_when_preferred_cooling():
     assert k == "key-aaaaaaa1"
 
 
+def test_ready_in_returns_soonest_key_cooldown():
+    pool = _pool_two_keys()
+    assert pool.ready_in("groq", "llama") == 0.0
+    pool.mark_key_down("groq", "key-aaaaaaa1", retry_after=30)
+    pool.mark_key_down("groq", "key-bbbbbbb2", retry_after=90)
+    wait = pool.ready_in("groq", "llama")
+    assert 0 < wait <= 30
+
+
 def test_smart_ordered_no_provider_rotation(monkeypatch):
     # Two equal-tier providers; without RR offset, order must be stable across calls
     p1 = {"name": "a", "model": "m1", "models": ["m1"], "keys": ["k1"]}

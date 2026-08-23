@@ -37,6 +37,39 @@ def test_skip_and_success_counts():
     assert fields["cascade"][-1]["reason"] is None
 
 
+def test_skip_stores_wait_s():
+    t = CascadeTrail()
+    t.skip("groq", "llama", "rate_hold", wait_s=90)
+    step = t.as_log_fields()["cascade"][0]
+    assert step["wait_s"] == 90.0
+
+
+def test_note_coalesces_wait_s_on_same_reason():
+    t = CascadeTrail()
+    t.note("groq", "llama", "skipped", "rate_hold", wait_s=30)
+    t.note("groq", "llama", "skipped", "rate_hold", wait_s=90)
+    t.flush()
+    step = t.as_log_fields()["cascade"][0]
+    assert step["reason"] == "rate_hold"
+    assert step["wait_s"] == 90.0
+
+
+def test_note_replaces_wait_s_when_reason_changes():
+    t = CascadeTrail()
+    t.note("groq", "llama", "skipped", "keys_cooling", wait_s=10)
+    t.note("groq", "llama", "failed", "http_429", wait_s=120)
+    t.flush()
+    step = t.as_log_fields()["cascade"][0]
+    assert step["reason"] == "http_429"
+    assert step["wait_s"] == 120.0
+
+
+def test_wait_s_omitted_when_zero():
+    t = CascadeTrail()
+    t.skip("groq", "llama", "token_cap", wait_s=0)
+    assert "wait_s" not in t.as_log_fields()["cascade"][0]
+
+
 def test_note_coalesces_keys_preferring_informative_reason():
     t = CascadeTrail()
     t.note("groq", "llama", "skipped", "keys_cooling")

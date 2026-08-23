@@ -63,31 +63,53 @@ def _prio(reason: str) -> int:
     return _REASON_PRIORITY.get(reason, 10)
 
 
+def _step(provider: str, model: str, outcome: str, reason: str,
+          wait_s: float | None = None) -> dict:
+    step = {
+        "provider": provider, "model": model,
+        "outcome": outcome, "reason": reason,
+    }
+    if wait_s is not None and wait_s > 0:
+        step["wait_s"] = float(wait_s)
+    return step
+
+
+def _merge_wait(existing: dict, wait_s: float | None, *, replace: bool) -> None:
+    if wait_s is None or wait_s <= 0:
+        if replace:
+            existing.pop("wait_s", None)
+        return
+    if replace:
+        existing["wait_s"] = float(wait_s)
+    else:
+        existing["wait_s"] = max(float(existing.get("wait_s") or 0), float(wait_s))
+
+
 class CascadeTrail:
     def __init__(self) -> None:
         self.steps: list[dict] = []
         self._open: dict | None = None
 
-    def skip(self, provider: str, model: str, reason: str) -> None:
+    def skip(self, provider: str, model: str, reason: str,
+             wait_s: float | None = None) -> None:
         self.flush()
-        self.steps.append({
-            "provider": provider, "model": model,
-            "outcome": "skipped", "reason": reason,
-        })
+        self.steps.append(_step(provider, model, "skipped", reason, wait_s))
 
-    def note(self, provider: str, model: str, outcome: str, reason: str) -> None:
+    def note(self, provider: str, model: str, outcome: str, reason: str,
+             wait_s: float | None = None) -> None:
         if self._open and (self._open["provider"] != provider or self._open["model"] != model):
             self.flush()
         if self._open is None:
-            self._open = {
-                "provider": provider, "model": model,
-                "outcome": outcome, "reason": reason,
-            }
+            self._open = _step(provider, model, outcome, reason, wait_s)
             return
         if outcome == "failed" and self._open["outcome"] != "failed":
             self._open["outcome"] = "failed"
         if _prio(reason) >= _prio(self._open["reason"]):
-            self._open["reason"] = reason
+            if reason != self._open["reason"]:
+                self._open["reason"] = reason
+                _merge_wait(self._open, wait_s, replace=True)
+            else:
+                _merge_wait(self._open, wait_s, replace=False)
 
     def flush(self) -> None:
         if self._open is not None:
@@ -96,10 +118,7 @@ class CascadeTrail:
 
     def success(self, provider: str, model: str) -> None:
         self.flush()
-        self.steps.append({
-            "provider": provider, "model": model,
-            "outcome": "success", "reason": None,
-        })
+        self.steps.append(_step(provider, model, "success", None))
 
     def as_log_fields(self) -> dict:
         self.flush()
