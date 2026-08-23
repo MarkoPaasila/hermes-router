@@ -44,7 +44,7 @@ class TtftBaselineStore:
         cold_deadline_s: float | None = None,
         alpha: float | None = None,
     ):
-        self.floor_s = float(floor_s if floor_s is not None else _float_env("TTFT_FLOOR_S", 3.0))
+        self.floor_s = float(floor_s if floor_s is not None else _float_env("TTFT_FLOOR_S", 5.0))
         self.mult = float(mult if mult is not None else _float_env("TTFT_MULT", 3.0))
         self.min_samples = int(
             min_samples if min_samples is not None else _int_env("TTFT_MIN_SAMPLES", 5)
