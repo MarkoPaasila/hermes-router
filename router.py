@@ -4140,14 +4140,14 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
   width:min(720px,92vw);max-height:min(80vh,640px);display:flex;flex-direction:column;overflow:hidden}
 .rl-detail-box .panel-header{flex:0 0 auto}
 .rl-detail-actions{display:flex;gap:8px;align-items:center}
-.rl-detail-box .panel-body{overflow:auto;flex:1;min-height:0;padding:0}
+.rl-detail-box .panel-body{overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;padding:0}
 .rl-key-section{padding:12px 14px;border-bottom:1px solid var(--border)}
 .rl-key-section:last-child{border-bottom:none}
 .rl-key-section-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .rl-key-section-label{display:flex;align-items:center;gap:6px;font-size:12px}
 .rl-dim-sep{height:1px;background:var(--border);margin:10px 0 8px;opacity:.85}
-.rl-bar-row{display:grid;grid-template-columns:42px 1fr 2.5em 3.5em;align-items:center;gap:8px;
-  margin:5px 0;font-size:11px}
+.rl-bar-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto auto;align-items:center;gap:8px;
+  margin:5px 0;font-size:11px;min-width:0}
 .rl-bar-row.muted{opacity:.45}
 .rl-bar-name{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
 .rl-bar-track{min-width:0;height:16px;background:var(--bg);border:1px solid var(--border);
@@ -4155,8 +4155,8 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
 .rl-bar-fill{height:100%;background:var(--accent);border-radius:3px;display:flex;align-items:center;
   justify-content:flex-end;padding:0 4px;box-sizing:border-box;min-width:0;max-width:100%;
   color:#fff;font-size:10px;font-weight:600;white-space:nowrap}
-.rl-bar-used-out{font-size:10px;color:var(--muted);text-align:right}
-.rl-bar-cap{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.rl-bar-used-out{font-size:10px;color:var(--muted);text-align:right;white-space:nowrap}
+.rl-bar-cap{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 
 /* ── stat cards ── */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -5889,9 +5889,15 @@ function closeRateDetail() {
 
 function _rlFmtAmt(n) {
   if (n == null || !isFinite(n)) return '—';
-  if (Math.abs(n) >= 1000) return fmt.num(Math.round(n));
+  if (Math.abs(n) >= 1000) return fmt.tok(Math.round(n));
   if (Math.abs(n) >= 10) return String(Math.round(n * 10) / 10);
   return String(Math.round(n * 100) / 100);
+}
+
+function _rlFmtAmtTitle(n) {
+  if (n == null || !isFinite(n)) return '';
+  if (Math.abs(n) >= 1000) return fmt.num(Math.round(n));
+  return '';
 }
 
 function _rlBucketBarRow(name, b) {
@@ -5902,15 +5908,19 @@ function _rlBucketBarRow(name, b) {
   const muted = b.active ? '' : ' muted';
   const usedLabel = _rlFmtAmt(used);
   const capLabel = _rlFmtAmt(cap);
+  const usedTitle = _rlFmtAmtTitle(used);
+  const capTitle = _rlFmtAmtTitle(cap);
   const fillInner = usedInside ? esc(usedLabel) : '';
   const usedOutContent = usedInside ? '' : esc(usedLabel);
+  const usedTitleAttr = usedTitle ? ` title="${attr(usedTitle)}"` : '';
+  const capTitleAttr = capTitle ? ` title="${attr(capTitle)}"` : '';
   return `<div class="rl-bar-row${muted}">
     <span class="rl-bar-name">${esc(name)}</span>
     <div class="rl-bar-track">
       <div class="rl-bar-fill" style="width:${pct}%">${fillInner}</div>
     </div>
-    <span class="rl-bar-used-out">${usedOutContent}</span>
-    <span class="rl-bar-cap">${esc(capLabel)}</span>
+    <span class="rl-bar-used-out"${usedTitleAttr}>${usedOutContent}</span>
+    <span class="rl-bar-cap"${capTitleAttr}>${esc(capLabel)}</span>
   </div>`;
 }
 
