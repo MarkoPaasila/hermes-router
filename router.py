@@ -4146,17 +4146,17 @@ main{padding:18px 20px;display:grid;gap:16px;max-width:1180px;margin:0 auto;widt
 .rl-key-section-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .rl-key-section-label{display:flex;align-items:center;gap:6px;font-size:12px}
 .rl-dim-sep{height:1px;background:var(--border);margin:10px 0 8px;opacity:.85}
-.rl-bar-row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:11px}
+.rl-bar-row{display:grid;grid-template-columns:42px 1fr 2.5em 3.5em;align-items:center;gap:8px;
+  margin:5px 0;font-size:11px}
 .rl-bar-row.muted{opacity:.45}
-.rl-bar-name{flex:0 0 42px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
-.rl-bar-track{flex:1;min-width:0;height:16px;background:var(--bg);border:1px solid var(--border);
+.rl-bar-name{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.rl-bar-track{min-width:0;height:16px;background:var(--bg);border:1px solid var(--border);
   border-radius:4px;position:relative;overflow:hidden}
 .rl-bar-fill{height:100%;background:var(--accent);border-radius:3px;display:flex;align-items:center;
   justify-content:flex-end;padding:0 4px;box-sizing:border-box;min-width:0;max-width:100%;
   color:#fff;font-size:10px;font-weight:600;white-space:nowrap}
-.rl-bar-used-out{flex:0 0 auto;font-size:10px;color:var(--muted);min-width:2.5em}
-.rl-bar-cap{flex:0 0 auto;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;
-  min-width:3.5em;text-align:right}
+.rl-bar-used-out{font-size:10px;color:var(--muted);text-align:right}
+.rl-bar-cap{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
 
 /* ── stat cards ── */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -5903,15 +5903,13 @@ function _rlBucketBarRow(name, b) {
   const usedLabel = _rlFmtAmt(used);
   const capLabel = _rlFmtAmt(cap);
   const fillInner = usedInside ? esc(usedLabel) : '';
-  const usedOut = usedInside
-    ? ''
-    : `<span class="rl-bar-used-out">${esc(usedLabel)}</span>`;
+  const usedOutContent = usedInside ? '' : esc(usedLabel);
   return `<div class="rl-bar-row${muted}">
     <span class="rl-bar-name">${esc(name)}</span>
     <div class="rl-bar-track">
       <div class="rl-bar-fill" style="width:${pct}%">${fillInner}</div>
     </div>
-    ${usedOut}
+    <span class="rl-bar-used-out">${usedOutContent}</span>
     <span class="rl-bar-cap">${esc(capLabel)}</span>
   </div>`;
 }
