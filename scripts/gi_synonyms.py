@@ -213,10 +213,14 @@ def allows_synonym_target(
     extra = sibling_tokens(catalog_id) - sibling_tokens(snapshot_key)
     if not extra:
         return True
-    return (
-        graph.trusted_pair(catalog_id, synonym)
-        or graph.trusted_pair(catalog_id, snapshot_key)
-        or graph.trusted_pair(synonym, snapshot_key)
+    # A trusted catalog↔synonym edge only proves spelling equivalence; it cannot
+    # license dropping a size/tier token on the way to snapshot_key.
+    if sibling_tokens(synonym) - sibling_tokens(snapshot_key):
+        return graph.trusted_pair(synonym, snapshot_key) or graph.trusted_pair(
+            catalog_id, snapshot_key
+        )
+    return graph.trusted_pair(catalog_id, synonym) or graph.trusted_pair(
+        synonym, snapshot_key
     )
 
 

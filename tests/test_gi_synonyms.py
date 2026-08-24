@@ -136,6 +136,21 @@ def test_resolve_via_synonyms_allows_mini_with_trusted_hf_or_alias():
     ) == "gpt-4o"
 
 
+def test_resolve_via_synonyms_alias_target_cannot_drop_mini_on_snapshot_match():
+    g = syn.SynonymGraph()
+    syn.add_openrouter_edges(g, {"data": [{
+        "id": "~openai/gpt-mini-latest",
+        "alias_target": {"slug": "openai/gpt-5.4-mini"},
+    }]})
+
+    assert syn.resolve_via_synonyms(
+        "~openai/gpt-mini-latest",
+        {"gpt-5.4"},
+        g,
+        match_fn=refresh.deterministic_match,
+    ) is None
+
+
 def test_resolve_catalog_aliases_skips_exact_deterministic_already_matched():
     # resolve_catalog_aliases only emits aliases when norm != hit and hit in models
     g = syn.SynonymGraph()

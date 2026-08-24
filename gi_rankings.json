@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-08-24T19:22:58Z",
+  "generated_at": "2026-08-24T19:37:14Z",
   "sources": [
     "artificial_analysis",
     "lmsys",
@@ -69,7 +69,6 @@
     "gpt-5.6-terra": "gpt-5",
     "gpt-5.6-terra-pro": "gpt-5",
     "gpt-latest": "gpt-5",
-    "gpt-mini-latest": "gpt-5.4",
     "grok-4.20": "grok-4",
     "grok-4.20-multi-agent": "grok-4",
     "grok-4.6": "grok-4",
@@ -4712,12 +4711,12 @@
   },
   "note": "LMSYS Arena 2026-08-24 text+code Elo (mean of boards) overlaid onto prior lmsys.json; AA export 2026-08-24; seed retained for seed-only prior ids; OpenRouter+LiteLLM synonym aliases.",
   "coverage": {
-    "matched": 1129,
+    "matched": 1128,
     "total": 1262,
-    "pct": 89.461,
+    "pct": 89.382,
     "via": {
       "deterministic": 1122,
-      "synonym": 7,
+      "synonym": 6,
       "llm": 0
     }
   }
