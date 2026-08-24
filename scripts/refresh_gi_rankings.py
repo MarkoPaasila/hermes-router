@@ -214,6 +214,61 @@ def build_models_from_sources(
     return models
 
 
+def _load_synonym_sources(
+    *,
+    offline: bool,
+    openrouter: Path | None,
+    litellm: Path | None,
+    llm_aliases: Path | None,
+    openrouter_payload,
+    litellm_payload,
+    fetch_openrouter,
+    fetch_litellm,
+) -> tuple[object | None, object | None, dict[str, str]]:
+    import gi_synonyms as syn
+
+    plugin_path = llm_aliases or syn.DEFAULT_PLUGIN_ALIASES_PATH
+    plugins = syn.load_plugin_aliases(plugin_path)
+
+    or_data = openrouter_payload
+    if or_data is None:
+        if openrouter is not None:
+            or_data = syn.load_json_file(openrouter)
+            if or_data is None:
+                raise SystemExit(f"OpenRouter file unreadable: {openrouter}")
+        elif offline:
+            path = syn.DEFAULT_OPENROUTER_PATH
+            or_data = syn.load_json_file(path)
+            if or_data is None:
+                raise SystemExit(f"--offline requires OpenRouter file at {path}")
+        else:
+            fetch = fetch_openrouter or (lambda: syn.fetch_json(syn.OPENROUTER_URL))
+            try:
+                or_data = fetch()
+            except Exception as e:
+                raise SystemExit(f"OpenRouter fetch failed: {e}") from e
+
+    lt_data = litellm_payload
+    if lt_data is None:
+        if litellm is not None:
+            lt_data = syn.load_json_file(litellm)
+            if lt_data is None:
+                raise SystemExit(f"LiteLLM file unreadable: {litellm}")
+        elif offline:
+            path = syn.DEFAULT_LITELLM_PATH
+            lt_data = syn.load_json_file(path)
+            if lt_data is None:
+                raise SystemExit(f"--offline requires LiteLLM file at {path}")
+        else:
+            fetch = fetch_litellm or (lambda: syn.fetch_json(syn.LITELLM_URL))
+            try:
+                lt_data = fetch()
+            except Exception as e:
+                raise SystemExit(f"LiteLLM fetch failed: {e}") from e
+
+    return or_data, lt_data, plugins
+
+
 def run_refresh(
     *,
     lmsys: Path | None,
@@ -223,6 +278,14 @@ def run_refresh(
     use_llm: bool = False,
     llm_propose: Callable[[list[str], set[str]], dict[str, str | None]] | None = None,
     coverage_floor: float = DEFAULT_COVERAGE_FLOOR,
+    openrouter: Path | None = None,
+    litellm: Path | None = None,
+    llm_aliases: Path | None = None,
+    offline: bool = False,
+    openrouter_payload: object | None = None,
+    litellm_payload: object | None = None,
+    fetch_openrouter: Callable[[], object] | None = None,
+    fetch_litellm: Callable[[], object] | None = None,
 ) -> int:
     """Build snapshot. Returns 0 on success, 1 if catalog coverage below floor."""
     sources_raw = {
@@ -246,36 +309,80 @@ def run_refresh(
     exit_code = 0
 
     if catalog is not None:
+        import gi_synonyms as syn
+
         catalog_ids = load_catalog_ids(catalog)
-        matched = 0
+        via = {"deterministic": 0, "synonym": 0, "llm": 0}
         unmatched: list[str] = []
         for cid in catalog_ids:
             hit = deterministic_match(cid, known_keys)
             if hit is not None:
-                matched += 1
+                via["deterministic"] += 1
                 norm = gi_ranking.normalize_model_id(cid) or cid.strip().lower()
                 if norm and norm != hit and hit in models:
                     aliases[norm] = hit
             else:
                 unmatched.append(cid)
 
+        or_data, lt_data, plugins = _load_synonym_sources(
+            offline=offline,
+            openrouter=openrouter,
+            litellm=litellm,
+            llm_aliases=llm_aliases,
+            openrouter_payload=openrouter_payload,
+            litellm_payload=litellm_payload,
+            fetch_openrouter=fetch_openrouter,
+            fetch_litellm=fetch_litellm,
+        )
+        graph = syn.build_synonym_graph(
+            openrouter=or_data,
+            litellm=lt_data,
+            plugin_aliases=plugins,
+        )
+        syn_aliases = syn.resolve_catalog_aliases(
+            unmatched,
+            known_keys,
+            graph,
+            set(models.keys()),
+            match_fn=deterministic_match,
+        )
+        for sk, tk in syn_aliases.items():
+            aliases[sk] = tk
+            via["synonym"] += 1
+
+        still: list[str] = []
+        for cid in unmatched:
+            norm = gi_ranking.normalize_model_id(cid) or cid.strip().lower()
+            if norm in aliases and aliases[norm] in models:
+                continue
+            if deterministic_match(cid, known_keys):
+                continue
+            still.append(cid)
+        unmatched = still
+
         if use_llm and unmatched:
             propose = llm_propose or default_llm_propose
             proposals = propose(unmatched, set(models.keys()))
             filtered = filter_llm_proposals(proposals, set(models.keys()))
+            unmatched_norms = {
+                gi_ranking.normalize_model_id(cid) or cid.strip().lower()
+                for cid in unmatched
+            }
             for sk, tk in filtered.items():
                 aliases[sk] = tk
-            # Recompute matched with aliases applied
-            matched = 0
-            for cid in catalog_ids:
-                if deterministic_match(cid, known_keys):
-                    matched += 1
-                    continue
-                norm = gi_ranking.normalize_model_id(cid) or cid.strip().lower()
-                if norm in aliases and aliases[norm] in models:
-                    matched += 1
+                if sk in unmatched_norms:
+                    via["llm"] += 1
 
+        matched = 0
+        for cid in catalog_ids:
+            if deterministic_match(cid, known_keys):
+                matched += 1
+                continue
+            norm = gi_ranking.normalize_model_id(cid) or cid.strip().lower()
+            if norm in aliases and aliases[norm] in models:
+                matched += 1
         coverage = coverage_summary(matched, len(catalog_ids))
+        coverage["via"] = via
         pct_frac = (coverage["pct"] / 100.0) if coverage["total"] else 1.0
         if pct_frac < coverage_floor:
             exit_code = 1
@@ -309,6 +416,10 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--aa", type=Path, default=None, help="Artificial Analysis scores JSON")
     ap.add_argument("--catalog", type=Path, default=None, help="Runtime catalog model ids JSON")
     ap.add_argument("--llm", action="store_true", help="Propose aliases for unmatched via LLM")
+    ap.add_argument("--openrouter", type=Path, default=None)
+    ap.add_argument("--litellm", type=Path, default=None)
+    ap.add_argument("--llm-aliases", type=Path, default=None)
+    ap.add_argument("--offline", action="store_true")
     ap.add_argument("--out", type=Path, default=ROOT / "gi_rankings.json")
     ap.add_argument(
         "--coverage-floor",
@@ -325,6 +436,10 @@ def main(argv: list[str] | None = None) -> None:
         catalog=args.catalog,
         use_llm=args.llm,
         coverage_floor=args.coverage_floor,
+        openrouter=args.openrouter,
+        litellm=args.litellm,
+        llm_aliases=args.llm_aliases,
+        offline=args.offline,
     )
     raise SystemExit(code)
 

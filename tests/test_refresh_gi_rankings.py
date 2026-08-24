@@ -111,6 +111,9 @@ def test_build_doc_includes_aliases_and_coverage(tmp_path):
         use_llm=True,
         llm_propose=fake_llm,
         coverage_floor=0.5,  # 2/3 ≈ 66% would fail at 80%; use 50% for this unit test
+        offline=True,
+        openrouter_payload={},
+        litellm_payload={},
     )
     assert code == 0
     doc = json.loads(out.read_text())
@@ -134,7 +137,65 @@ def test_run_refresh_fails_below_coverage_floor(tmp_path):
         catalog=catalog,
         use_llm=False,
         coverage_floor=0.8,
+        offline=True,
+        openrouter_payload={},
+        litellm_payload={},
     )
     assert code == 1
     # Still writes the file for inspection
     assert out.exists()
+
+
+def test_run_refresh_synonym_before_llm(tmp_path):
+    lmsys = tmp_path / "lmsys.json"
+    lmsys.write_text(json.dumps([{"id": "cool-model-v2", "score": 1000}]))
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps(["vendor/cool-model-latest", "unknown-xyz"]))
+    out = tmp_path / "out.json"
+    or_payload = {"data": [{
+        "id": "vendor/cool-model-latest",
+        "canonical_slug": "vendor/cool-model-latest",
+        "alias_target": {"slug": "vendor/cool-model-v2"},
+    }]}
+
+    def fake_llm(unmatched, known):
+        assert unmatched == ["unknown-xyz"]
+        return {}
+
+    code = refresh.run_refresh(
+        lmsys=lmsys,
+        aa=None,
+        out=out,
+        catalog=catalog,
+        use_llm=True,
+        llm_propose=fake_llm,
+        coverage_floor=0.4,
+        offline=True,
+        openrouter_payload=or_payload,
+        litellm_payload={},  # empty ok
+        llm_aliases=tmp_path / "missing-plugins.json",
+    )
+    assert code == 0
+    doc = json.loads(out.read_text())
+    assert doc["aliases"].get("cool-model-latest") == "cool-model-v2"
+    assert doc["coverage"]["via"]["synonym"] >= 1
+
+
+def test_run_refresh_offline_missing_openrouter_exits(tmp_path):
+    lmsys = tmp_path / "lmsys.json"
+    lmsys.write_text(json.dumps([{"id": "gpt-4o", "score": 1}]))
+    catalog = tmp_path / "c.json"
+    catalog.write_text(json.dumps(["gpt-4o"]))
+    litellm = tmp_path / "litellm.json"
+    litellm.write_text("{}")
+    out = tmp_path / "out.json"
+    with pytest.raises(SystemExit, match="OpenRouter"):
+        refresh.run_refresh(
+            lmsys=lmsys,
+            aa=None,
+            out=out,
+            catalog=catalog,
+            offline=True,
+            openrouter=tmp_path / "nope-or.json",
+            litellm=litellm,
+        )
