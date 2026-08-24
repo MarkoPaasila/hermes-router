@@ -14,6 +14,28 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import refresh_gi_rankings as refresh  # noqa: E402
 
 
+def test_apply_seed_overlay_retains_seed_only_ids():
+    models = {
+        "gpt-4o": {"gi": 90.0, "sources": {"lmsys": 90.0}},
+    }
+    prior = {
+        "models": {
+            "gpt-4o": {"gi": 88.0, "sources": {"lmsys": 88.0}},
+            "big-pickle": {"gi": 72.0, "sources": {"seed": 72.0}},
+            "old-lmsys-only": {"gi": 50.0, "sources": {"lmsys": 50.0}},
+        }
+    }
+    out = refresh.apply_seed_overlay(models, prior)
+    assert out["gpt-4o"]["gi"] == 90.0  # not overwritten
+    assert out["big-pickle"] == {"gi": 72.0, "sources": {"seed": 72.0}}
+    assert "old-lmsys-only" not in out  # only seed-only retained here
+
+
+def test_apply_seed_overlay_none_prior_noop():
+    models = {"a": {"gi": 1.0, "sources": {"lmsys": 1.0}}}
+    assert refresh.apply_seed_overlay(models, None) == models
+
+
 def test_coverage_pct():
     assert refresh.coverage_summary(80, 100) == {"matched": 80, "total": 100, "pct": 80.0}
     assert refresh.coverage_summary(0, 0) == {"matched": 0, "total": 0, "pct": 100.0}

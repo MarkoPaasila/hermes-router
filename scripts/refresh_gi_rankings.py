@@ -214,6 +214,29 @@ def build_models_from_sources(
     return models
 
 
+def apply_seed_overlay(
+    models: dict[str, dict],
+    prior_snapshot: dict | None,
+) -> dict[str, dict]:
+    if not prior_snapshot or not isinstance(prior_snapshot.get("models"), dict):
+        return models
+    out = dict(models)
+    for mid, entry in prior_snapshot["models"].items():
+        if mid in out:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        src = entry.get("sources") or {}
+        if set(src.keys()) != {"seed"}:
+            continue
+        try:
+            gi = float(entry.get("gi", src.get("seed")))
+        except (TypeError, ValueError):
+            continue
+        out[mid] = {"gi": round(gi, 2), "sources": {"seed": round(gi, 2)}}
+    return out
+
+
 def _load_synonym_sources(
     *,
     offline: bool,
@@ -286,6 +309,9 @@ def run_refresh(
     litellm_payload: object | None = None,
     fetch_openrouter: Callable[[], object] | None = None,
     fetch_litellm: Callable[[], object] | None = None,
+    prior_snapshot: dict | None = None,
+    prior_snapshot_path: Path | None = None,
+    note: str | None = None,
 ) -> int:
     """Build snapshot. Returns 0 on success, 1 if catalog coverage below floor."""
     sources_raw = {
@@ -296,7 +322,11 @@ def run_refresh(
     if not present:
         raise SystemExit("Provide at least one of --lmsys / --aa with score entries")
 
+    if prior_snapshot is None and prior_snapshot_path and prior_snapshot_path.exists():
+        prior_snapshot = json.loads(prior_snapshot_path.read_text())
+
     models = build_models_from_sources(present)
+    models = apply_seed_overlay(models, prior_snapshot)
     known_keys = set(models.keys())
     # Also allow matching on normalized forms of keys
     for k in list(known_keys):
@@ -396,10 +426,22 @@ def run_refresh(
     doc: dict = {
         "version": 1,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "sources": sorted(present.keys()),
+        "sources": sorted(
+            set(present.keys())
+            | (
+                {"seed"}
+                if any(
+                    "seed" in (m.get("sources") or {})
+                    for m in models.values()
+                )
+                else set()
+            )
+        ),
         "aliases": dict(sorted(aliases.items())),
         "models": models,
     }
+    if note:
+        doc["note"] = note
     if coverage is not None:
         doc["coverage"] = coverage
 
@@ -420,6 +462,13 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--litellm", type=Path, default=None)
     ap.add_argument("--llm-aliases", type=Path, default=None)
     ap.add_argument("--offline", action="store_true")
+    ap.add_argument(
+        "--prior",
+        type=Path,
+        default=None,
+        help="Prior gi_rankings.json for seed-only retention (default: gi_rankings.json if present)",
+    )
+    ap.add_argument("--note", type=str, default=None, help="Optional note stored in output JSON")
     ap.add_argument("--out", type=Path, default=ROOT / "gi_rankings.json")
     ap.add_argument(
         "--coverage-floor",
@@ -428,6 +477,11 @@ def main(argv: list[str] | None = None) -> None:
         help="Fail if catalog coverage fraction is below this (default 0.8)",
     )
     args = ap.parse_args(argv)
+
+    prior_path = args.prior
+    if prior_path is None:
+        default_prior = ROOT / "gi_rankings.json"
+        prior_path = default_prior if default_prior.exists() else None
 
     code = run_refresh(
         lmsys=args.lmsys,
@@ -440,6 +494,8 @@ def main(argv: list[str] | None = None) -> None:
         litellm=args.litellm,
         llm_aliases=args.llm_aliases,
         offline=args.offline,
+        prior_snapshot_path=prior_path,
+        note=args.note,
     )
     raise SystemExit(code)
 
