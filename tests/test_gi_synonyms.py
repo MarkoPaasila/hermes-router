@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import gi_synonyms as syn  # noqa: E402
+import refresh_gi_rankings as refresh  # noqa: E402
 
 
 def test_strip_calendar_suffix():
@@ -99,3 +100,53 @@ def test_add_plugin_alias_edges():
     g = syn.SynonymGraph()
     syn.add_plugin_alias_edges(g, {"flash": "gemini-2.5-flash"})
     assert "gemini-2.5-flash" in g.component("flash")
+
+
+def test_resolve_via_synonyms_alias_target():
+    g = syn.SynonymGraph()
+    syn.add_openrouter_edges(g, {"data": [{
+        "id": "vendor/cool-model-latest",
+        "canonical_slug": "vendor/cool-model-latest",
+        "alias_target": {"slug": "vendor/cool-model-v2"},
+    }]})
+    known = {"cool-model-v2"}
+    hit = syn.resolve_via_synonyms(
+        "vendor/cool-model-latest", known, g, match_fn=refresh.deterministic_match
+    )
+    assert hit == "cool-model-v2"
+
+
+def test_resolve_via_synonyms_blocks_mini_to_base_without_trusted_edge():
+    g = syn.SynonymGraph()
+    # Untrusted link only (both nodes present via identity-style add through a shared bogus bridge)
+    g.add("gpt-4o-mini", "gpt-4o-bridge")
+    g.add("gpt-4o", "gpt-4o-bridge")
+    known = {"gpt-4o"}
+    assert syn.resolve_via_synonyms(
+        "openai/gpt-4o-mini", known, g, match_fn=refresh.deterministic_match
+    ) is None
+
+
+def test_resolve_via_synonyms_allows_mini_with_trusted_hf_or_alias():
+    g = syn.SynonymGraph()
+    g.add("gpt-4o-mini", "gpt-4o", trusted=True)
+    known = {"gpt-4o"}
+    assert syn.resolve_via_synonyms(
+        "openai/gpt-4o-mini", known, g, match_fn=refresh.deterministic_match
+    ) == "gpt-4o"
+
+
+def test_resolve_catalog_aliases_skips_exact_deterministic_already_matched():
+    # resolve_catalog_aliases only emits aliases when norm != hit and hit in models
+    g = syn.SynonymGraph()
+    syn.add_plugin_alias_edges(g, {"deepseek-chat-v3": "deepseek-v3"})
+    aliases = syn.resolve_catalog_aliases(
+        ["deepseek/deepseek-chat-v3", "gpt-4o"],
+        known_keys={"deepseek-v3", "gpt-4o"},
+        graph=g,
+        models={"deepseek-v3", "gpt-4o"},
+        match_fn=refresh.deterministic_match,
+    )
+    assert aliases.get("deepseek-chat-v3") == "deepseek-v3"
+    # gpt-4o exact — may omit alias when norm == hit
+    assert "gpt-4o" not in aliases or aliases["gpt-4o"] == "gpt-4o"

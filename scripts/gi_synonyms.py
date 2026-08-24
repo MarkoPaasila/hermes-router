@@ -190,3 +190,74 @@ def build_synonym_graph(
     add_litellm_edges(g, litellm)
     add_plugin_alias_edges(g, plugin_aliases)
     return g
+
+
+_SIBLING_RE = re.compile(r"(^|[-_])(mini|lite|flash)([-_]|$)", re.I)
+
+
+def sibling_tokens(model_id: str) -> frozenset[str]:
+    s = (model_id or "").strip().lower()
+    return frozenset(m.group(2).lower() for m in _SIBLING_RE.finditer(s))
+
+
+def allows_synonym_target(
+    catalog_id: str,
+    synonym: str,
+    snapshot_key: str,
+    graph: SynonymGraph,
+) -> bool:
+    cat_mod = gi_ranking.modality_tokens(catalog_id)
+    key_mod = gi_ranking.modality_tokens(snapshot_key)
+    if cat_mod - key_mod:
+        return False
+    extra = sibling_tokens(catalog_id) - sibling_tokens(snapshot_key)
+    if not extra:
+        return True
+    return (
+        graph.trusted_pair(catalog_id, synonym)
+        or graph.trusted_pair(catalog_id, snapshot_key)
+        or graph.trusted_pair(synonym, snapshot_key)
+    )
+
+
+def resolve_via_synonyms(
+    catalog_id: str,
+    known_keys: set[str],
+    graph: SynonymGraph,
+    match_fn=None,
+) -> str | None:
+    """Walk synonym component only (caller already tried deterministic_match)."""
+    if match_fn is None:
+        from refresh_gi_rankings import deterministic_match as match_fn
+    best: str | None = None
+    for syn_name in graph.component(catalog_id):
+        hit = match_fn(syn_name, known_keys)
+        if hit is None:
+            continue
+        if not allows_synonym_target(catalog_id, syn_name, hit, graph):
+            continue
+        if best is None or len(hit) > len(best) or (len(hit) == len(best) and hit < best):
+            best = hit
+    return best
+
+
+def resolve_catalog_aliases(
+    catalog_ids: list[str],
+    known_keys: set[str],
+    graph: SynonymGraph,
+    models: set[str],
+    match_fn=None,
+) -> dict[str, str]:
+    if match_fn is None:
+        from refresh_gi_rankings import deterministic_match as match_fn
+    out: dict[str, str] = {}
+    for cid in catalog_ids:
+        if match_fn(cid, known_keys) is not None:
+            continue  # deterministic path handled by refresh
+        hit = resolve_via_synonyms(cid, known_keys, graph, match_fn=match_fn)
+        if hit is None or hit not in models:
+            continue
+        norm = gi_ranking.normalize_model_id(cid) or cid.strip().lower()
+        if norm and norm != hit:
+            out[norm] = hit
+    return out
