@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import logging
 import re
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -102,3 +104,89 @@ def load_plugin_aliases(path: Path | None) -> dict[str, str]:
         if sk and tv:
             out[sk] = tv
     return out
+
+
+def load_json_file(path: Path) -> object | None:
+    if not path.exists():
+        log.warning("[gi-synonyms] missing JSON file %s", path)
+        return None
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("[gi-synonyms] could not read %s: %s", path, e)
+        return None
+
+
+def fetch_json(url: str, timeout: float = 60.0) -> object:
+    req = urllib.request.Request(url, headers={"User-Agent": "hermes-router-gi-refresh"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode())
+
+
+def add_openrouter_edges(graph: SynonymGraph, payload: object) -> None:
+    if payload is None:
+        return
+    items = payload.get("data") if isinstance(payload, dict) else payload
+    if not isinstance(items, list):
+        log.warning("[gi-synonyms] openrouter payload not a list")
+        return
+    by_hf: dict[str, list[str]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        mid = (item.get("id") or "").strip()
+        if not mid:
+            continue
+        graph.add(mid, mid)
+        slug = (item.get("canonical_slug") or "").strip()
+        if slug:
+            graph.add(mid, slug)
+            stripped = strip_calendar_suffix(slug)
+            if stripped and stripped != slug:
+                graph.add(mid, stripped)
+        at = item.get("alias_target")
+        if isinstance(at, dict):
+            target = (at.get("slug") or "").strip()
+            if target:
+                graph.add(mid, target, trusted=True)
+        hf = item.get("hugging_face_id")
+        if isinstance(hf, str) and hf.strip():
+            by_hf.setdefault(hf.strip(), []).append(mid)
+    for _hf, ids in by_hf.items():
+        for i in range(1, len(ids)):
+            graph.add(ids[0], ids[i], trusted=True)
+
+
+def add_litellm_edges(graph: SynonymGraph, payload: object) -> None:
+    if not isinstance(payload, dict):
+        if payload is not None:
+            log.warning("[gi-synonyms] litellm payload not an object")
+        return
+    for key, meta in payload.items():
+        if key == "sample_spec" or not isinstance(key, str):
+            continue
+        if not isinstance(meta, dict):
+            continue
+        if meta.get("mode") != "chat":
+            continue
+        graph.add(key, key)
+        if "/" in key:
+            graph.add(key, key.rsplit("/", 1)[-1])
+
+
+def add_plugin_alias_edges(graph: SynonymGraph, aliases: dict[str, str]) -> None:
+    for short, full in aliases.items():
+        graph.add(short, full)
+
+
+def build_synonym_graph(
+    *,
+    openrouter: object | None,
+    litellm: object | None,
+    plugin_aliases: dict[str, str],
+) -> SynonymGraph:
+    g = SynonymGraph()
+    add_openrouter_edges(g, openrouter)
+    add_litellm_edges(g, litellm)
+    add_plugin_alias_edges(g, plugin_aliases)
+    return g

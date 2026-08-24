@@ -45,3 +45,57 @@ def test_load_plugin_aliases_map(tmp_path):
     got = syn.load_plugin_aliases(p)
     assert got["flash"] == "gemini-2.5-flash"
     assert got["gpt-4o"] == "openai/gpt-4o"
+
+
+def test_add_openrouter_edges_alias_target_and_hf():
+    g = syn.SynonymGraph()
+    payload = {
+        "data": [
+            {
+                "id": "~google/gemini-flash-latest",
+                "canonical_slug": "~google/gemini-flash-latest",
+                "hugging_face_id": None,
+                "alias_target": {"slug": "google/gemini-3.6-flash"},
+            },
+            {
+                "id": "deepseek/deepseek-v4-flash-0731",
+                "canonical_slug": "deepseek/deepseek-v4-flash-20260731",
+                "hugging_face_id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+            },
+            {
+                "id": "other/deepseek-v4-flash-alt",
+                "canonical_slug": "other/deepseek-v4-flash-alt",
+                "hugging_face_id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+            },
+        ]
+    }
+    syn.add_openrouter_edges(g, payload)
+    # latest ↔ concrete via trusted alias_target
+    assert "gemini-3.6-flash" in g.component("~google/gemini-flash-latest")
+    assert g.trusted_pair("~google/gemini-flash-latest", "google/gemini-3.6-flash")
+    # shared HF links the two deepseek spellings
+    assert "deepseek-v4-flash-alt" in g.component("deepseek/deepseek-v4-flash-0731")
+    # canonical date-stripped links to id
+    assert "deepseek-v4-flash" in g.component("deepseek/deepseek-v4-flash-0731") or \
+        "deepseek-v4-flash-20260731" in g.component("deepseek/deepseek-v4-flash-0731")
+
+
+def test_add_litellm_edges_strips_provider_prefix():
+    g = syn.SynonymGraph()
+    payload = {
+        "gemini/gemini-2.5-flash": {"mode": "chat", "litellm_provider": "gemini"},
+        "openai/gpt-4o": {"mode": "chat"},
+        "text-embedding-3-small": {"mode": "embedding"},
+        "sample_spec": {"mode": "chat"},
+    }
+    syn.add_litellm_edges(g, payload)
+    assert "gemini-2.5-flash" in g.component("gemini/gemini-2.5-flash")
+    assert "gpt-4o" in g.component("openai/gpt-4o")
+    # embedding skipped — node may be absent
+    assert "text-embedding-3-small" not in g._parent
+
+
+def test_add_plugin_alias_edges():
+    g = syn.SynonymGraph()
+    syn.add_plugin_alias_edges(g, {"flash": "gemini-2.5-flash"})
+    assert "gemini-2.5-flash" in g.component("flash")
