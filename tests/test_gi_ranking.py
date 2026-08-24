@@ -32,9 +32,10 @@ def test_normalize_min_max():
 
 
 def test_min_gi_for_complexity_after_recompute():
+    # scored = [20,40,60,80,100] → min/p20/p50/p80 = 20/20/60/80
     gi.recompute_complexity_thresholds([0.0, 20.0, 40.0, 60.0, 80.0, 100.0])
     assert gi.min_gi_for_complexity(1) == 0.0
-    assert gi.min_gi_for_complexity(3) == 40.0
+    assert gi.min_gi_for_complexity(3) == 20.0
     assert gi.min_gi_for_complexity(5) == 80.0
 
 
@@ -45,14 +46,27 @@ def test_recompute_empty_all_zero():
     assert gi.min_gi_for_complexity(5) == 0.0
 
 
-def test_recompute_even_ladder():
+def test_recompute_all_zeros_all_zero():
+    m = gi.recompute_complexity_thresholds([0.0, 0.0, 0.0])
+    assert m == {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
+
+
+def test_recompute_scored_ladder_excludes_zeros():
     scores = [0.0, 20.0, 40.0, 60.0, 80.0, 100.0]
     m = gi.recompute_complexity_thresholds(scores)
     assert m[1] == 0.0
-    assert m[2] == 20.0
-    assert m[3] == 40.0
-    assert m[4] == 60.0
-    assert m[5] == 80.0
+    assert m[2] == 20.0  # min(scored)
+    assert m[3] == 20.0  # p20 of 5 scored
+    assert m[4] == 60.0  # p50
+    assert m[5] == 80.0  # p80
+
+
+def test_recompute_c2_is_min_scored():
+    m = gi.recompute_complexity_thresholds([0.0, 0.0, 15.0, 50.0, 90.0])
+    assert m[2] == 15.0
+    assert m[3] == 15.0  # p20 of [15,50,90]
+    assert m[4] == 50.0
+    assert m[5] == 90.0  # p80
 
 
 def test_recompute_tiny_n_bars_may_coincide():

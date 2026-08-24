@@ -33,7 +33,7 @@ Every request flows through the same pipeline:
    extra API call.
 4. **Order the catalog** — every configured `(provider, model)` has a GI score (0–100);
    the proxy prefers the *cheapest* candidate that meets the complexity→min-GI threshold
-   (catalog-relative percentile bars), skips
+   (scored-only catalog percentile bars), skips
    unhealthy ones, and promotes a session-affinity match to the front when present.
 5. **Try and fall back** — it sends to the first candidate, preferring the affine key when
    set; on rate-limit or error it cascades to the next catalog entry, clearing stickiness when

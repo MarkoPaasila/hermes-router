@@ -6,7 +6,7 @@ import router
 
 
 def _seed_classic_min_gi(monkeypatch):
-    """Fixed 0/20/40/60/80 bars; skip catalog refresh so monkeypatched caps stay in play."""
+    """Fixed scored-only bars (C5≈80); skip catalog refresh so monkeypatched caps stay in play."""
     gi_ranking.recompute_complexity_thresholds([0.0, 20.0, 40.0, 60.0, 80.0, 100.0])
     monkeypatch.setattr(router, "_refresh_complexity_thresholds_if_needed", lambda providers=None: None)
 
@@ -125,11 +125,12 @@ def test_cheapest_among_eligible(monkeypatch):
 def test_min_gi_thresholds():
     gi_ranking.recompute_complexity_thresholds([0.0, 20.0, 40.0, 60.0, 80.0, 100.0])
     assert gi_ranking.min_gi_for_complexity(1) == 0.0
+    assert gi_ranking.min_gi_for_complexity(2) == 20.0
     assert gi_ranking.min_gi_for_complexity(5) == 80.0
 
 
 def test_smart_ordered_refreshes_thresholds_from_catalog(monkeypatch, tmp_path):
-    """Dirty flag + resolve_gi catalog → complexity 5 uses 80th percentile of that set."""
+    """Dirty flag + resolve_gi catalog → complexity 5 uses 80th of scored GIs."""
     snap = tmp_path / "gi_rankings.json"
     snap.write_text(json.dumps({
         "version": 1,
@@ -164,6 +165,7 @@ def test_smart_ordered_refreshes_thresholds_from_catalog(monkeypatch, tmp_path):
     monkeypatch.setattr(router, "_model_caps", _caps)
 
     router._get_smart_ordered(providers, complexity=5)
-    # n=5, p=80 → index ceil(4)-1 = 3 → 70
+    # scored n=5, p=80 → index ceil(4)-1 = 3 → 70
+    assert gi_ranking.min_gi_for_complexity(2) == 10.0
     assert gi_ranking.min_gi_for_complexity(5) == 70.0
     assert gi_ranking.complexity_thresholds_need_refresh() is False

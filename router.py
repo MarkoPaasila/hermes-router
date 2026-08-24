@@ -310,7 +310,7 @@ BREAKER_COOLDOWN    = int(os.environ.get("BREAKER_COOLDOWN", 60))       # second
 _FAST_PROVIDERS = {"groq", "cerebras", "sambanova", "mistral"}
 
 # ── Selection: general intelligence ranking (GI, 0–100) ───────────────────────
-# Higher = stronger. Complexity maps to a catalog-relative min GI (percentiles);
+# Higher = stronger. Complexity maps to scored-only catalog min GI (min/p20/p50/p80);
 # pick cheapest eligible. See CONTEXT.md / ADR-0002. Snapshot: gi_rankings.json.
 CAPABILITY_SCALE_VERSION = 2  # legacy probe-state migration only (old rating field)
 _COMPLEXITY_LABELS = {1: "trivial", 2: "simple", 3: "standard", 4: "complex", 5: "critical"}

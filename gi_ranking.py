@@ -3,8 +3,8 @@
 Replaces the old 1–5 Capability score. Scale is 0–100 (higher = stronger).
 Resolution: dashboard override → snapshot → 0 (bottom of pack).
 
-Complexity → min GI is catalog-relative (nearest-rank percentiles of live
-`(provider, model)` scores), not a fixed 0/20/40/60/80 ladder.
+Complexity → min GI is catalog-relative: unscored (GI 0) only clear complexity 1;
+scored models use min / nearest-rank 20 / 50 / 80th percentiles (not a fixed ladder).
 
 Persistence:
   • Snapshot scores (`gi_rankings.json`) are read-only defaults. They are re-loaded
@@ -26,7 +26,7 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-# Cached complexity → min GI (catalog-relative percentiles). Complexity 1 is always 0.
+# Cached complexity → min GI (scored-only bands). Complexity 1 is always 0.
 _complexity_min_gi: dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
 _complexity_thresholds_dirty: bool = True
 
@@ -155,22 +155,26 @@ def _percentile_nearest_rank(sorted_scores: list[float], p: float) -> float:
 
 
 def recompute_complexity_thresholds(scores: list[float]) -> dict[int, float]:
-    """Set complexity mins from catalog GI scores (approx equal headcount bands).
+    """Set complexity mins from catalog GI scores (scored-only bands).
 
-    Complexity 1 → 0. Complexities 2–5 → nearest-rank 20/40/60/80th percentiles.
-    Empty scores → all zeros. Clears the dirty flag.
+    Complexity 1 → 0 (unscored / GI 0 clear only this bar). Complexities 2–5 use
+    scores strictly greater than 0: min, then nearest-rank 20 / 50 / 80th
+    percentiles. Empty scored set → all zeros. Clears the dirty flag.
     """
-    sorted_scores = sorted(float(s) for s in scores)
-    out: dict[int, float] = {1: 0.0}
-    for c, p in ((2, 20.0), (3, 40.0), (4, 60.0), (5, 80.0)):
-        out[c] = _percentile_nearest_rank(sorted_scores, p)
+    scored = sorted(float(s) for s in scores if float(s) > 0)
+    out: dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0, 4: 0.0, 5: 0.0}
+    if scored:
+        out[2] = scored[0]
+        out[3] = _percentile_nearest_rank(scored, 20.0)
+        out[4] = _percentile_nearest_rank(scored, 50.0)
+        out[5] = _percentile_nearest_rank(scored, 80.0)
     global _complexity_min_gi, _complexity_thresholds_dirty
     with _lock:
         _complexity_min_gi = dict(out)
         _complexity_thresholds_dirty = False
     log.info(
-        "[gi] complexity min-GI thresholds n=%d → %s",
-        len(sorted_scores),
+        "[gi] complexity min-GI thresholds scored_n=%d → %s",
+        len(scored),
         {k: round(v, 2) for k, v in out.items()},
     )
     return dict(out)

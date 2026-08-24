@@ -29,10 +29,11 @@ This is the core of the proxy, used by every chat request.
   from the LMSYS (+ optional Artificial Analysis) snapshot (`gi_rankings.json`), with id
   normalization / aliases and optional dashboard
   overrides. Unknown models default to **0** (bottom of pack) until you assign a score.
-- Complexity 1–5 maps to a **minimum GI** derived from this router’s live catalog so the five
-  bands have roughly equal headcount: complexity 1 → 0; higher complexities use the 20 / 40 /
-  60 / 80th percentiles of catalog GIs. Bars refresh when models are added/removed or GI
-  scores change; `/v1/status` exposes them as `complexity_min_gi`.
+- Complexity 1–5 maps to a **minimum GI** derived from this router’s live catalog:
+  complexity 1 → 0 (unscored / GI 0 only clear this bar); higher complexities use the
+  minimum and the 20 / 50 / 80th percentiles of **scored** (GI > 0) catalog GIs. Bars
+  refresh when models are added/removed or GI scores change; `/v1/status` exposes them
+  as `complexity_min_gi`.
 - The proxy builds a **full catalog** of every configured `(provider, model)` **candidate** and
   picks the **cheapest model that meets the minimum GI** for the request's complexity — across the
   whole catalog, not one provider at a time. A trivial question never gets sent to your most
