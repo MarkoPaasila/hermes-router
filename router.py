@@ -2440,7 +2440,10 @@ class CredentialPool:
 
 
 pool = CredentialPool(PROVIDERS)
-sticky_store = SessionStickyStore()
+# Sliding idle TTL for session affinity; 0 = no idle expiry (cascade/clear still drop).
+# Default 300s aligns with typical upstream prompt-cache windows.
+SESSION_AFFINITY_TTL = max(0, _int_env("SESSION_AFFINITY_TTL_SECONDS", 300))
+sticky_store = SessionStickyStore(ttl_s=SESSION_AFFINITY_TTL)
 
 
 def _sticky_for_request(headers, body) -> tuple[str | None, dict | None]:

@@ -86,9 +86,10 @@ support tool calling (detected at startup). Optional **fast routing**
 **Session affinity.** When the client sends a session id (header `X-Hermes-Session-Id` or
 `X-Chat-ID`, body `user`, or `metadata.session_id` / `sessionId` — first non-empty wins; the
 router never invents one), the proxy remembers the winning `(provider, model, key)` and reuses
-it on later chat turns until it cascades away from that model. With no session id, every request
-gets a fresh catalog pick. The Hermes Agent extension does not yet forward session ids to custom
-endpoints.
+it on later chat turns until it cascades away from that model or the idle TTL expires
+(`SESSION_AFFINITY_TTL_SECONDS`, default 300s — typical prompt-cache window; `0` disables
+idle expiry). With no session id, every request gets a fresh catalog pick. The Hermes Agent
+extension does not yet forward session ids to custom endpoints.
 
 **Per-model scoring.** When a provider lists several models, each **(provider, model)** pair is its
 own catalog candidate, scored on *its own* GI and tool/reasoning support — not the primary's.

@@ -34,7 +34,7 @@ def resolve_session_id(headers: dict, body: dict | None) -> str | None:
 
 
 class SessionStickyStore:
-    def __init__(self, ttl_s: float = 3600.0, max_entries: int = 10_000):
+    def __init__(self, ttl_s: float = 300.0, max_entries: int = 10_000):
         self.ttl_s = float(ttl_s)
         self.max_entries = int(max_entries)
         self._lock = threading.Lock()
@@ -51,7 +51,8 @@ class SessionStickyStore:
             e = self._entries.get(session_id)
             if not e:
                 return None
-            if time.time() - e["updated_at"] > self.ttl_s:
+            # ttl_s <= 0: no idle expiry (cascade/clear still drop entries).
+            if self.ttl_s > 0 and time.time() - e["updated_at"] > self.ttl_s:
                 del self._entries[session_id]
                 return None
             return dict(e)
@@ -77,10 +78,11 @@ class SessionStickyStore:
 
     def _evict_unlocked(self) -> None:
         now = time.time()
-        expired = [k for k, e in self._entries.items()
-                   if now - e["updated_at"] > self.ttl_s]
-        for k in expired:
-            del self._entries[k]
+        if self.ttl_s > 0:
+            expired = [k for k, e in self._entries.items()
+                       if now - e["updated_at"] > self.ttl_s]
+            for k in expired:
+                del self._entries[k]
         while len(self._entries) > self.max_entries:
             oldest = min(self._entries.items(), key=lambda kv: kv[1]["updated_at"])[0]
             del self._entries[oldest]

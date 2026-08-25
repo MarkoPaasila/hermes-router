@@ -42,6 +42,26 @@ def test_sticky_ttl_expires(monkeypatch):
     assert s.get("s1") is None
 
 
+def test_sticky_ttl_zero_never_idle_expires(monkeypatch):
+    monkeypatch.setattr(mod.time, "time", lambda: 1_000_000.0)
+    s = SessionStickyStore(ttl_s=0, max_entries=100)
+    with s._lock:
+        s._entries["s1"] = {
+            "provider": "a",
+            "model": "m",
+            "key": "k",
+            "updated_at": 1_000_000.0 - 86_400,
+        }
+    got = s.get("s1")
+    assert got is not None and got["key"] == "k"
+    s.clear("s1")
+    assert s.get("s1") is None
+
+
+def test_sticky_default_ttl_is_300():
+    assert SessionStickyStore().ttl_s == 300.0
+
+
 def test_sticky_hard_cap_evicts_oldest():
     s = SessionStickyStore(ttl_s=3600, max_entries=2)
     s.set("a", provider="p", model="m", key="1")

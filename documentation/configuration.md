@@ -72,6 +72,7 @@ subscription) logins are stored separately under `codex_accounts` (via
 | `PROXY_API_KEYS` | *(auto-generated)* | Comma-separated keys your app uses to authenticate — and, unless `DASHBOARD_OPEN=1`, the key needed to open the web dashboard. If left unset (or on the `.env.example` placeholder), the proxy generates a real random key on first boot and saves it back to `.env`, logging it once. Add more from the dashboard's **Access Keys** page, or set your own here. |
 | `ROUTER_AUTH_FILE` | `./auth.json` | Where keys are stored |
 | `CACHE_TTL_SECONDS` | `300` | Response cache lifetime (`0` disables). Entries are namespaced per API key, so different `PROXY_API_KEYS` never share a cached answer — safe for multi-tenant use |
+| `SESSION_AFFINITY_TTL_SECONDS` | `300` | Idle lifetime for session affinity (sliding; refreshes on each successful turn). Aligns with typical upstream prompt-cache windows. `0` = no idle expiry (cascade/clear still drop affinity). Independent of `CACHE_TTL_SECONDS` |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `REASONING_TOKEN_RESERVE` | `4096` | Extra output budget added for reasoning models so hidden chain-of-thought doesn't eat the answer (`0` disables) |
 

@@ -57,12 +57,17 @@ as its own catalog candidate — easy requests land on `flash-lite`, hard ones c
 When your client sends a **session id**, the proxy remembers the winning
 `(provider, model, key)` for that conversation and reuses it on later turns until **fallback**
 forces the cascade to leave that candidate (real upstream 429 / Retry-After, error, GI
-skip, **TTFT deadline abort**, etc.). A TTFT abort means first-byte wait exceeded that
-candidate’s baseline (or the cold absolute while learning); it clears affinity and tries the
-next candidate on the **same** request — it does **not** trip the circuit breaker. Learned
-rate-limit **headroom estimates** do not abandon the affine candidate — the session is allowed
-to bump into limits so learning can happen. That keeps multi-turn chats on the same upstream
-account and model instead of bouncing around the catalog every message.
+skip, **TTFT deadline abort**, etc.), or until the affinity **idle TTL** expires
+(`SESSION_AFFINITY_TTL_SECONDS`, default **300**). The idle timer refreshes on each
+successful turn; it exists mainly so affinity tracks typical upstream **prompt-cache**
+windows (~5 minutes) — after that, pinning rarely helps and a fresh catalog pick is
+better. Set the env to `0` for no idle expiry (cascade/`clear` still drop affinity).
+A TTFT abort means first-byte wait exceeded that candidate’s baseline (or the cold
+absolute while learning); it clears affinity and tries the next candidate on the
+**same** request — it does **not** trip the circuit breaker. Learned rate-limit
+**headroom estimates** do not abandon the affine candidate — the session is allowed
+to bump into limits so learning can happen. That keeps multi-turn chats on the same
+upstream account and model instead of bouncing around the catalog every message.
 
 **Session id resolution** (first non-empty wins; the proxy never invents an id):
 
