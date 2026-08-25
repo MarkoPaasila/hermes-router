@@ -527,12 +527,53 @@ _SPECIALIZED_NAME_PATTERNS = (
 )
 
 
+def _modality_has_text(side: str) -> bool:
+    """True if a modality side string (e.g. 'text+image+video') includes text."""
+    return "text" in (side or "").lower()
+
+
+def _arch_text_in_both_io(arch: dict | None) -> bool:
+    """True when architecture shows text on both input and output sides.
+
+    Lists: ``text`` in input_modalities and output_modalities.
+    Or modality string: ``text`` left of ``->``/``→`` and right of it.
+    Either signal alone is enough.
+    """
+    if not isinstance(arch, dict):
+        return False
+    inputs = arch.get("input_modalities")
+    outputs = arch.get("output_modalities")
+    if isinstance(inputs, list) and isinstance(outputs, list):
+        in_text = any(str(v).lower() == "text" for v in inputs)
+        out_text = any(str(v).lower() == "text" for v in outputs)
+        if in_text and out_text:
+            return True
+    modality = arch.get("modality")
+    if isinstance(modality, str) and modality.strip():
+        m = modality.lower()
+        for sep in ("->", "→"):
+            if sep in m:
+                left, right = m.split(sep, 1)
+                if _modality_has_text(left) and _modality_has_text(right):
+                    return True
+                break
+    return False
+
+
 def _metadata_specialization(item: dict | None) -> str | None:
-    """Return 'specialized', 'chat', or None if metadata is absent/unclear."""
+    """Return 'specialized', 'chat', or None if metadata is absent/unclear.
+
+    Detection order: text on both input and output → chat (multimodal OK);
+    then specialized purpose/output tokens; then other chat hints.
+    """
     if not isinstance(item, dict):
         return None
-    blobs: list[str] = []
     arch = item.get("architecture")
+    # Multimodal chat (e.g. text+image+video->text) is not specialized.
+    if isinstance(arch, dict) and _arch_text_in_both_io(arch):
+        return "chat"
+
+    blobs: list[str] = []
     if isinstance(arch, dict):
         for key in ("modality", "output_modalities", "input_modalities"):
             val = arch.get(key)
@@ -593,8 +634,8 @@ def _metadata_specialization(item: dict | None) -> str | None:
 def _is_specialized_model(model_id: str, item: dict | None = None) -> bool:
     """True when a catalog model is purpose-specific (not chat completions).
 
-    Detection order: explicit specialized metadata → drop; explicit chat/text
-    metadata → keep; otherwise name-pattern denylist.
+    Detection order: text↔text architecture → keep; specialized metadata → drop;
+    other chat metadata → keep; otherwise name-pattern denylist.
     """
     kind = _metadata_specialization(item)
     if kind == "specialized":
@@ -7196,7 +7237,7 @@ def _features_snapshot() -> dict:
          "desc": "Refresh configured provider model lists from /models at startup, bounded by AUTO_DISCOVER_MODEL_LIMIT."},
         {"name": "filter_specialized_models", "title": "Filter specialized models", "kind": "flag",
          "enabled": FILTER_SPECIALIZED_MODELS, "env": "FILTER_SPECIALIZED_MODELS", "on": "1", "off": "0",
-         "desc": "When model discovery is on, drop TTS / STT / image-gen / OCR / video / embedding / moderation / rerank IDs from discovered catalogs so they never enter the chat catalog."},
+         "desc": "When model discovery is on, drop TTS / STT / image-gen / OCR / embedding / moderation / rerank IDs; keep multimodal chat (text on both input and output)."},
         {"name": "token_caps", "title": "Adaptive token caps", "kind": "flag",
          "enabled": TOKEN_CAPS_ENABLED, "env": "TOKEN_CAPS", "on": "1", "off": "0",
          "desc": "Track per-model input/output ceilings from /models metadata and classified 413/token-limit 400s."},

@@ -31,7 +31,7 @@ hr restart                            # apply
 | `semantic_cache` | `SEMANTIC_CACHE` | off | Also serve cached answers for *similar* prompts |
 | `fast_routing` | `FAST_ROUTE_THRESHOLD` | off | Short requests prefer low-latency providers on ties |
 | `model_discovery` | `AUTO_DISCOVER_MODELS` | off | Refresh provider model lists from `/models` at startup |
-| `filter_specialized_models` | `FILTER_SPECIALIZED_MODELS` | off | Drop TTS/STT/image-gen/OCR/video/embedding/moderation/rerank IDs from discovery |
+| `filter_specialized_models` | `FILTER_SPECIALIZED_MODELS` | off | Drop TTS/STT/image-gen/OCR/embedding/moderation/rerank IDs; keep multimodal chat (text in+out) |
 | `token_caps` | `TOKEN_CAPS` | **on** | Adaptive per-model input/output ceilings |
 | `key_budgets` | `auth.json` / `PROXY_LIMIT_*` | off | Per-key RPM / daily request / token / cost ceilings — manage with `hr limit` |
 | `local_model` | `LOCAL_BASE_URL` / `LOCAL_MODEL` | off | Route to a model on your own machine — manage with `hr model set local` |
@@ -344,15 +344,17 @@ providers such as Hugging Face are skipped unless you opt in per provider with
 
 Enable `FILTER_SPECIALIZED_MODELS=1` (or `hr features enable filter_specialized_models`)
 to drop purpose-specific models from discovered `/models` catalogs: TTS, STT/Whisper,
-image generation, OCR, video, embeddings, moderation, and rerank. Detection uses
-catalog metadata when present, otherwise name-pattern matching.
+image generation, OCR, embeddings, moderation, and rerank. Multimodal **chat** models
+that accept extra inputs (image / video / audio) but still have **text on both input and
+output** (e.g. `text+image+video->text`) are kept. Detection uses catalog metadata when
+present, otherwise name-pattern matching.
 
 Configured `{PROVIDER}_MODEL` lists are never filtered — put a specialized ID there
 explicitly if you want it in rotation. Embedding routing via `{PROVIDER}_EMBED_MODEL`
 is unchanged.
 
 With a large `AUTO_DISCOVER_MODEL_LIMIT`, enable this filter so discovery does not
-flood the chat roster with imagen / audio / embedding / deep-research-style IDs.
+flood the chat roster with imagen / audio-out / embedding / deep-research-style IDs.
 For configured junk that slips through, use `{PROVIDER}_EXCLUDE_MODELS`.
 
 ### Unsuitable-model cooldown

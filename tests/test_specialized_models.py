@@ -54,12 +54,60 @@ def test_metadata_chat_keeps_even_if_name_has_audio_token():
     assert router._is_specialized_model("vendor-audio-chat-7b", item) is False
 
 
+def test_multimodal_video_chat_kept_via_modality_string():
+    """Gemma-like: text+image+video->text is chat, not specialized video."""
+    item = {
+        "id": "google/gemma-4-31b-it:free",
+        "architecture": {
+            "modality": "text+image+video->text",
+            "input_modalities": ["image", "text", "video"],
+            "output_modalities": ["text"],
+        },
+    }
+    assert router._is_specialized_model("google/gemma-4-31b-it:free", item) is False
+
+
+def test_multimodal_audio_chat_kept_via_modality_string():
+    item = {
+        "id": "thinkingmachines/inkling:free",
+        "architecture": {
+            "modality": "text+image+audio->text",
+            "input_modalities": ["text", "image", "audio"],
+            "output_modalities": ["text"],
+        },
+    }
+    assert router._is_specialized_model("thinkingmachines/inkling:free", item) is False
+
+
+def test_text_in_both_modality_lists_kept_without_arrow_string():
+    item = {
+        "id": "vendor/omni-chat",
+        "architecture": {
+            "input_modalities": ["text", "video"],
+            "output_modalities": ["text"],
+        },
+    }
+    assert router._is_specialized_model("vendor/omni-chat", item) is False
+
+
 def test_openrouter_image_generation_modality_drops():
     item = {
         "id": "vendor/gen-model",
         "architecture": {"modality": "text->image", "output_modalities": ["image"]},
     }
     assert router._is_specialized_model("vendor/gen-model", item) is True
+
+
+def test_text_to_embedding_still_specialized():
+    item = {
+        "id": "vendor/embedder",
+        "architecture": {
+            "modality": "text->embedding",
+            "input_modalities": ["text"],
+            "output_modalities": ["embeddings"],
+        },
+    }
+    assert router._is_specialized_model("vendor/embedder", item) is True
 
 
 def test_unclear_metadata_falls_back_to_name():
