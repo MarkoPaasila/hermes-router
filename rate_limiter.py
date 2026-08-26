@@ -133,8 +133,8 @@ RATE_ADMIT_WAIT_S                 = _float_env("RATE_ADMIT_WAIT_S", 60.0)
 # When lifting for an oversized single request, size the cap to this multiple of
 # the debit so one success does not leave ~0% headroom and soft-lock the next turn.
 RATE_REQUEST_BURST_FACTOR         = _float_env("RATE_REQUEST_BURST_FACTOR", 2.0)
-# Before returning 503, wait up to this many seconds for the best rate-limited
-# candidate to refill (agent turns often arrive before the minute window resets).
+# Before returning 503, wait up to this many seconds for the best rate_hold or
+# keys_cooling ready-in (exhausted cascade retry; also probes circuit-open).
 RATE_EXHAUSTED_WAIT_S             = _float_env("RATE_EXHAUSTED_WAIT_S", 60.0)
 RATE_STATE_FLUSH_S = _int_env("RATE_STATE_FLUSH_S", 600)
 # Fraction of cap for new buckets when tokens is omitted (conservative prior).

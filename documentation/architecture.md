@@ -118,6 +118,13 @@ health checks (network errors or 5xx — not rate-limits, bad requests, or TTFT 
 (half-open). Healthy providers are always preferred. Tunable via the `BREAKER_*` and `TTFT_*`
 settings.
 
+**Exhausted retry.** If the full cascade still fails, the proxy may wait up to
+`RATE_EXHAUSTED_WAIT_S` (default 60s) for the shortest remaining **rate hold** or **key
+cool-down**, then walk the catalog once more. That second pass also **probes circuit-open**
+providers that were skipped while other candidates looked healthy — closing the gap where
+auto returned 503 but pinning the same model worked. At most one exhausted retry per request
+(chat and embeddings).
+
 ### Response cache
 
 Identical requests can be served from an in-memory TTL+LRU cache, saving free-tier quota. Cache

@@ -148,6 +148,7 @@ restarts in `rate_limits_state.json`.
 |---|---|---|
 | `RATE_STATE_FILE` | `./rate_limits_state.json` | Path to learned-limits state file |
 | `RATE_ADMIT_WAIT_S` | `60` | Max seconds to sleep for a thin bucket before force-admit (explore) |
+| `RATE_EXHAUSTED_WAIT_S` | `60` | After a full cascade miss, max seconds to wait for the shortest rate hold or key cool-down before one exhausted retry (also probes circuit-open providers) |
 | `RATE_HEADROOM_THRESHOLD` | `0.05` | Fraction of cap below which headroom is logged as “thin” (ranking signal only — not a hard skip) |
 | `RATE_LEARN_CLEAR_HEADROOM` | `0.5` | Ladder 429: shorter window treated as clear (not violated) at/above this headroom |
 | `RATE_LEARN_LONG_STREAK` | `40` | Successes before nudging H/D/W/Mo caps |

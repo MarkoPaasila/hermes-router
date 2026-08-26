@@ -41,6 +41,10 @@ This is the core of the proxy, used by every chat request.
   too weak to handle it.
 - If the chosen model is rate-limited, down, or errors — the proxy **falls back** along the
   **cascade** (ordered try-list). Your client just gets an answer; it never sees the failed attempt.
+- If every candidate is skipped or fails, the proxy may **wait** up to `RATE_EXHAUSTED_WAIT_S`
+  for the shortest **rate hold** or **key cool-down**, then retry the catalog once — and on that
+  retry it **probes open circuit breakers** that were skipped while other providers looked
+  healthy. That keeps auto routing from hard-failing when a later pin would have worked.
 - Models that return **404** or a **model-not-found / not-supported** style **400** are cooled as
   **unsuitable** with exponential backoff so later requests skip them (payload-shaped 400s still
   cascade once per request; **429** stays on the rate-limit path). Enable

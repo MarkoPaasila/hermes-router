@@ -199,8 +199,10 @@ access key once and remembers it in the browser. Running on a remote box bound t
 - Your app's API key doesn't match `PROXY_API_KEYS`. Make them the same and try again.
 
 **`All providers exhausted` (503)**
-- No keys loaded, or all of them are rate-limited. Confirm a key is set (`hr auth list`, or
-  check your `.env`), and add more — see [providers.md](providers.md).
+- No keys loaded, or every candidate failed / cooled beyond the exhausted-retry wait
+  (`RATE_EXHAUSTED_WAIT_S`). Confirm a key is set (`hr auth list`, or check your `.env`), and
+  add more — see [providers.md](providers.md). The proxy already waits briefly for short rate
+  holds / key cool-downs and re-probes open breakers once before this error.
 
 **`hr: command not found`**
 - The `hr` helper is Linux/macOS/WSL only. On native Windows use `python router.py`

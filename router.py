@@ -6327,7 +6327,7 @@ def models():
 
 
 def _route_completion(payload: dict, streaming: bool, ns: str = "",
-                      *, _rate_retry: bool = False,
+                      *, _exhausted_retry: bool = False,
                       _session_id: str | None = None,
                       _sticky: dict | None = None):
     """Core selection + fallback cascade for /v1/chat/completions.
@@ -6336,6 +6336,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         ("stream", generator, provider)  streaming success; generator yields
                                          OpenAI-format SSE regardless of upstream
         ("error",  error_dict, status)   every provider exhausted
+
+    After a full first-pass miss, one exhausted retry may run: sleep up to
+    RATE_EXHAUSTED_WAIT_S for the shortest rate_hold / keys_cooling wait, and/or
+    probe circuit-open providers that were skipped while other candidates looked
+    healthy (_exhausted_retry=True disables breaker skips).
     """
     # Seed per-thread routing context so endpoint handlers can read it back
     # after this call returns (provider chosen, cascade count, cache-hit flag).
@@ -6345,7 +6350,7 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     _req_ctx.attempts  = 0   # total forward() calls made
     _req_ctx.last_tried_provider = None
     _req_ctx.last_tried_model = None
-    if not _rate_retry:
+    if not _exhausted_retry:
         _req_ctx.cascade = CascadeTrail()
     trail = getattr(_req_ctx, "cascade", None) or CascadeTrail()
     _req_ctx.cascade = trail
@@ -6469,7 +6474,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     # Circuit breaker: skip providers whose breaker is open. SAFETY — if EVERY
     # candidate is open, treat them all as half-open probes (skip none) so we
     # always make forward progress instead of hard-failing while options remain.
-    any_closed = any(not stats.breaker_open(c["provider"]["name"]) for c in ordered)
+    # Exhausted retry also probes open breakers (healthy set already failed).
+    any_closed = (
+        False if _exhausted_retry
+        else any(not stats.breaker_open(c["provider"]["name"]) for c in ordered)
+    )
 
     # Per-(provider, model) failover: walk the ranked candidate list, rotating keys
     # within each candidate. A whole provider is taken out of the running for this
@@ -6484,6 +6493,8 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     wi = 0
     appended_last_resort = False
     _best_rl_wait: float | None = None
+    _best_key_wait: float | None = None
+    _skipped_circuit_open = False
 
     def _queue_tool_last_resort() -> None:
         nonlocal appended_last_resort, work
@@ -6512,9 +6523,11 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
             _queue_tool_last_resort()
             continue
 
-        # Breaker open → skip the whole provider (unless all are open, then probe).
+        # Breaker open → skip the whole provider (unless all are open / exhausted
+        # retry, then probe).
         if any_closed and stats.breaker_open(name):
             log.info(f"⨂ skipping {name} (circuit open)")
+            _skipped_circuit_open = True
             _crec("skip", name, model, "circuit_open")
             skip_providers.add(name)
             _leave_sticky_model(name, model)
@@ -6570,8 +6583,10 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                          else None)
             key = pool.get_key(name, model, preferred=preferred)
             if not key:
-                _crec("note", name, model, "skipped", "keys_cooling",
-                      wait_s=pool.ready_in(name, model))
+                _kw = float(pool.ready_in(name, model) or 0.0)
+                if _kw > 0 and (_best_key_wait is None or _kw < _best_key_wait):
+                    _best_key_wait = _kw
+                _crec("note", name, model, "skipped", "keys_cooling", wait_s=_kw)
                 break   # all keys for this (provider, model) are cooling → next candidate
 
             log.info(f"→ Trying {name}/{model} ...{key[-6:]}")
@@ -6901,14 +6916,26 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
         _leave_sticky_model(name, model)
         _queue_tool_last_resort()
 
-    if (not _rate_retry
-            and _best_rl_wait is not None
-            and 0 < _best_rl_wait <= RATE_EXHAUSTED_WAIT_S):
-        log.info(f"⏳ all candidates rate-limited — waiting {_best_rl_wait:.1f}s "
-                 f"then retrying once (cap {RATE_EXHAUSTED_WAIT_S:g}s)")
-        time.sleep(_best_rl_wait)
-        return _route_completion(payload, streaming, ns, _rate_retry=True,
-                                 _session_id=_session_id, _sticky=_sticky)
+    if not _exhausted_retry:
+        _waits = [w for w in (_best_rl_wait, _best_key_wait)
+                  if w is not None and w > 0]
+        _best_wait = min(_waits) if _waits else None
+        _do_wait = (_best_wait is not None
+                    and _best_wait <= RATE_EXHAUSTED_WAIT_S)
+        if _do_wait or _skipped_circuit_open:
+            _parts = []
+            if _do_wait:
+                _parts.append(f"wait={_best_wait:.1f}s")
+            if _skipped_circuit_open:
+                _parts.append("breaker_probe")
+            log.info(
+                f"⏳ all candidates exhausted — {', '.join(_parts)} "
+                f"then retrying once (cap {RATE_EXHAUSTED_WAIT_S:g}s)")
+            if _do_wait:
+                time.sleep(_best_wait)
+            return _route_completion(
+                payload, streaming, ns, _exhausted_retry=True,
+                _session_id=_session_id, _sticky=_sticky)
 
     if pinned:
         msg = f"Pinned model '{original_model}' could not be served"
@@ -7070,123 +7097,156 @@ def embeddings():
         })
         return jsonify(cached)
 
-    any_closed = any(not stats.breaker_open(p["name"]) for p in ordered)
+    any_closed_base = any(not stats.breaker_open(p["name"]) for p in ordered)
+    _exhausted_retry = False
+    _best_rl_wait: float | None = None
+    _best_key_wait: float | None = None
+    _skipped_circuit_open = False
 
-    for provider in ordered:
-        name = provider["name"]
-        if any_closed and stats.breaker_open(name):
-            log.info(f"⨂ skipping {name} embeddings (circuit open)")
-            trail.skip(name, provider.get("embed_model") or "", "circuit_open")
-            continue
+    while True:
+        any_closed = False if _exhausted_retry else any_closed_base
+        for provider in ordered:
+            name = provider["name"]
+            if any_closed and stats.breaker_open(name):
+                log.info(f"⨂ skipping {name} embeddings (circuit open)")
+                _skipped_circuit_open = True
+                trail.skip(name, provider.get("embed_model") or "", "circuit_open")
+                continue
 
-        em = provider["embed_model"]
-        attempts = pool.key_count(name, em) or 1
-        for _ in range(attempts):
-            key = pool.get_key(name, em)
-            if not key:
-                log.warning(f"All {name} keys cooling — skipping provider")
-                trail.note(name, em, "skipped", "keys_cooling", wait_s=pool.ready_in(name, em))
-                break
+            em = provider["embed_model"]
+            attempts = pool.key_count(name, em) or 1
+            for _ in range(attempts):
+                key = pool.get_key(name, em)
+                if not key:
+                    log.warning(f"All {name} keys cooling — skipping provider")
+                    _kw = float(pool.ready_in(name, em) or 0.0)
+                    if _kw > 0 and (_best_key_wait is None or _kw < _best_key_wait):
+                        _best_key_wait = _kw
+                    trail.note(name, em, "skipped", "keys_cooling", wait_s=_kw)
+                    break
 
-            log.info(f"→ Trying {name} embeddings ({em}) ...{key[-6:]}")
-            _inp = payload.get("input", "")
-            _est_tokens = max(1.0, (len(_inp) if isinstance(_inp, str)
-                                    else sum(len(str(x)) for x in _inp)) / 4)
-            _current_headroom = rate_limiter.headroom(name, key, em)
-            if _current_headroom < RATE_HEADROOM_THRESHOLD:
-                log.debug(f"  {name}/{em} thin headroom ({_current_headroom:.1%}) — attempting")
-            _rl_ok, _rl_wait = rate_limiter.check_and_consume(
-                name, key, em, req_count=1.0, token_count=_est_tokens)
-            if not _rl_ok:
-                if 0 < _rl_wait < RATE_ADMIT_WAIT_S:
-                    log.debug(f"  {name}/{em} thin bucket — waiting {_rl_wait*1000:.0f}ms")
-                    time.sleep(_rl_wait)
-                    _rl_ok, _rl_wait = rate_limiter.check_and_consume(
-                        name, key, em, req_count=1.0, token_count=_est_tokens)
+                log.info(f"→ Trying {name} embeddings ({em}) ...{key[-6:]}")
+                _inp = payload.get("input", "")
+                _est_tokens = max(1.0, (len(_inp) if isinstance(_inp, str)
+                                        else sum(len(str(x)) for x in _inp)) / 4)
+                _current_headroom = rate_limiter.headroom(name, key, em)
+                if _current_headroom < RATE_HEADROOM_THRESHOLD:
+                    log.debug(f"  {name}/{em} thin headroom ({_current_headroom:.1%}) — attempting")
+                _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                    name, key, em, req_count=1.0, token_count=_est_tokens)
                 if not _rl_ok:
-                    _rl_ok, _rl_wait = rate_limiter.check_and_consume(
-                        name, key, em, req_count=1.0, token_count=_est_tokens,
-                        force=True)
-                if not _rl_ok:
-                    log.info(f"  {name}/{em} rate hold ({_rl_wait:.1f}s) — trying next")
-                    trail.note(name, em, "skipped", "rate_hold", wait_s=_rl_wait)
+                    if 0 < _rl_wait < RATE_ADMIT_WAIT_S:
+                        log.debug(f"  {name}/{em} thin bucket — waiting {_rl_wait*1000:.0f}ms")
+                        time.sleep(_rl_wait)
+                        _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                            name, key, em, req_count=1.0, token_count=_est_tokens)
+                    if not _rl_ok:
+                        _rl_ok, _rl_wait = rate_limiter.check_and_consume(
+                            name, key, em, req_count=1.0, token_count=_est_tokens,
+                            force=True)
+                    if not _rl_ok:
+                        if _rl_wait > 0 and (_best_rl_wait is None or _rl_wait < _best_rl_wait):
+                            _best_rl_wait = float(_rl_wait)
+                        log.info(f"  {name}/{em} rate hold ({_rl_wait:.1f}s) — trying next")
+                        trail.note(name, em, "skipped", "rate_hold", wait_s=_rl_wait)
+                        continue
+                _rl_t0 = time.time()
+                t0   = _rl_t0
+                resp = forward_embeddings(provider, key, payload)
+                elapsed = time.time() - t0
+
+                def _rl_release():
+                    rate_limiter.release_reservation(name, key, em, 1.0, _est_tokens)
+
+                if resp is None:
+                    _rl_release()
+                    stats.record_error(name); stats.record_health(name, False)
+                    pool.mark_key_down(name, key, retry_after=30)
+                    trail.note(name, em, "failed", "network", wait_s=30)
                     continue
-            _rl_t0 = time.time()
-            t0   = _rl_t0
-            resp = forward_embeddings(provider, key, payload)
-            elapsed = time.time() - t0
+                if resp.status_code == 429:
+                    _rl_release()
+                    stats.record_error(name)
+                    rate_limiter.on_429(
+                        name, key, em, dict(resp.headers),
+                        model_headroom_before=_current_headroom,
+                        observed_at=_rl_t0,
+                    )
+                    log.warning(f"  {name} embeddings 429 — rate-limit hold, trying next key")
+                    trail.note(name, em, "failed", "http_429",
+                               wait_s=_retry_after_from_headers(dict(resp.headers)))
+                    continue
+                if resp.status_code in (400, 401, 403, 404):
+                    _rl_release()
+                    stats.record_error(name)   # request/auth/model-specific, not a health failure
+                    log.error(f"  {name} embeddings {resp.status_code} — skipping provider: {resp.text[:200]}")
+                    trail.note(name, em, "failed", http_reason(resp.status_code))
+                    break
+                if resp.status_code >= 500:
+                    _rl_release()
+                    stats.record_error(name); stats.record_health(name, False)
+                    pool.mark_key_down(name, key, retry_after=15)
+                    trail.note(name, em, "failed", "http_5xx", wait_s=15)
+                    continue
+                if not (200 <= resp.status_code < 300):
+                    _rl_release()
+                    stats.record_error(name); stats.record_health(name, False)
+                    log.warning(f"  {name} embeddings unexpected {resp.status_code} — skipping provider")
+                    trail.note(name, em, "failed", http_reason(resp.status_code))
+                    break
 
-            def _rl_release():
-                rate_limiter.release_reservation(name, key, em, 1.0, _est_tokens)
+                stats.record_success(name, elapsed); stats.record_health(name, True)
+                log.info(f"  ✓ {name} embeddings ({elapsed*1000:.0f}ms)")
+                data = resp.json()
+                _actual = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
+                rate_limiter.reconcile(name, key, em, _est_tokens, _actual)
+                rate_limiter.update_from_headers(
+                    name, key, em, dict(resp.headers), observed_at=_rl_t0)
+                rate_limiter.on_success(name, key, em, _actual)
+                key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)
+                _add_provider_tokens(name, data)
+                cache.set(payload, data, ns)
+                trail.success(name, em)
+                request_log.append({
+                    "ts":         time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "endpoint":   "embeddings",
+                    "caller":     token[-6:] if token else "anon",
+                    "streaming":  False,
+                    "complexity": None,
+                    "est_tokens": 0,
+                    "provider":   name,
+                    "model":      em,
+                    "latency_ms": round((time.time() - t_start) * 1000),
+                    "status":     "success",
+                    "prompt_tokens": (data.get("usage") or {}).get("total_tokens"),
+                    "completion_tokens": None,
+                    **trail.as_log_fields(),
+                })
+                return jsonify(data), 200
 
-            if resp is None:
-                _rl_release()
-                stats.record_error(name); stats.record_health(name, False)
-                pool.mark_key_down(name, key, retry_after=30)
-                trail.note(name, em, "failed", "network", wait_s=30)
-                continue
-            if resp.status_code == 429:
-                _rl_release()
-                stats.record_error(name)
-                rate_limiter.on_429(
-                    name, key, em, dict(resp.headers),
-                    model_headroom_before=_current_headroom,
-                    observed_at=_rl_t0,
-                )
-                log.warning(f"  {name} embeddings 429 — rate-limit hold, trying next key")
-                trail.note(name, em, "failed", "http_429",
-                           wait_s=_retry_after_from_headers(dict(resp.headers)))
-                continue
-            if resp.status_code in (400, 401, 403, 404):
-                _rl_release()
-                stats.record_error(name)   # request/auth/model-specific, not a health failure
-                log.error(f"  {name} embeddings {resp.status_code} — skipping provider: {resp.text[:200]}")
-                trail.note(name, em, "failed", http_reason(resp.status_code))
-                break
-            if resp.status_code >= 500:
-                _rl_release()
-                stats.record_error(name); stats.record_health(name, False)
-                pool.mark_key_down(name, key, retry_after=15)
-                trail.note(name, em, "failed", "http_5xx", wait_s=15)
-                continue
-            if not (200 <= resp.status_code < 300):
-                _rl_release()
-                stats.record_error(name); stats.record_health(name, False)
-                log.warning(f"  {name} embeddings unexpected {resp.status_code} — skipping provider")
-                trail.note(name, em, "failed", http_reason(resp.status_code))
-                break
+            trail.flush()
+            log.warning(f"✗ {name} embeddings exhausted — cascading")
 
-            stats.record_success(name, elapsed); stats.record_health(name, True)
-            log.info(f"  ✓ {name} embeddings ({elapsed*1000:.0f}ms)")
-            data = resp.json()
-            _actual = float((data.get("usage") or {}).get("total_tokens") or _est_tokens)
-            rate_limiter.reconcile(name, key, em, _est_tokens, _actual)
-            rate_limiter.update_from_headers(
-                name, key, em, dict(resp.headers), observed_at=_rl_t0)
-            rate_limiter.on_success(name, key, em, _actual)
-            key_usage.add_tokens(token, (data.get("usage") or {}).get("total_tokens") or 0)
-            _add_provider_tokens(name, data)
-            cache.set(payload, data, ns)
-            trail.success(name, em)
-            request_log.append({
-                "ts":         time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "endpoint":   "embeddings",
-                "caller":     token[-6:] if token else "anon",
-                "streaming":  False,
-                "complexity": None,
-                "est_tokens": 0,
-                "provider":   name,
-                "model":      em,
-                "latency_ms": round((time.time() - t_start) * 1000),
-                "status":     "success",
-                "prompt_tokens": (data.get("usage") or {}).get("total_tokens"),
-                "completion_tokens": None,
-                **trail.as_log_fields(),
-            })
-            return jsonify(data), 200
-
-        trail.flush()
-        log.warning(f"✗ {name} embeddings exhausted — cascading")
+        if _exhausted_retry:
+            break
+        _waits = [w for w in (_best_rl_wait, _best_key_wait)
+                  if w is not None and w > 0]
+        _best_wait = min(_waits) if _waits else None
+        _do_wait = (_best_wait is not None
+                    and _best_wait <= RATE_EXHAUSTED_WAIT_S)
+        if not (_do_wait or _skipped_circuit_open):
+            break
+        _parts = []
+        if _do_wait:
+            _parts.append(f"wait={_best_wait:.1f}s")
+        if _skipped_circuit_open:
+            _parts.append("breaker_probe")
+        log.info(
+            f"⏳ all embedding candidates exhausted — {', '.join(_parts)} "
+            f"then retrying once (cap {RATE_EXHAUSTED_WAIT_S:g}s)")
+        if _do_wait:
+            time.sleep(_best_wait)
+        _exhausted_retry = True
 
     request_log.append({
         "ts":         time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
