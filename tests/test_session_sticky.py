@@ -19,6 +19,24 @@ def test_resolve_falls_back_chat_id_then_user_then_metadata():
     assert resolve_session_id({}, None) is None
 
 
+def test_resolve_uses_opencode_session_when_hermes_and_chat_id_absent():
+    assert resolve_session_id({"x-opencode-session": "oc-1"}, {"user": "u"}) == "oc-1"
+
+
+def test_resolve_hermes_session_beats_opencode_session():
+    assert resolve_session_id(
+        {"X-Hermes-Session-Id": "hdr", "x-opencode-session": "oc-1"},
+        {},
+    ) == "hdr"
+
+
+def test_resolve_chat_id_beats_opencode_session():
+    assert resolve_session_id(
+        {"X-Chat-ID": "c", "x-opencode-session": "oc-1"},
+        {},
+    ) == "c"
+
+
 def test_sticky_set_get_clear():
     s = SessionStickyStore(ttl_s=3600, max_entries=100)
     assert s.get("s1") is None

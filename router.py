@@ -36,6 +36,7 @@ from token_caps import (
     extract_caps_from_model_item,
 )
 from session_sticky import SessionStickyStore, resolve_session_id
+from opencode_session import merge_opencode_session_headers, seed_request_session
 from cascade_trail import CascadeTrail, http_reason
 
 
@@ -1454,9 +1455,10 @@ def _payload_has_image(payload: dict) -> bool:
 
 
 def _discover_best_model(base_url: str, key: str, extra_headers: dict = None,
-                         free_only: bool = False) -> str | None:
+                         free_only: bool = False, provider_name: str | None = None) -> str | None:
     try:
         hdrs = {"Authorization": f"Bearer {key}", **(extra_headers or {})}
+        merge_opencode_session_headers(hdrs, {"name": provider_name, "base_url": base_url})
         r = _HTTP.get(f"{base_url.rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
             return None
@@ -1497,6 +1499,7 @@ def _discover_models_with_catalog(provider: dict, key: str, free_only: bool = Fa
     """
     try:
         hdrs = {"Authorization": f"Bearer {key}", **provider.get("headers", {})}
+        merge_opencode_session_headers(hdrs, provider)
         r = _HTTP.get(f"{provider['base_url'].rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
             return [], []
@@ -1612,6 +1615,7 @@ def _fetch_models_catalog_map(provider: dict, key: str) -> dict[str, dict]:
     """
     try:
         hdrs = {"Authorization": f"Bearer {key}", **provider.get("headers", {})}
+        merge_opencode_session_headers(hdrs, provider)
         r = _HTTP.get(f"{provider['base_url'].rstrip('/')}/models", headers=hdrs, timeout=10)
         if r.status_code != 200:
             out: dict[str, dict] = {}
@@ -1853,6 +1857,7 @@ def _probe_provider(provider: dict, key: str) -> tuple:
     url  = provider["base_url"].rstrip("/") + "/chat/completions"
     hdrs = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
             **provider.get("headers", {})}
+    merge_opencode_session_headers(hdrs, provider)
     body = {"model": provider["model"],
             "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1}
     t0 = time.time()
@@ -1869,7 +1874,8 @@ def _probe_provider(provider: dict, key: str) -> tuple:
             # Providers that list paid models alongside free ones — never let
             # auto-discovery silently pick something that costs credits.
             alt = _discover_best_model(provider["base_url"], key, provider.get("headers", {}),
-                                       free_only=provider["name"] in _FREE_ONLY_DISCOVERY)
+                                       free_only=provider["name"] in _FREE_ONLY_DISCOVERY,
+                                       provider_name=provider["name"])
             if alt:
                 body["model"] = alt
                 t0 = time.time()
@@ -1914,6 +1920,7 @@ def _probe_tools(provider: dict, key: str, model: str) -> bool | None:
     url  = provider["base_url"].rstrip("/") + "/chat/completions"
     hdrs = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
             **provider.get("headers", {})}
+    merge_opencode_session_headers(hdrs, provider)
     base = {"model": model, "max_tokens": 64, "tools": _TOOL_PROBE,
             "messages": [{"role": "user", "content": "What is the weather in Paris? Use the get_weather tool."}]}
     saw_conclusive_no = False
@@ -1957,6 +1964,7 @@ def _probe_reasoning(provider: dict, key: str, model: str) -> bool:
     url  = provider["base_url"].rstrip("/") + "/chat/completions"
     hdrs = {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
             **provider.get("headers", {})}
+    merge_opencode_session_headers(hdrs, provider)
     body = {"model": model, "max_tokens": 24,
             "messages": [{"role": "user", "content": "Reply with just the word: ready"}]}
     try:
@@ -3889,6 +3897,8 @@ def forward(provider: dict, key: str, payload: dict, streaming: bool,
         "Content-Type":  "application/json",
         **provider.get("headers", {}),
     }
+    merge_opencode_session_headers(
+        headers, provider, session_id=getattr(_req_ctx, "session_id", None))
 
     body = dict(payload)
 
@@ -4001,6 +4011,7 @@ def forward_embeddings(provider: dict, key: str, payload: dict) -> requests.Resp
         "Content-Type":  "application/json",
         **provider.get("headers", {}),
     }
+    merge_opencode_session_headers(headers, provider)
     body = dict(payload)
     body["model"] = provider["embed_model"]   # always the provider's real embed model
     url = provider["base_url"].rstrip("/") + "/embeddings"
@@ -6350,7 +6361,9 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
     _req_ctx.attempts  = 0   # total forward() calls made
     _req_ctx.last_tried_provider = None
     _req_ctx.last_tried_model = None
+    _req_ctx.session_id = _session_id
     if not _exhausted_retry:
+        seed_request_session(_session_id)
         _req_ctx.cascade = CascadeTrail()
     trail = getattr(_req_ctx, "cascade", None) or CascadeTrail()
     _req_ctx.cascade = trail

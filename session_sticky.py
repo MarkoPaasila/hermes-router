@@ -21,6 +21,9 @@ def resolve_session_id(headers: dict, body: dict | None) -> str | None:
     sid = _h("X-Chat-ID")
     if sid:
         return sid
+    sid = _h("x-opencode-session")
+    if sid:
+        return sid
     body = body or {}
     user = body.get("user")
     if isinstance(user, str) and user.strip():

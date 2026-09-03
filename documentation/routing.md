@@ -77,10 +77,13 @@ upstream account and model instead of bouncing around the catalog every message.
 
 1. Header `X-Hermes-Session-Id`
 2. Header `X-Chat-ID`
-3. Body field `user` (OpenAI-style)
-4. Body `metadata.session_id` or `metadata.sessionId`
+3. Header `x-opencode-session`
+4. Body field `user` (OpenAI-style)
+5. Body `metadata.session_id` or `metadata.sessionId`
 
-With **no session id**, every request gets a fresh full-catalog pick.
+With **no session id**, every request gets a fresh full-catalog pick. OpenCode still always
+receives `x-opencode-session` on outbound calls (a request-scoped opaque value if the client
+sent none). That header is OpenCode's backend pin only — it does **not** create session affinity.
 
 Within a session, **keys use key affinity**: the same provider key is preferred until
 that key errors or is exhausted, then the proxy tries the next ready key for that model.

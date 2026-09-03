@@ -114,6 +114,11 @@ hr restart
 Defaults to `https://opencode.ai/zen/go/v1` with `deepseek-v4-flash,minimax-m3`; override with
 `OPENCODE_GO_MODEL`.
 
+Every request the proxy sends to OpenCode (Zen, Go, and any `opencode.ai` URL) includes an
+`x-opencode-session` header so OpenCode can pin the conversation to one backend. When the client
+sent a session id, that value is reused; otherwise the proxy sends a request-scoped opaque id.
+That synthetic value is **not** a session id for [session affinity](routing.md#session-affinity).
+
 ## Local models (Ollama / LM Studio / llama.cpp)
 
 Run a model on your **own machine** and route to it — free, private, and fast, with the cloud
