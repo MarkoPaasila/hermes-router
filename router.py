@@ -3561,6 +3561,27 @@ def _ordered_providers(payload: dict, prefer_local: bool = False,
              f"order={[c['provider']['name'] + '/' + c['model'] for c in ordered]}")
     return ordered
 
+# ── Reasoning effort normalization ────────────────────────────────────────────
+# Some clients send OpenAI-style reasoning_effort=max (or nested reasoning.effort).
+# Gemini / Cerebras / Codex accept high|medium|low|… — not max. Clamp aliases up
+# front so cascades don't burn models on Invalid reasoning_effort: max 400s.
+_EFFORT_MAX_ALIASES = frozenset({"max", "xhigh", "ultra"})
+
+
+def _normalize_reasoning_effort(body: dict) -> None:
+    """Map client 'max' (and rare aliases) to 'high' for upstream enums. In-place."""
+    if not isinstance(body, dict):
+        return
+    effort = body.get("reasoning_effort")
+    if isinstance(effort, str) and effort.strip().lower() in _EFFORT_MAX_ALIASES:
+        body["reasoning_effort"] = "high"
+    reasoning = body.get("reasoning")
+    if isinstance(reasoning, dict):
+        nested = reasoning.get("effort")
+        if isinstance(nested, str) and nested.strip().lower() in _EFFORT_MAX_ALIASES:
+            reasoning["effort"] = "high"
+
+
 # ── Codex (Responses API) format translation ──────────────────────────────────
 # Codex speaks OpenAI's Responses API (not Chat Completions). These helpers
 # translate transparently, like the Anthropic ones above.
@@ -3611,6 +3632,8 @@ def _to_codex_body(payload: dict, model: str) -> dict:
 
     # reasoning effort (OpenAI clients pass reasoning_effort; default medium)
     effort = payload.get("reasoning_effort") or "medium"
+    if isinstance(effort, str) and effort.strip().lower() in _EFFORT_MAX_ALIASES:
+        effort = "high"
     body["reasoning"] = {"effort": effort}
     body["include"] = ["reasoning.encrypted_content"]
     return body
@@ -3917,6 +3940,9 @@ def forward(provider: dict, key: str, payload: dict, streaming: bool,
     # Strip top-level thinking fields (Gemini sometimes adds these)
     body.pop("think", None)
     body.pop("thinking", None)
+
+    # Client "max" → upstream "high" (Gemini/Cerebras reject reasoning_effort=max)
+    _normalize_reasoning_effort(body)
 
     # Reasoning models spend output tokens on hidden chain-of-thought, so a small
     # client max_tokens can be entirely consumed by thinking — leaving empty
@@ -6699,7 +6725,14 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 # 401 — an ended free promo, an unsupported/paywalled model. That's
                 # not a credential problem, so skip just this model and try the
                 # provider's next one instead of disabling the whole provider.
-                if re.search(r"modelerror|not supported|promotion has ended|subscrib|no payment|credits", btxt, re.I):
+                # OpenRouter similarly 403s harness-only free models ("agentic
+                # harnesses") — still model-scoped, not a bad key.
+                if re.search(
+                    r"modelerror|not supported|promotion has ended|subscrib|"
+                    r"no payment|credits|agentic harness|"
+                    r"only available on|available (?:only )?on agentic",
+                    btxt, re.I,
+                ):
                     log.warning(f"  {name}/{model} {resp.status_code} model-level — skipping this model: {btxt[:160]}")
                     break
                 # Genuine auth/permission failure — won't work for any model here.
@@ -6712,6 +6745,17 @@ def _route_completion(payload: dict, streaming: bool, ns: str = "",
                 # actually enabled, like OpenCode Go without Go billing turned on).
                 log.error(f"  {name} {resp.status_code} — auth, skipping provider: {btxt[:200]}")
                 stats.record_health(name, False)
+                skip_providers.add(name)
+                break
+
+            if resp.status_code == 402:
+                # Payment Required / out-of-credits — budget, not provider health.
+                # Skip this provider for the request; do not cool keys or trip the
+                # circuit breaker (CONTEXT: breaker ≠ budgets).
+                _rl_release()
+                stats.record_error(name)
+                log.warning(f"  {name}/{model} 402 — payment/budget, skipping provider")
+                _crec("note", name, model, "failed", "http_402")
                 skip_providers.add(name)
                 break
 
@@ -7194,6 +7238,13 @@ def embeddings():
                     stats.record_error(name)   # request/auth/model-specific, not a health failure
                     log.error(f"  {name} embeddings {resp.status_code} — skipping provider: {resp.text[:200]}")
                     trail.note(name, em, "failed", http_reason(resp.status_code))
+                    break
+                if resp.status_code == 402:
+                    # Payment/budget — skip provider, do not trip breaker / cool keys.
+                    _rl_release()
+                    stats.record_error(name)
+                    log.warning(f"  {name} embeddings 402 — payment/budget, skipping provider")
+                    trail.note(name, em, "failed", "http_402")
                     break
                 if resp.status_code >= 500:
                     _rl_release()

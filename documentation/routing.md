@@ -50,6 +50,13 @@ This is the core of the proxy, used by every chat request.
   cascade once per request; **429** stays on the rate-limit path). Enable
   `FILTER_SPECIALIZED_MODELS` when using a large auto-discovery limit so non-chat IDs are less
   likely to enter the roster in the first place.
+- **402 Payment Required** (out of credits / billing) skips that provider for the request but
+  does **not** cool keys or trip the **circuit breaker** — budgets are not health failures.
+  Model-gated **401/403** bodies (ended promo, harness-only free models, etc.) skip just that
+  model; only genuine auth failures feed the breaker.
+- Client `reasoning_effort` (or nested `reasoning.effort`) of **`max`** is rewritten to **`high`**
+  before OpenAI-compatible upstream calls so providers like Gemini/Cerebras that reject `max`
+  still get a valid effort.
 
 This also works *within* a single provider: if you list several models for one provider (e.g.
 `GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-flash,gemini-2.5-pro`), the proxy treats each one
