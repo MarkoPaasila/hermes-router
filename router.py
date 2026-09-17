@@ -1067,14 +1067,17 @@ _FREE_ONLY_DISCOVERY = {"openrouter", "naga", "opencode"}
 _MODEL_DISCOVERY_SKIP = {"anthropic", "codex", "local", "huggingface"}
 
 
-# Free OpenCode Zen models that omit a `:free` / `-free` suffix in their id.
-_FREE_MODEL_IDS = frozenset({"big-pickle"})
+# Free models that omit a `:free` / `-free` suffix in their id (OpenCode Zen
+# stealth previews, etc.). Basename match also covers provider-prefixed ids
+# (e.g. openrouter ``stealth/union-alpha``).
+_FREE_MODEL_IDS = frozenset({"big-pickle", "union-alpha"})
 
 
 def _is_free_model_id(model: str) -> bool:
     m = (model or "").lower()
+    base = m.rsplit("/", 1)[-1]
     return (m.endswith(":free") or m.endswith("-free") or "/free" in m
-            or m in _FREE_MODEL_IDS)
+            or m in _FREE_MODEL_IDS or base in _FREE_MODEL_IDS)
 
 # ── Config-write support (web dashboard "Add key" / "Set model" / add-on toggles) ──
 # Mirrors the canonical provider lists + env-var mappings already used by the `hr`
