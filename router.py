@@ -1072,12 +1072,24 @@ _MODEL_DISCOVERY_SKIP = {"anthropic", "codex", "local", "huggingface"}
 # (e.g. openrouter ``stealth/union-alpha``).
 _FREE_MODEL_IDS = frozenset({"big-pickle", "union-alpha"})
 
+# Reasoning models whose catalogs omit reasoning params / whose probes miss
+# hidden CoT (null ``reasoning`` field, non-empty content). Basename match
+# covers provider-prefixed ids (e.g. openrouter ``stealth/union-alpha``).
+_REASONING_MODEL_IDS = frozenset({"union-alpha"})
+
 
 def _is_free_model_id(model: str) -> bool:
     m = (model or "").lower()
     base = m.rsplit("/", 1)[-1]
     return (m.endswith(":free") or m.endswith("-free") or "/free" in m
             or m in _FREE_MODEL_IDS or base in _FREE_MODEL_IDS)
+
+
+def _is_known_reasoning_model(model: str) -> bool:
+    """True for allowlisted reasoning models (catalog/probe false-negatives)."""
+    m = (model or "").lower()
+    base = m.rsplit("/", 1)[-1]
+    return m in _REASONING_MODEL_IDS or base in _REASONING_MODEL_IDS
 
 # ── Config-write support (web dashboard "Add key" / "Set model" / add-on toggles) ──
 # Mirrors the canonical provider lists + env-var mappings already used by the `hr`
@@ -2124,9 +2136,9 @@ def _resolve_caps(p: dict, key: str, model: str, ok: bool,
     """Feature probes for one (provider, model). GI is resolved separately via
     gi_ranking.
 
-    Resolve order per capability: env override → catalog → behavioral probe.
-    Catalog/promote positives in ``prior`` are never demoted by a later probe
-    false. _probe_tools None stays optimistic True.
+    Resolve order per capability: env override → known allowlist → catalog →
+    behavioral probe. Catalog/promote positives in ``prior`` are never demoted
+    by a later probe false. _probe_tools None stays optimistic True.
 
     When catalog is silent on reasoning and prior was a probe-false, re-probe
     so sticky false-negatives (e.g. OpenCode) can recover.
@@ -2158,6 +2170,10 @@ def _resolve_caps(p: dict, key: str, model: str, ok: bool,
     er = _env_flag(name, "REASONING", model)
     if er is not None:
         reasoning, reasoning_source = er, "env"
+    elif _is_known_reasoning_model(model):
+        # Stealth / incomplete catalogs can assert reasoning=false; allowlist wins.
+        reasoning, reasoning_source = _merge_capability(
+            prior, "reasoning", True, "catalog")
     elif cat["reasoning"] is not None:
         reasoning, reasoning_source = _merge_capability(
             prior, "reasoning", cat["reasoning"], "catalog")

@@ -81,6 +81,46 @@ def test_catalog_caps_gemini_without_thinking_is_silent():
     assert caps["reasoning"] is None
 
 
+def test_is_known_reasoning_model_union_alpha():
+    assert router._is_known_reasoning_model("union-alpha") is True
+    assert router._is_known_reasoning_model("stealth/union-alpha") is True
+    assert router._is_known_reasoning_model("big-pickle") is False
+
+
+def test_resolve_caps_allowlist_overrides_openrouter_catalog_false(monkeypatch):
+    """Union Alpha: OpenRouter omits reasoning params but the model reasons."""
+    monkeypatch.setattr(router, "_probe_tools", lambda *a, **k: True)
+    monkeypatch.setattr(router, "_probe_reasoning", lambda *a, **k: False)
+    monkeypatch.setattr(router, "_shared_reasoning_hint", lambda m: None)
+    p = {"name": "openrouter", "base_url": "https://openrouter.ai/api/v1", "headers": {}}
+    item = {
+        "id": "stealth/union-alpha",
+        "supported_parameters": [
+            "max_tokens", "response_format", "temperature",
+            "tool_choice", "tools", "top_p",
+        ],
+    }
+    caps = router._resolve_caps(
+        p, "sk", "stealth/union-alpha", True,
+        catalog_item=item,
+        prior={"reasoning": False, "reasoning_source": "catalog"})
+    assert caps["reasoning"] is True
+    assert caps["reasoning_source"] == "catalog"
+
+
+def test_resolve_caps_allowlist_marks_opencode_union_when_down(monkeypatch):
+    monkeypatch.setattr(router, "_probe_tools", lambda *a, **k: False)
+    monkeypatch.setattr(router, "_probe_reasoning", lambda *a, **k: False)
+    monkeypatch.setattr(router, "_shared_reasoning_hint", lambda m: None)
+    p = {"name": "opencode", "base_url": "https://opencode.ai/zen/v1", "headers": {}}
+    caps = router._resolve_caps(
+        p, "sk", "union-alpha", False,
+        catalog_item={"id": "union-alpha"},
+        prior={"reasoning": False, "reasoning_source": "probe"})
+    assert caps["reasoning"] is True
+    assert caps["reasoning_source"] == "catalog"
+
+
 def test_shared_reasoning_hint_matches_normalized_ids(monkeypatch):
     monkeypatch.setattr(
         router, "_load_openrouter_reasoning_index",
