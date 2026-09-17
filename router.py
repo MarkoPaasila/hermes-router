@@ -1075,7 +1075,7 @@ _FREE_MODEL_IDS = frozenset({"big-pickle", "union-alpha"})
 # Reasoning models whose catalogs omit reasoning params / whose probes miss
 # hidden CoT (null ``reasoning`` field, non-empty content). Basename match
 # covers provider-prefixed ids (e.g. openrouter ``stealth/union-alpha``).
-_REASONING_MODEL_IDS = frozenset({"union-alpha"})
+_REASONING_MODEL_IDS = frozenset({"union-alpha", "big-pickle"})
 
 
 def _is_free_model_id(model: str) -> bool:

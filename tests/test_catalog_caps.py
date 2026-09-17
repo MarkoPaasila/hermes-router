@@ -81,10 +81,11 @@ def test_catalog_caps_gemini_without_thinking_is_silent():
     assert caps["reasoning"] is None
 
 
-def test_is_known_reasoning_model_union_alpha():
+def test_is_known_reasoning_model_allowlist():
     assert router._is_known_reasoning_model("union-alpha") is True
     assert router._is_known_reasoning_model("stealth/union-alpha") is True
-    assert router._is_known_reasoning_model("big-pickle") is False
+    assert router._is_known_reasoning_model("big-pickle") is True
+    assert router._is_known_reasoning_model("opencode/big-pickle") is True
 
 
 def test_resolve_caps_allowlist_overrides_openrouter_catalog_false(monkeypatch):
@@ -116,6 +117,20 @@ def test_resolve_caps_allowlist_marks_opencode_union_when_down(monkeypatch):
     caps = router._resolve_caps(
         p, "sk", "union-alpha", False,
         catalog_item={"id": "union-alpha"},
+        prior={"reasoning": False, "reasoning_source": "probe"})
+    assert caps["reasoning"] is True
+    assert caps["reasoning_source"] == "catalog"
+
+
+def test_resolve_caps_allowlist_marks_opencode_big_pickle(monkeypatch):
+    """big-pickle: probe misses hidden CoT; allowlist forces reasoning=True."""
+    monkeypatch.setattr(router, "_probe_tools", lambda *a, **k: False)
+    monkeypatch.setattr(router, "_probe_reasoning", lambda *a, **k: False)
+    monkeypatch.setattr(router, "_shared_reasoning_hint", lambda m: None)
+    p = {"name": "opencode", "base_url": "https://opencode.ai/zen/v1", "headers": {}}
+    caps = router._resolve_caps(
+        p, "sk", "big-pickle", False,
+        catalog_item={"id": "big-pickle"},
         prior={"reasoning": False, "reasoning_source": "probe"})
     assert caps["reasoning"] is True
     assert caps["reasoning_source"] == "catalog"
@@ -242,8 +257,8 @@ def test_resolve_caps_probes_when_catalog_silent(monkeypatch):
     monkeypatch.setattr(router, "_probe_reasoning", lambda *a, **k: False)
     p = {"name": "opencode", "base_url": "https://example/v1", "headers": {}}
     caps = router._resolve_caps(
-        p, "sk", "big-pickle", True,
-        catalog_item={"id": "big-pickle"}, prior=None)
+        p, "sk", "some-generic-model", True,
+        catalog_item={"id": "some-generic-model"}, prior=None)
     assert caps["supports_tools"] is True
     assert caps["supports_tools_source"] == "probe"
     assert caps["reasoning"] is False
