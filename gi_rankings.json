@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-04T07:35:26Z",
+  "generated_at": "2026-09-17T11:36:48Z",
   "sources": [
     "artificial_analysis",
     "lmsys",
@@ -23,14 +23,17 @@
     "claude-sonnet-4.6": "claude-sonnet",
     "claude-sonnet-latest": "claude-sonnet",
     "command-r-plus-08-2024": "command-r-plus",
+    "deepseek-pro-latest": "deepseek-v4-pro",
     "deepseek-r1-0528": "deepseek-r1",
     "deepseek-v3.1-terminus": "deepseek-v3",
     "deepseek-v4-flash-0731": "deepseek-v4-flash",
     "deepseek-v4-flash-latest": "deepseek-v4-flash",
+    "deepseek-v4-flash-non-reasoning": "deepseek-v4-flash",
     "deepseek-v4-flash-vision-exp": "deepseek-v4-flash-vision",
     "deepseek-v4-pro-0813": "deepseek-v4-pro",
     "deepseek-v4-pro-high": "deepseek-v4-pro",
     "deepseek-v4-pro-non-reasoning": "deepseek-v4-pro",
+    "deepseek-v4.1-flash": "deepseek-v4",
     "devstral-2512": "devstral-2",
     "gemini-2.5-pro-preview": "gemini-2.5-pro",
     "gemini-2.5-pro-preview-05-06": "gemini-2.5-pro",
@@ -69,7 +72,11 @@
     "gpt-5.6-sol-pro": "gpt-5",
     "gpt-5.6-terra": "gpt-5",
     "gpt-5.6-terra-pro": "gpt-5",
-    "gpt-latest": "gpt-5",
+    "gpt-6-astra-pro": "gpt-6-astra",
+    "gpt-astra-latest": "gpt-6-astra",
+    "gpt-luna-latest": "gpt-5",
+    "gpt-sol-latest": "gpt-5",
+    "gpt-terra-latest": "gpt-5",
     "grok-4.20": "grok-4",
     "grok-4.20-multi-agent": "grok-4",
     "grok-4.6": "grok-4",
@@ -81,6 +88,7 @@
     "llama-3.1-70b-instruct": "llama-3.1-70b",
     "llama-3.2-3b-instruct": "llama-3.2-3b",
     "llama-3.3-70b-instruct": "llama-3.3-70b",
+    "mercury-2.5": "mercury-2",
     "mercury-2.5-preview": "mercury-2",
     "minimax-m2-her": "minimax-m2",
     "minimax-m2.1": "minimax-m2",
@@ -118,190 +126,196 @@
   },
   "models": {
     "a-x-k2": {
-      "gi": 52.55,
+      "gi": 39.09,
       "sources": {
-        "artificial_analysis": 52.55
+        "artificial_analysis": 39.09
       }
     },
     "agnes-2-5-pro-alpha": {
-      "gi": 59.81,
+      "gi": 49.21,
       "sources": {
-        "artificial_analysis": 59.81
+        "artificial_analysis": 49.21
       }
     },
     "agnes-2-5-pro-beta": {
-      "gi": 74.34,
+      "gi": 63.89,
       "sources": {
-        "artificial_analysis": 74.34
+        "artificial_analysis": 63.89
+      }
+    },
+    "agnes-3-0-flash": {
+      "gi": 64.48,
+      "sources": {
+        "artificial_analysis": 64.48
       }
     },
     "apertus-70b-instruct": {
-      "gi": 1.55,
+      "gi": 4.17,
       "sources": {
-        "artificial_analysis": 1.55
+        "artificial_analysis": 4.17
       }
     },
     "apertus-8b-instruct": {
-      "gi": 0.0,
+      "gi": 3.57,
       "sources": {
-        "artificial_analysis": 0.0
+        "artificial_analysis": 3.57
       }
     },
     "apodex-1-1": {
-      "gi": 66.46,
+      "gi": 54.37,
       "sources": {
-        "artificial_analysis": 66.46
+        "artificial_analysis": 54.37
       }
     },
     "apriel-v1-5-15b-thinker": {
-      "gi": 31.84,
+      "gi": 21.43,
       "sources": {
-        "artificial_analysis": 31.84
+        "artificial_analysis": 21.43
       }
     },
     "apriel-v1-6-15b-thinker": {
-      "gi": 30.6,
+      "gi": 20.63,
       "sources": {
-        "artificial_analysis": 30.6
+        "artificial_analysis": 20.63
       }
     },
     "arctic-instruct": {
-      "gi": 3.09,
+      "gi": 4.76,
       "sources": {
-        "artificial_analysis": 3.09
+        "artificial_analysis": 4.76
       }
     },
     "celeris-1": {
-      "gi": 17.62,
+      "gi": 6.55,
       "sources": {
-        "artificial_analysis": 17.62
+        "artificial_analysis": 6.55
       }
     },
     "claude-2": {
-      "gi": 3.55,
+      "gi": 4.96,
       "sources": {
-        "artificial_analysis": 3.55
+        "artificial_analysis": 4.96
       }
     },
     "claude-21": {
-      "gi": 3.86,
+      "gi": 5.16,
       "sources": {
-        "artificial_analysis": 3.86
+        "artificial_analysis": 5.16
       }
     },
     "claude-3-5-haiku": {
-      "gi": 17.31,
+      "gi": 11.71,
       "sources": {
-        "artificial_analysis": 17.31
+        "artificial_analysis": 11.71
       }
     },
     "claude-3-7-sonnet": {
-      "gi": 35.39,
+      "gi": 24.4,
       "sources": {
-        "artificial_analysis": 35.39
+        "artificial_analysis": 24.4
       }
     },
     "claude-3-7-sonnet-thinking": {
-      "gi": 41.11,
+      "gi": 29.17,
       "sources": {
-        "artificial_analysis": 41.11
+        "artificial_analysis": 29.17
       }
     },
     "claude-3-haiku": {
-      "gi": 3.86,
+      "gi": 5.16,
       "sources": {
-        "artificial_analysis": 3.86
+        "artificial_analysis": 5.16
       }
     },
     "claude-3-opus": {
-      "gi": 16.69,
+      "gi": 11.31,
       "sources": {
-        "artificial_analysis": 16.69
+        "artificial_analysis": 11.31
       }
     },
     "claude-3-sonnet": {
-      "gi": 5.26,
+      "gi": 5.75,
       "sources": {
-        "artificial_analysis": 5.26
+        "artificial_analysis": 5.75
       }
     },
     "claude-35-sonnet": {
-      "gi": 13.6,
+      "gi": 9.72,
       "sources": {
-        "artificial_analysis": 13.6
+        "artificial_analysis": 9.72
       }
     },
     "claude-35-sonnet-june-24": {
-      "gi": 10.97,
+      "gi": 8.33,
       "sources": {
-        "artificial_analysis": 10.97
+        "artificial_analysis": 8.33
       }
     },
     "claude-4-1-opus": {
-      "gi": 42.97,
+      "gi": 30.95,
       "sources": {
-        "artificial_analysis": 42.97
+        "artificial_analysis": 30.95
       }
     },
     "claude-4-1-opus-thinking": {
-      "gi": 51.78,
+      "gi": 39.29,
       "sources": {
-        "artificial_analysis": 51.78
+        "artificial_analysis": 39.29
       }
     },
     "claude-4-5-haiku": {
-      "gi": 35.7,
+      "gi": 24.6,
       "sources": {
-        "artificial_analysis": 35.7
+        "artificial_analysis": 24.6
       }
     },
     "claude-4-5-haiku-reasoning": {
-      "gi": 44.67,
+      "gi": 28.97,
       "sources": {
-        "artificial_analysis": 44.67
+        "artificial_analysis": 28.97
       }
     },
     "claude-4-5-sonnet": {
-      "gi": 44.67,
+      "gi": 32.34,
       "sources": {
-        "artificial_analysis": 44.67
+        "artificial_analysis": 32.34
       }
     },
     "claude-4-5-sonnet-thinking": {
-      "gi": 56.26,
+      "gi": 36.11,
       "sources": {
-        "artificial_analysis": 56.26
+        "artificial_analysis": 36.11
       }
     },
     "claude-4-opus": {
-      "gi": 38.64,
+      "gi": 26.98,
       "sources": {
-        "artificial_analysis": 38.64
+        "artificial_analysis": 26.98
       }
     },
     "claude-4-opus-thinking": {
-      "gi": 47.45,
+      "gi": 34.92,
       "sources": {
-        "artificial_analysis": 47.45
+        "artificial_analysis": 34.92
       }
     },
     "claude-4-sonnet": {
-      "gi": 38.64,
+      "gi": 26.98,
       "sources": {
-        "artificial_analysis": 38.64
+        "artificial_analysis": 26.98
       }
     },
     "claude-4-sonnet-thinking": {
-      "gi": 44.51,
+      "gi": 31.55,
       "sources": {
-        "artificial_analysis": 44.51
+        "artificial_analysis": 31.55
       }
     },
     "claude-fable-5": {
-      "gi": 87.32,
+      "gi": 80.17,
       "sources": {
-        "lmsys": 80.21,
-        "artificial_analysis": 94.44
+        "lmsys": 67.68,
+        "artificial_analysis": 92.66
       }
     },
     "claude-fable-5-1": {
@@ -311,538 +325,569 @@
       }
     },
     "claude-fable-5-1-high": {
-      "gi": 95.05,
+      "gi": 95.63,
       "sources": {
-        "artificial_analysis": 95.05
+        "artificial_analysis": 95.63
       }
     },
     "claude-fable-5-1-low": {
-      "gi": 88.25,
+      "gi": 87.3,
       "sources": {
-        "artificial_analysis": 88.25
+        "artificial_analysis": 87.3
       }
     },
     "claude-fable-5-1-medium": {
-      "gi": 91.96,
+      "gi": 91.47,
       "sources": {
-        "artificial_analysis": 91.96
+        "artificial_analysis": 91.47
       }
     },
     "claude-fable-5-1-xhigh": {
-      "gi": 98.61,
+      "gi": 99.6,
       "sources": {
-        "artificial_analysis": 98.61
+        "artificial_analysis": 99.6
       }
     },
     "claude-fable-5.1-max": {
-      "gi": 91.22,
+      "gi": 76.14,
       "sources": {
-        "lmsys": 91.22
+        "lmsys": 76.14
       }
     },
     "claude-haiku-4-5-20251001": {
-      "gi": 40.39,
+      "gi": 34.12,
       "sources": {
-        "lmsys": 40.39
+        "lmsys": 34.12
       }
     },
     "claude-instant": {
-      "gi": 1.08,
+      "gi": 3.97,
       "sources": {
-        "artificial_analysis": 1.08
+        "artificial_analysis": 3.97
       }
     },
     "claude-opus-4-1-20250805": {
-      "gi": 50.9,
+      "gi": 43.0,
       "sources": {
-        "lmsys": 50.9
+        "lmsys": 43.0
       }
     },
     "claude-opus-4-5": {
-      "gi": 53.48,
+      "gi": 41.07,
       "sources": {
-        "artificial_analysis": 53.48
+        "artificial_analysis": 41.07
       }
     },
     "claude-opus-4-5-20251101": {
-      "gi": 63.96,
+      "gi": 54.02,
       "sources": {
-        "lmsys": 63.96
+        "lmsys": 54.02
       }
     },
     "claude-opus-4-5-20251101-high-32k": {
-      "gi": 66.42,
+      "gi": 57.7,
       "sources": {
-        "lmsys": 66.42
+        "lmsys": 57.7
       }
     },
     "claude-opus-4-5-20251101-thinking-32k": {
-      "gi": 66.42,
+      "gi": 56.1,
       "sources": {
-        "lmsys": 66.42
+        "lmsys": 56.1
       }
     },
     "claude-opus-4-5-thinking": {
-      "gi": 63.21,
+      "gi": 51.79,
       "sources": {
-        "artificial_analysis": 63.21
+        "artificial_analysis": 51.79
       }
     },
     "claude-opus-4-6": {
-      "gi": 63.61,
+      "gi": 53.59,
       "sources": {
-        "lmsys": 68.8,
-        "artificial_analysis": 58.42
+        "lmsys": 60.75,
+        "artificial_analysis": 46.43
       }
     },
     "claude-opus-4-6-adaptive": {
-      "gi": 67.85,
+      "gi": 57.34,
       "sources": {
-        "artificial_analysis": 67.85
+        "artificial_analysis": 57.34
       }
     },
     "claude-opus-4-6-high": {
-      "gi": 69.95,
+      "gi": 62.0,
       "sources": {
-        "lmsys": 69.95
+        "lmsys": 62.0
       }
     },
     "claude-opus-4-6-thinking": {
-      "gi": 73.23,
+      "gi": 61.86,
       "sources": {
-        "lmsys": 73.23
+        "lmsys": 61.86
       }
     },
     "claude-opus-4-7": {
-      "gi": 75.8,
+      "gi": 68.36,
       "sources": {
-        "lmsys": 68.14,
-        "artificial_analysis": 83.46
+        "lmsys": 61.93,
+        "artificial_analysis": 74.8
       }
     },
     "claude-opus-4-7-high": {
-      "gi": 69.46,
+      "gi": 62.34,
       "sources": {
-        "lmsys": 69.46
+        "lmsys": 62.34
       }
     },
     "claude-opus-4-7-non-reasoning": {
-      "gi": 66.31,
+      "gi": 55.36,
       "sources": {
-        "artificial_analysis": 66.31
+        "artificial_analysis": 55.36
       }
     },
     "claude-opus-4-7-thinking": {
-      "gi": 73.97,
+      "gi": 62.48,
       "sources": {
-        "lmsys": 73.97
+        "lmsys": 62.48
       }
     },
     "claude-opus-4-8": {
-      "gi": 78.57,
+      "gi": 70.59,
       "sources": {
-        "lmsys": 70.11,
-        "artificial_analysis": 87.02
+        "lmsys": 63.8,
+        "artificial_analysis": 77.38
       }
     },
     "claude-opus-4-8-high": {
-      "gi": 72.82,
+      "gi": 66.57,
       "sources": {
-        "lmsys": 72.82
+        "lmsys": 66.57
       }
     },
     "claude-opus-4-8-thinking": {
-      "gi": 73.07,
+      "gi": 61.72,
       "sources": {
-        "lmsys": 73.07
+        "lmsys": 61.72
       }
     },
     "claude-opus-5": {
-      "gi": 95.98,
+      "gi": 94.64,
       "sources": {
-        "artificial_analysis": 95.98
+        "artificial_analysis": 94.64
       }
     },
     "claude-opus-5-high": {
-      "gi": 87.64,
+      "gi": 79.34,
       "sources": {
-        "lmsys": 81.77,
-        "artificial_analysis": 93.51
+        "lmsys": 69.0,
+        "artificial_analysis": 89.68
       }
     },
     "claude-opus-5-low": {
-      "gi": 79.6,
+      "gi": 73.02,
       "sources": {
-        "artificial_analysis": 79.6
+        "artificial_analysis": 73.02
       }
     },
     "claude-opus-5-max": {
-      "gi": 83.5,
+      "gi": 70.46,
       "sources": {
-        "lmsys": 83.5
+        "lmsys": 70.46
       }
     },
     "claude-opus-5-medium": {
-      "gi": 89.03,
+      "gi": 83.53,
       "sources": {
-        "artificial_analysis": 89.03
+        "artificial_analysis": 83.53
       }
     },
     "claude-opus-5-xhigh": {
-      "gi": 95.05,
+      "gi": 92.66,
       "sources": {
-        "artificial_analysis": 95.05
+        "artificial_analysis": 92.66
       }
     },
     "claude-sonnet-4-5-20250929": {
-      "gi": 50.25,
+      "gi": 42.44,
       "sources": {
-        "lmsys": 50.25
+        "lmsys": 42.44
       }
     },
     "claude-sonnet-4-5-20250929-thinking-32k": {
-      "gi": 51.4,
+      "gi": 43.41,
       "sources": {
-        "lmsys": 51.4
+        "lmsys": 43.41
       }
     },
     "claude-sonnet-4-6": {
-      "gi": 61.98,
+      "gi": 52.18,
       "sources": {
-        "lmsys": 68.64,
-        "artificial_analysis": 55.33
+        "lmsys": 61.3,
+        "artificial_analysis": 43.06
       }
     },
     "claude-sonnet-4-6-adaptive": {
-      "gi": 73.26,
+      "gi": 54.56,
       "sources": {
-        "artificial_analysis": 73.26
+        "artificial_analysis": 54.56
       }
     },
     "claude-sonnet-4-6-non-reasoning-low-effort": {
-      "gi": 52.7,
+      "gi": 40.28,
       "sources": {
-        "artificial_analysis": 52.7
+        "artificial_analysis": 40.28
       }
     },
     "claude-sonnet-5": {
-      "gi": 83.93,
+      "gi": 70.24,
       "sources": {
-        "artificial_analysis": 83.93
+        "artificial_analysis": 70.24
       }
     },
     "claude-sonnet-5-high": {
-      "gi": 69.13,
+      "gi": 60.53,
       "sources": {
-        "lmsys": 69.13
+        "lmsys": 63.52,
+        "artificial_analysis": 57.54
+      }
+    },
+    "claude-sonnet-5-low": {
+      "gi": 43.06,
+      "sources": {
+        "artificial_analysis": 43.06
+      }
+    },
+    "claude-sonnet-5-medium": {
+      "gi": 50.4,
+      "sources": {
+        "artificial_analysis": 50.4
       }
     },
     "claude-sonnet-5-non-reasoning": {
-      "gi": 64.3,
+      "gi": 51.39,
       "sources": {
-        "artificial_analysis": 64.3
+        "artificial_analysis": 51.39
+      }
+    },
+    "claude-sonnet-5-xhigh": {
+      "gi": 62.9,
+      "sources": {
+        "artificial_analysis": 62.9
       }
     },
     "command-a": {
-      "gi": 10.05,
+      "gi": 7.94,
       "sources": {
-        "artificial_analysis": 10.05
+        "artificial_analysis": 7.94
       }
     },
     "command-a-plus": {
-      "gi": 33.69,
+      "gi": 21.63,
       "sources": {
-        "artificial_analysis": 33.69
+        "artificial_analysis": 21.63
       }
     },
     "command-r-03-2024": {
-      "gi": 1.08,
+      "gi": 3.97,
       "sources": {
-        "artificial_analysis": 1.08
+        "artificial_analysis": 3.97
       }
     },
     "command-r-plus-04-2024": {
-      "gi": 2.47,
+      "gi": 4.56,
       "sources": {
-        "artificial_analysis": 2.47
+        "artificial_analysis": 4.56
       }
     },
     "dbrx": {
-      "gi": 2.47,
+      "gi": 4.56,
       "sources": {
-        "artificial_analysis": 2.47
+        "artificial_analysis": 4.56
       }
     },
     "deephermes-3-llama-3-1-8b-preview": {
-      "gi": 1.39,
+      "gi": 4.17,
       "sources": {
-        "artificial_analysis": 1.39
+        "artificial_analysis": 4.17
       }
     },
     "deephermes-3-mistral-24b-preview": {
-      "gi": 6.18,
+      "gi": 6.15,
       "sources": {
-        "artificial_analysis": 6.18
+        "artificial_analysis": 6.15
       }
     },
     "deepseek-coder-v2": {
-      "gi": 5.72,
+      "gi": 5.95,
       "sources": {
-        "artificial_analysis": 5.72
+        "artificial_analysis": 5.95
       }
     },
     "deepseek-coder-v2-lite": {
-      "gi": 2.63,
+      "gi": 4.56,
       "sources": {
-        "artificial_analysis": 2.63
+        "artificial_analysis": 4.56
       }
     },
     "deepseek-llm-67b-chat": {
-      "gi": 2.47,
+      "gi": 4.56,
       "sources": {
-        "artificial_analysis": 2.47
+        "artificial_analysis": 4.56
       }
     },
     "deepseek-r1": {
-      "gi": 29.98,
+      "gi": 20.04,
       "sources": {
-        "artificial_analysis": 29.98
+        "artificial_analysis": 20.04
       }
     },
     "deepseek-r1-0120": {
-      "gi": 27.2,
+      "gi": 16.67,
       "sources": {
-        "artificial_analysis": 27.2
+        "artificial_analysis": 16.67
       }
     },
     "deepseek-r1-distill-llama-70b": {
-      "gi": 13.6,
+      "gi": 9.72,
       "sources": {
-        "artificial_analysis": 13.6
+        "artificial_analysis": 9.72
       }
     },
     "deepseek-r1-distill-llama-8b": {
-      "gi": 8.04,
+      "gi": 6.94,
       "sources": {
-        "artificial_analysis": 8.04
+        "artificial_analysis": 6.94
       }
     },
     "deepseek-r1-distill-qwen-1-5b": {
-      "gi": 3.55,
+      "gi": 4.96,
       "sources": {
-        "artificial_analysis": 3.55
+        "artificial_analysis": 4.96
       }
     },
     "deepseek-r1-distill-qwen-14b": {
-      "gi": 13.45,
+      "gi": 9.52,
       "sources": {
-        "artificial_analysis": 13.45
+        "artificial_analysis": 9.52
       }
     },
     "deepseek-r1-distill-qwen-32b": {
-      "gi": 15.46,
+      "gi": 10.71,
       "sources": {
-        "artificial_analysis": 15.46
+        "artificial_analysis": 10.71
       }
     },
     "deepseek-r1-qwen3-8b": {
-      "gi": 14.37,
+      "gi": 10.12,
       "sources": {
-        "artificial_analysis": 14.37
+        "artificial_analysis": 10.12
       }
     },
     "deepseek-v2": {
-      "gi": 3.55,
+      "gi": 4.96,
       "sources": {
-        "artificial_analysis": 3.55
+        "artificial_analysis": 4.96
       }
     },
     "deepseek-v2-5": {
-      "gi": 8.5,
+      "gi": 7.14,
       "sources": {
-        "artificial_analysis": 8.5
+        "artificial_analysis": 7.14
       }
     },
     "deepseek-v2-5-sep-2024": {
-      "gi": 8.35,
+      "gi": 7.14,
       "sources": {
-        "artificial_analysis": 8.35
+        "artificial_analysis": 7.14
       }
     },
     "deepseek-v3": {
-      "gi": 20.4,
+      "gi": 10.91,
       "sources": {
-        "artificial_analysis": 20.4
+        "artificial_analysis": 10.91
       }
     },
     "deepseek-v3-0324": {
-      "gi": 21.95,
+      "gi": 13.29,
       "sources": {
-        "artificial_analysis": 21.95
+        "artificial_analysis": 13.29
       }
     },
     "deepseek-v3-1": {
-      "gi": 31.53,
+      "gi": 21.23,
       "sources": {
-        "artificial_analysis": 31.53
+        "artificial_analysis": 21.23
       }
     },
     "deepseek-v3-1-reasoning": {
-      "gi": 30.91,
+      "gi": 20.83,
       "sources": {
-        "artificial_analysis": 30.91
+        "artificial_analysis": 20.83
       }
     },
     "deepseek-v3-1-terminus": {
-      "gi": 31.99,
+      "gi": 21.63,
       "sources": {
-        "artificial_analysis": 31.99
+        "artificial_analysis": 21.63
       }
     },
     "deepseek-v3-1-terminus-reasoning": {
-      "gi": 46.99,
+      "gi": 24.6,
       "sources": {
-        "artificial_analysis": 46.99
+        "artificial_analysis": 24.6
       }
     },
     "deepseek-v3-2": {
-      "gi": 37.25,
+      "gi": 25.79,
       "sources": {
-        "artificial_analysis": 37.25
+        "artificial_analysis": 25.79
       }
     },
     "deepseek-v3-2-0925": {
-      "gi": 31.99,
+      "gi": 21.63,
       "sources": {
-        "artificial_analysis": 31.99
+        "artificial_analysis": 21.63
       }
     },
     "deepseek-v3-2-reasoning": {
-      "gi": 49.15,
+      "gi": 36.71,
       "sources": {
-        "artificial_analysis": 49.15
+        "artificial_analysis": 36.71
       }
     },
     "deepseek-v3-2-reasoning-0925": {
-      "gi": 38.49,
+      "gi": 26.98,
       "sources": {
-        "artificial_analysis": 38.49
+        "artificial_analysis": 26.98
       }
     },
     "deepseek-v3-2-speciale": {
-      "gi": 33.38,
+      "gi": 22.82,
       "sources": {
-        "artificial_analysis": 33.38
+        "artificial_analysis": 22.82
       }
     },
     "deepseek-v3.2": {
-      "gi": 40.07,
+      "gi": 33.84,
       "sources": {
-        "lmsys": 40.07
+        "lmsys": 33.84
       }
     },
     "deepseek-v3.2-exp": {
-      "gi": 31.69,
+      "gi": 26.77,
       "sources": {
-        "lmsys": 31.69
+        "lmsys": 26.77
       }
     },
     "deepseek-v3.2-thinking": {
-      "gi": 46.31,
+      "gi": 39.11,
       "sources": {
-        "lmsys": 46.31
+        "lmsys": 39.11
+      }
+    },
+    "deepseek-v4-1-flash": {
+      "gi": 72.42,
+      "sources": {
+        "artificial_analysis": 72.42
       }
     },
     "deepseek-v4-flash": {
-      "gi": 78.52,
+      "gi": 62.5,
       "sources": {
-        "artificial_analysis": 78.52
+        "artificial_analysis": 62.5
       }
     },
     "deepseek-v4-flash-0420": {
-      "gi": 63.52,
+      "gi": 42.86,
       "sources": {
-        "artificial_analysis": 63.52
+        "artificial_analysis": 42.86
       }
     },
     "deepseek-v4-flash-0420-high": {
-      "gi": 58.73,
+      "gi": 43.25,
       "sources": {
-        "artificial_analysis": 58.73
+        "artificial_analysis": 43.25
+      }
+    },
+    "deepseek-v4-flash-0420-non-reasoning": {
+      "gi": 31.55,
+      "sources": {
+        "artificial_analysis": 31.55
       }
     },
     "deepseek-v4-flash-high": {
-      "gi": 82.43,
+      "gi": 69.49,
       "sources": {
-        "lmsys": 82.43
+        "lmsys": 69.49
       }
     },
     "deepseek-v4-flash-high-preview": {
-      "gi": 57.96,
+      "gi": 48.96,
       "sources": {
-        "lmsys": 57.96
-      }
-    },
-    "deepseek-v4-flash-non-reasoning": {
-      "gi": 43.74,
-      "sources": {
-        "artificial_analysis": 43.74
+        "lmsys": 48.96
       }
     },
     "deepseek-v4-flash-vision": {
-      "gi": 78.05,
+      "gi": 63.49,
       "sources": {
-        "artificial_analysis": 78.05
+        "artificial_analysis": 63.49
       }
     },
     "deepseek-v4-pro": {
-      "gi": 70.39,
+      "gi": 58.42,
       "sources": {
-        "lmsys": 60.1,
-        "artificial_analysis": 80.68
+        "lmsys": 50.76,
+        "artificial_analysis": 66.07
       }
     },
     "deepseek-v4-pro-0424": {
-      "gi": 68.47,
+      "gi": 55.36,
       "sources": {
-        "artificial_analysis": 68.47
+        "artificial_analysis": 55.36
       }
     },
     "deepseek-v4-pro-0424-high": {
-      "gi": 66.0,
+      "gi": 53.77,
       "sources": {
-        "artificial_analysis": 66.0
+        "artificial_analysis": 53.77
       }
     },
     "deepseek-v4-pro-0424-non-reasoning": {
-      "gi": 47.76,
+      "gi": 35.32,
       "sources": {
-        "artificial_analysis": 47.76
+        "artificial_analysis": 35.32
       }
     },
     "deepseek-v4-pro-high-20260813": {
-      "gi": 82.59,
+      "gi": 69.63,
       "sources": {
-        "lmsys": 82.59
+        "lmsys": 69.63
       }
     },
     "deepseek-v4-pro-high-preview": {
-      "gi": 63.22,
+      "gi": 53.4,
       "sources": {
-        "lmsys": 63.22
+        "lmsys": 53.4
+      }
+    },
+    "deepseek-v4.1-flash-max": {
+      "gi": 74.2,
+      "sources": {
+        "lmsys": 74.2
       }
     },
     "devstral-2": {
-      "gi": 23.51,
+      "gi": 14.32,
       "sources": {
-        "lmsys": 18.88,
-        "artificial_analysis": 28.13
+        "lmsys": 15.95,
+        "artificial_analysis": 12.7
       }
     },
     "devstral-medium": {
-      "gi": 17.62,
+      "gi": 11.9,
       "sources": {
-        "artificial_analysis": 17.62
+        "artificial_analysis": 11.9
       }
     },
     "devstral-medium-2507": {
@@ -852,3750 +897,3810 @@
       }
     },
     "devstral-small": {
-      "gi": 12.52,
+      "gi": 9.13,
       "sources": {
-        "artificial_analysis": 12.52
+        "artificial_analysis": 9.13
       }
     },
     "devstral-small-2": {
-      "gi": 25.81,
+      "gi": 10.71,
       "sources": {
-        "artificial_analysis": 25.81
+        "artificial_analysis": 10.71
       }
     },
     "devstral-small-2505": {
-      "gi": 16.69,
+      "gi": 11.31,
       "sources": {
-        "artificial_analysis": 16.69
+        "artificial_analysis": 11.31
       }
     },
     "diffusiongemma-26b-a4b": {
-      "gi": 19.32,
+      "gi": 12.9,
       "sources": {
-        "artificial_analysis": 19.32
+        "artificial_analysis": 12.9
       }
     },
     "doubao-seed-code": {
-      "gi": 39.41,
+      "gi": 27.58,
       "sources": {
-        "artificial_analysis": 39.41
+        "artificial_analysis": 27.58
       }
     },
     "ernie-4-5-300b-a47b": {
-      "gi": 12.21,
+      "gi": 8.93,
       "sources": {
-        "artificial_analysis": 12.21
+        "artificial_analysis": 8.93
       }
     },
     "ernie-5-0-thinking-preview": {
-      "gi": 32.92,
+      "gi": 22.42,
       "sources": {
-        "artificial_analysis": 32.92
+        "artificial_analysis": 22.42
       }
     },
     "ernie-5.1": {
-      "gi": 63.88,
+      "gi": 53.95,
       "sources": {
-        "lmsys": 63.88
+        "lmsys": 53.95
       }
     },
     "exaone-4-0-1-2b": {
-      "gi": 2.16,
+      "gi": 4.37,
       "sources": {
-        "artificial_analysis": 2.16
+        "artificial_analysis": 4.37
       }
     },
     "exaone-4-0-1-2b-reasoning": {
-      "gi": 2.32,
+      "gi": 4.56,
       "sources": {
-        "artificial_analysis": 2.32
+        "artificial_analysis": 4.56
       }
     },
     "exaone-4-0-32b": {
-      "gi": 7.26,
+      "gi": 6.55,
       "sources": {
-        "artificial_analysis": 7.26
+        "artificial_analysis": 6.55
       }
     },
     "exaone-4-0-32b-reasoning": {
-      "gi": 14.68,
+      "gi": 10.32,
       "sources": {
-        "artificial_analysis": 14.68
+        "artificial_analysis": 10.32
       }
     },
     "exaone-4-5-33b": {
-      "gi": 30.14,
+      "gi": 20.24,
       "sources": {
-        "artificial_analysis": 30.14
+        "artificial_analysis": 20.24
       }
     },
     "falcon-h1r-7b": {
-      "gi": 13.45,
+      "gi": 9.52,
       "sources": {
-        "artificial_analysis": 13.45
+        "artificial_analysis": 9.52
       }
     },
     "g9v3-39a5b": {
-      "gi": 51.0,
+      "gi": 37.3,
       "sources": {
-        "artificial_analysis": 51.0
+        "artificial_analysis": 37.3
       }
     },
     "g9v3-3b": {
-      "gi": 23.49,
+      "gi": 15.48,
       "sources": {
-        "artificial_analysis": 23.49
+        "artificial_analysis": 15.48
       }
     },
     "gemini-1-0-pro": {
-      "gi": 2.63,
+      "gi": 4.56,
       "sources": {
-        "artificial_analysis": 2.63
+        "artificial_analysis": 4.56
       }
     },
     "gemini-1-0-ultra": {
-      "gi": 5.1,
-      "sources": {
-        "artificial_analysis": 5.1
-      }
-    },
-    "gemini-1-5-flash": {
-      "gi": 10.51,
-      "sources": {
-        "artificial_analysis": 10.51
-      }
-    },
-    "gemini-1-5-flash-8b": {
-      "gi": 6.49,
-      "sources": {
-        "artificial_analysis": 6.49
-      }
-    },
-    "gemini-1-5-flash-may-2024": {
       "gi": 5.56,
       "sources": {
         "artificial_analysis": 5.56
       }
     },
-    "gemini-1-5-pro": {
-      "gi": 13.76,
+    "gemini-1-5-flash": {
+      "gi": 8.13,
       "sources": {
-        "artificial_analysis": 13.76
+        "artificial_analysis": 8.13
+      }
+    },
+    "gemini-1-5-flash-8b": {
+      "gi": 6.35,
+      "sources": {
+        "artificial_analysis": 6.35
+      }
+    },
+    "gemini-1-5-flash-may-2024": {
+      "gi": 5.75,
+      "sources": {
+        "artificial_analysis": 5.75
+      }
+    },
+    "gemini-1-5-pro": {
+      "gi": 9.72,
+      "sources": {
+        "artificial_analysis": 9.72
       }
     },
     "gemini-1-5-pro-may-2024": {
-      "gi": 7.88,
+      "gi": 6.75,
       "sources": {
-        "artificial_analysis": 7.88
+        "artificial_analysis": 6.75
       }
     },
     "gemini-2-0-flash": {
-      "gi": 17.31,
+      "gi": 11.71,
       "sources": {
-        "artificial_analysis": 17.31
+        "artificial_analysis": 11.71
       }
     },
     "gemini-2-0-flash-experimental": {
-      "gi": 14.84,
+      "gi": 10.32,
       "sources": {
-        "artificial_analysis": 14.84
+        "artificial_analysis": 10.32
       }
     },
     "gemini-2-0-flash-lite-001": {
-      "gi": 11.75,
+      "gi": 8.73,
       "sources": {
-        "artificial_analysis": 11.75
+        "artificial_analysis": 8.73
       }
     },
     "gemini-2-0-flash-lite-preview": {
-      "gi": 11.44,
+      "gi": 8.53,
       "sources": {
-        "artificial_analysis": 11.44
+        "artificial_analysis": 8.53
       }
     },
     "gemini-2-0-flash-thinking-exp-0121": {
-      "gi": 19.01,
+      "gi": 12.7,
       "sources": {
-        "artificial_analysis": 19.01
+        "artificial_analysis": 12.7
       }
     },
     "gemini-2-0-flash-thinking-exp-1219": {
-      "gi": 8.35,
+      "gi": 7.14,
       "sources": {
-        "artificial_analysis": 8.35
+        "artificial_analysis": 7.14
       }
     },
     "gemini-2-0-pro-experimental-02-05": {
-      "gi": 16.69,
+      "gi": 11.31,
       "sources": {
-        "artificial_analysis": 16.69
+        "artificial_analysis": 11.31
       }
     },
     "gemini-2-5-flash": {
-      "gi": 20.4,
+      "gi": 13.69,
       "sources": {
-        "artificial_analysis": 20.4
+        "artificial_analysis": 13.69
       }
     },
     "gemini-2-5-flash-04-2025": {
-      "gi": 16.38,
+      "gi": 11.31,
       "sources": {
-        "artificial_analysis": 16.38
+        "artificial_analysis": 11.31
       }
     },
     "gemini-2-5-flash-lite": {
-      "gi": 8.81,
+      "gi": 7.34,
       "sources": {
-        "artificial_analysis": 8.81
+        "artificial_analysis": 7.34
       }
     },
     "gemini-2-5-flash-lite-preview-09-2025": {
-      "gi": 18.7,
+      "gi": 12.5,
       "sources": {
-        "artificial_analysis": 18.7
+        "artificial_analysis": 12.5
       }
     },
     "gemini-2-5-flash-lite-preview-09-2025-reasoning": {
-      "gi": 21.95,
+      "gi": 14.68,
       "sources": {
-        "artificial_analysis": 21.95
+        "artificial_analysis": 14.68
       }
     },
     "gemini-2-5-flash-lite-reasoning": {
+      "gi": 10.91,
+      "sources": {
+        "artificial_analysis": 10.91
+      }
+    },
+    "gemini-2-5-flash-preview-09-2025": {
+      "gi": 18.65,
+      "sources": {
+        "artificial_analysis": 18.65
+      }
+    },
+    "gemini-2-5-flash-preview-09-2025-reasoning": {
+      "gi": 24.8,
+      "sources": {
+        "artificial_analysis": 24.8
+      }
+    },
+    "gemini-2-5-flash-reasoning": {
+      "gi": 20.04,
+      "sources": {
+        "artificial_analysis": 20.04
+      }
+    },
+    "gemini-2-5-flash-reasoning-04-2025": {
+      "gi": 17.26,
+      "sources": {
+        "artificial_analysis": 17.26
+      }
+    },
+    "gemini-2-5-pro": {
+      "gi": 27.18,
+      "sources": {
+        "artificial_analysis": 27.18
+      }
+    },
+    "gemini-2-5-pro-03-25": {
+      "gi": 23.81,
+      "sources": {
+        "artificial_analysis": 23.81
+      }
+    },
+    "gemini-2-5-pro-05-06": {
+      "gi": 22.82,
+      "sources": {
+        "artificial_analysis": 22.82
+      }
+    },
+    "gemini-2.5-pro": {
+      "gi": 20.11,
+      "sources": {
+        "lmsys": 20.11
+      }
+    },
+    "gemini-3-1-flash-lite-preview": {
+      "gi": 25.79,
+      "sources": {
+        "artificial_analysis": 25.79
+      }
+    },
+    "gemini-3-1-pro-preview": {
+      "gi": 54.37,
+      "sources": {
+        "artificial_analysis": 54.37
+      }
+    },
+    "gemini-3-5-flash": {
+      "gi": 59.52,
+      "sources": {
+        "artificial_analysis": 59.52
+      }
+    },
+    "gemini-3-5-flash-lite": {
+      "gi": 39.09,
+      "sources": {
+        "artificial_analysis": 39.09
+      }
+    },
+    "gemini-3-5-flash-medium": {
+      "gi": 60.71,
+      "sources": {
+        "artificial_analysis": 60.71
+      }
+    },
+    "gemini-3-5-flash-minimal": {
+      "gi": 41.27,
+      "sources": {
+        "artificial_analysis": 41.27
+      }
+    },
+    "gemini-3-6-flash": {
+      "gi": 62.1,
+      "sources": {
+        "artificial_analysis": 62.1
+      }
+    },
+    "gemini-3-7-flash": {
+      "gi": 72.22,
+      "sources": {
+        "artificial_analysis": 72.22
+      }
+    },
+    "gemini-3-7-flash-low": {
+      "gi": 67.26,
+      "sources": {
+        "artificial_analysis": 67.26
+      }
+    },
+    "gemini-3-7-flash-medium": {
+      "gi": 72.62,
+      "sources": {
+        "artificial_analysis": 72.62
+      }
+    },
+    "gemini-3-8-flash": {
+      "gi": 75.79,
+      "sources": {
+        "artificial_analysis": 75.79
+      }
+    },
+    "gemini-3-8-flash-low": {
+      "gi": 61.11,
+      "sources": {
+        "artificial_analysis": 61.11
+      }
+    },
+    "gemini-3-8-flash-medium": {
+      "gi": 73.41,
+      "sources": {
+        "artificial_analysis": 73.41
+      }
+    },
+    "gemini-3-flash": {
+      "gi": 42.1,
+      "sources": {
+        "lmsys": 54.65,
+        "artificial_analysis": 29.56
+      }
+    },
+    "gemini-3-flash (thinking-minimal)": {
+      "gi": 52.7,
+      "sources": {
+        "lmsys": 52.7
+      }
+    },
+    "gemini-3-flash-reasoning": {
+      "gi": 46.23,
+      "sources": {
+        "artificial_analysis": 46.23
+      }
+    },
+    "gemini-3-pro": {
+      "gi": 52.96,
+      "sources": {
+        "lmsys": 56.31,
+        "artificial_analysis": 49.6
+      }
+    },
+    "gemini-3-pro-low": {
+      "gi": 38.29,
+      "sources": {
+        "artificial_analysis": 38.29
+      }
+    },
+    "gemini-3.1-flash-lite-preview": {
+      "gi": 24.55,
+      "sources": {
+        "lmsys": 24.55
+      }
+    },
+    "gemini-3.1-pro-preview": {
+      "gi": 56.59,
+      "sources": {
+        "lmsys": 56.59
+      }
+    },
+    "gemini-3.5-flash": {
+      "gi": 57.42,
+      "sources": {
+        "lmsys": 57.42
+      }
+    },
+    "gemini-3.5-flash-high": {
+      "gi": 58.39,
+      "sources": {
+        "lmsys": 58.39
+      }
+    },
+    "gemini-3.5-flash-lite": {
+      "gi": 51.32,
+      "sources": {
+        "lmsys": 51.32
+      }
+    },
+    "gemini-3.5-flash-medium": {
+      "gi": 57.28,
+      "sources": {
+        "lmsys": 57.28
+      }
+    },
+    "gemini-3.6-flash": {
+      "gi": 59.85,
+      "sources": {
+        "lmsys": 59.85
+      }
+    },
+    "gemini-3.6-flash-high": {
+      "gi": 63.52,
+      "sources": {
+        "lmsys": 63.52
+      }
+    },
+    "gemini-3.7-flash-high": {
+      "gi": 63.73,
+      "sources": {
+        "lmsys": 63.73
+      }
+    },
+    "gemini-3.8-flash-high": {
+      "gi": 62.62,
+      "sources": {
+        "lmsys": 62.62
+      }
+    },
+    "gemma-3-12b": {
+      "gi": 1.59,
+      "sources": {
+        "artificial_analysis": 1.59
+      }
+    },
+    "gemma-3-1b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "gemma-3-270m": {
+      "gi": 4.17,
+      "sources": {
+        "artificial_analysis": 4.17
+      }
+    },
+    "gemma-3-27b": {
+      "gi": 3.77,
+      "sources": {
+        "artificial_analysis": 3.77
+      }
+    },
+    "gemma-3-4b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "gemma-3n-e2b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "gemma-3n-e4b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "gemma-3n-e4b-preview-0520": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "gemma-4-12b": {
+      "gi": 22.22,
+      "sources": {
+        "artificial_analysis": 22.22
+      }
+    },
+    "gemma-4-12b-non-reasoning": {
+      "gi": 12.7,
+      "sources": {
+        "artificial_analysis": 12.7
+      }
+    },
+    "gemma-4-26b-a4b": {
+      "gi": 33.56,
+      "sources": {
+        "lmsys": 39.94,
+        "artificial_analysis": 27.18
+      }
+    },
+    "gemma-4-26b-a4b-non-reasoning": {
+      "gi": 20.04,
+      "sources": {
+        "artificial_analysis": 20.04
+      }
+    },
+    "gemma-4-31b": {
+      "gi": 32.0,
+      "sources": {
+        "lmsys": 39.39,
+        "artificial_analysis": 24.6
+      }
+    },
+    "gemma-4-31b-non-reasoning": {
+      "gi": 21.63,
+      "sources": {
+        "artificial_analysis": 21.63
+      }
+    },
+    "gemma-4-e2b": {
+      "gi": 9.52,
+      "sources": {
+        "artificial_analysis": 9.52
+      }
+    },
+    "gemma-4-e2b-non-reasoning": {
+      "gi": 6.94,
+      "sources": {
+        "artificial_analysis": 6.94
+      }
+    },
+    "gemma-4-e4b": {
+      "gi": 11.71,
+      "sources": {
+        "artificial_analysis": 11.71
+      }
+    },
+    "gemma-4-e4b-non-reasoning": {
+      "gi": 8.93,
+      "sources": {
+        "artificial_analysis": 8.93
+      }
+    },
+    "glm-4-5-air": {
       "gi": 16.07,
       "sources": {
         "artificial_analysis": 16.07
       }
     },
-    "gemini-2-5-flash-preview-09-2025": {
-      "gi": 27.98,
+    "glm-4-5v": {
+      "gi": 7.34,
       "sources": {
-        "artificial_analysis": 27.98
+        "artificial_analysis": 7.34
       }
     },
-    "gemini-2-5-flash-preview-09-2025-reasoning": {
-      "gi": 35.86,
+    "glm-4-5v-reasoning": {
+      "gi": 9.13,
       "sources": {
-        "artificial_analysis": 35.86
+        "artificial_analysis": 9.13
       }
     },
-    "gemini-2-5-flash-reasoning": {
-      "gi": 29.83,
+    "glm-4-6": {
+      "gi": 23.61,
       "sources": {
-        "artificial_analysis": 29.83
+        "artificial_analysis": 23.61
       }
     },
-    "gemini-2-5-flash-reasoning-04-2025": {
-      "gi": 25.81,
+    "glm-4-6-reasoning": {
+      "gi": 30.75,
       "sources": {
-        "artificial_analysis": 25.81
+        "artificial_analysis": 30.75
       }
     },
-    "gemini-2-5-pro": {
+    "glm-4-6v": {
+      "gi": 10.71,
+      "sources": {
+        "artificial_analysis": 10.71
+      }
+    },
+    "glm-4-6v-reasoning": {
+      "gi": 16.27,
+      "sources": {
+        "artificial_analysis": 16.27
+      }
+    },
+    "glm-4-7": {
+      "gi": 38.1,
+      "sources": {
+        "artificial_analysis": 38.1
+      }
+    },
+    "glm-4-7-flash": {
+      "gi": 23.61,
+      "sources": {
+        "artificial_analysis": 23.61
+      }
+    },
+    "glm-4-7-flash-non-reasoning": {
+      "gi": 15.08,
+      "sources": {
+        "artificial_analysis": 15.08
+      }
+    },
+    "glm-4-7-non-reasoning": {
+      "gi": 28.57,
+      "sources": {
+        "artificial_analysis": 28.57
+      }
+    },
+    "glm-4.5": {
+      "gi": 19.44,
+      "sources": {
+        "artificial_analysis": 19.44
+      }
+    },
+    "glm-4.6": {
+      "gi": 36.06,
+      "sources": {
+        "lmsys": 36.06
+      }
+    },
+    "glm-4.7": {
+      "gi": 49.1,
+      "sources": {
+        "lmsys": 49.1
+      }
+    },
+    "glm-5": {
+      "gi": 49.39,
+      "sources": {
+        "lmsys": 49.38,
+        "artificial_analysis": 49.4
+      }
+    },
+    "glm-5-1": {
+      "gi": 46.43,
+      "sources": {
+        "artificial_analysis": 46.43
+      }
+    },
+    "glm-5-1-non-reasoning": {
+      "gi": 42.06,
+      "sources": {
+        "artificial_analysis": 42.06
+      }
+    },
+    "glm-5-2": {
+      "gi": 61.51,
+      "sources": {
+        "artificial_analysis": 61.51
+      }
+    },
+    "glm-5-2-non-reasoning": {
       "gi": 38.49,
       "sources": {
         "artificial_analysis": 38.49
       }
     },
-    "gemini-2-5-pro-03-25": {
-      "gi": 34.62,
-      "sources": {
-        "artificial_analysis": 34.62
-      }
-    },
-    "gemini-2-5-pro-05-06": {
-      "gi": 33.54,
-      "sources": {
-        "artificial_analysis": 33.54
-      }
-    },
-    "gemini-2.5-pro": {
-      "gi": 23.81,
-      "sources": {
-        "lmsys": 23.81
-      }
-    },
-    "gemini-3-1-flash-lite-preview": {
-      "gi": 38.02,
-      "sources": {
-        "artificial_analysis": 38.02
-      }
-    },
-    "gemini-3-1-pro-preview": {
-      "gi": 72.18,
-      "sources": {
-        "artificial_analysis": 72.18
-      }
-    },
-    "gemini-3-5-flash": {
-      "gi": 78.83,
-      "sources": {
-        "artificial_analysis": 78.83
-      }
-    },
-    "gemini-3-5-flash-lite": {
-      "gi": 56.26,
-      "sources": {
-        "artificial_analysis": 56.26
-      }
-    },
-    "gemini-3-5-flash-medium": {
-      "gi": 70.63,
-      "sources": {
-        "artificial_analysis": 70.63
-      }
-    },
-    "gemini-3-5-flash-minimal": {
-      "gi": 53.79,
-      "sources": {
-        "artificial_analysis": 53.79
-      }
-    },
-    "gemini-3-6-flash": {
-      "gi": 78.21,
-      "sources": {
-        "artificial_analysis": 78.21
-      }
-    },
-    "gemini-3-7-flash": {
-      "gi": 85.01,
-      "sources": {
-        "artificial_analysis": 85.01
-      }
-    },
-    "gemini-3-7-flash-low": {
-      "gi": 77.13,
-      "sources": {
-        "artificial_analysis": 77.13
-      }
-    },
-    "gemini-3-7-flash-medium": {
-      "gi": 80.99,
-      "sources": {
-        "artificial_analysis": 80.99
-      }
-    },
-    "gemini-3-8-flash": {
-      "gi": 89.18,
-      "sources": {
-        "artificial_analysis": 89.18
-      }
-    },
-    "gemini-3-8-flash-low": {
-      "gi": 78.36,
-      "sources": {
-        "artificial_analysis": 78.36
-      }
-    },
-    "gemini-3-8-flash-medium": {
-      "gi": 85.94,
-      "sources": {
-        "artificial_analysis": 85.94
-      }
-    },
-    "gemini-3-flash": {
-      "gi": 53.14,
-      "sources": {
-        "lmsys": 64.7,
-        "artificial_analysis": 41.58
-      }
-    },
-    "gemini-3-flash (thinking-minimal)": {
-      "gi": 62.4,
-      "sources": {
-        "lmsys": 62.4
-      }
-    },
-    "gemini-3-flash-reasoning": {
-      "gi": 58.27,
-      "sources": {
-        "artificial_analysis": 58.27
-      }
-    },
-    "gemini-3-pro": {
-      "gi": 64.02,
-      "sources": {
-        "lmsys": 66.83,
-        "artificial_analysis": 61.21
-      }
-    },
-    "gemini-3-pro-low": {
-      "gi": 50.85,
-      "sources": {
-        "artificial_analysis": 50.85
-      }
-    },
-    "gemini-3.1-flash-lite-preview": {
-      "gi": 29.06,
-      "sources": {
-        "lmsys": 29.06
-      }
-    },
-    "gemini-3.1-pro-preview": {
-      "gi": 67.0,
-      "sources": {
-        "lmsys": 67.0
-      }
-    },
-    "gemini-3.5-flash": {
-      "gi": 67.98,
-      "sources": {
-        "lmsys": 67.98
-      }
-    },
-    "gemini-3.5-flash-high": {
-      "gi": 67.24,
-      "sources": {
-        "lmsys": 67.24
-      }
-    },
-    "gemini-3.5-flash-lite": {
-      "gi": 60.76,
-      "sources": {
-        "lmsys": 60.76
-      }
-    },
-    "gemini-3.5-flash-medium": {
-      "gi": 66.17,
-      "sources": {
-        "lmsys": 66.17
-      }
-    },
-    "gemini-3.6-flash": {
-      "gi": 70.85,
-      "sources": {
-        "lmsys": 70.85
-      }
-    },
-    "gemini-3.6-flash-high": {
-      "gi": 70.77,
-      "sources": {
-        "lmsys": 70.77
-      }
-    },
-    "gemini-3.7-flash-high": {
-      "gi": 75.53,
-      "sources": {
-        "lmsys": 75.53
-      }
-    },
-    "gemini-3.8-flash-high": {
-      "gi": 74.14,
-      "sources": {
-        "lmsys": 74.14
-      }
-    },
-    "gemma-3-12b": {
-      "gi": 6.96,
-      "sources": {
-        "artificial_analysis": 6.96
-      }
-    },
-    "gemma-3-1b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "gemma-3-270m": {
-      "gi": 1.55,
-      "sources": {
-        "artificial_analysis": 1.55
-      }
-    },
-    "gemma-3-27b": {
-      "gi": 9.89,
-      "sources": {
-        "artificial_analysis": 9.89
-      }
-    },
-    "gemma-3-4b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "gemma-3n-e2b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "gemma-3n-e4b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "gemma-3n-e4b-preview-0520": {
-      "gi": 4.95,
-      "sources": {
-        "artificial_analysis": 4.95
-      }
-    },
-    "gemma-4-12b": {
-      "gi": 32.77,
-      "sources": {
-        "artificial_analysis": 32.77
-      }
-    },
-    "gemma-4-12b-non-reasoning": {
-      "gi": 18.86,
-      "sources": {
-        "artificial_analysis": 18.86
-      }
-    },
-    "gemma-4-26b-a4b": {
-      "gi": 43.04,
-      "sources": {
-        "lmsys": 47.29,
-        "artificial_analysis": 38.79
-      }
-    },
-    "gemma-4-26b-a4b-non-reasoning": {
-      "gi": 29.98,
-      "sources": {
-        "artificial_analysis": 29.98
-      }
-    },
-    "gemma-4-31b": {
-      "gi": 45.5,
-      "sources": {
-        "lmsys": 46.63,
-        "artificial_analysis": 44.36
-      }
-    },
-    "gemma-4-31b-non-reasoning": {
-      "gi": 32.92,
-      "sources": {
-        "artificial_analysis": 32.92
-      }
-    },
-    "gemma-4-e2b": {
-      "gi": 13.14,
-      "sources": {
-        "artificial_analysis": 13.14
-      }
-    },
-    "gemma-4-e2b-non-reasoning": {
-      "gi": 8.04,
-      "sources": {
-        "artificial_analysis": 8.04
-      }
-    },
-    "gemma-4-e4b": {
-      "gi": 17.31,
-      "sources": {
-        "artificial_analysis": 17.31
-      }
-    },
-    "gemma-4-e4b-non-reasoning": {
-      "gi": 11.9,
-      "sources": {
-        "artificial_analysis": 11.9
-      }
-    },
-    "glm-4-5-air": {
-      "gi": 24.27,
-      "sources": {
-        "artificial_analysis": 24.27
-      }
-    },
-    "glm-4-5v": {
-      "gi": 8.96,
-      "sources": {
-        "artificial_analysis": 8.96
-      }
-    },
-    "glm-4-5v-reasoning": {
-      "gi": 12.36,
-      "sources": {
-        "artificial_analysis": 12.36
-      }
-    },
-    "glm-4-6": {
-      "gi": 34.62,
-      "sources": {
-        "artificial_analysis": 34.62
-      }
-    },
-    "glm-4-6-reasoning": {
-      "gi": 43.74,
-      "sources": {
-        "artificial_analysis": 43.74
-      }
-    },
-    "glm-4-6v": {
-      "gi": 15.3,
-      "sources": {
-        "artificial_analysis": 15.3
-      }
-    },
-    "glm-4-6v-reasoning": {
-      "gi": 24.57,
-      "sources": {
-        "artificial_analysis": 24.57
-      }
-    },
-    "glm-4-7": {
-      "gi": 51.78,
-      "sources": {
-        "artificial_analysis": 51.78
-      }
-    },
-    "glm-4-7-flash": {
-      "gi": 34.47,
-      "sources": {
-        "artificial_analysis": 34.47
-      }
-    },
-    "glm-4-7-flash-non-reasoning": {
-      "gi": 22.57,
-      "sources": {
-        "artificial_analysis": 22.57
-      }
-    },
-    "glm-4-7-non-reasoning": {
-      "gi": 40.34,
-      "sources": {
-        "artificial_analysis": 40.34
-      }
-    },
-    "glm-4.5": {
-      "gi": 28.9,
-      "sources": {
-        "artificial_analysis": 28.9
-      }
-    },
-    "glm-4.6": {
-      "gi": 42.69,
-      "sources": {
-        "lmsys": 42.69
-      }
-    },
-    "glm-4.7": {
-      "gi": 58.13,
-      "sources": {
-        "lmsys": 58.13
-      }
-    },
-    "glm-5": {
-      "gi": 59.83,
-      "sources": {
-        "lmsys": 58.46,
-        "artificial_analysis": 61.21
-      }
-    },
-    "glm-5-1": {
-      "gi": 61.82,
-      "sources": {
-        "artificial_analysis": 61.82
-      }
-    },
-    "glm-5-1-non-reasoning": {
-      "gi": 54.56,
-      "sources": {
-        "artificial_analysis": 54.56
-      }
-    },
-    "glm-5-2": {
-      "gi": 79.75,
-      "sources": {
-        "artificial_analysis": 79.75
-      }
-    },
-    "glm-5-2-non-reasoning": {
-      "gi": 52.24,
-      "sources": {
-        "artificial_analysis": 52.24
-      }
-    },
     "glm-5-3": {
-      "gi": 90.42,
+      "gi": 83.13,
       "sources": {
-        "artificial_analysis": 90.42
+        "artificial_analysis": 83.13
       }
     },
     "glm-5-3-flash": {
-      "gi": 87.33,
+      "gi": 77.18,
       "sources": {
-        "artificial_analysis": 87.33
+        "artificial_analysis": 77.18
       }
     },
     "glm-5-non-reasoning": {
-      "gi": 49.77,
+      "gi": 37.3,
       "sources": {
-        "artificial_analysis": 49.77
+        "artificial_analysis": 37.3
       }
     },
     "glm-5-turbo": {
-      "gi": 58.89,
-      "sources": {
-        "artificial_analysis": 58.89
-      }
-    },
-    "glm-5.1": {
-      "gi": 67.24,
-      "sources": {
-        "lmsys": 67.24
-      }
-    },
-    "glm-5.2-max": {
-      "gi": 83.09,
-      "sources": {
-        "lmsys": 83.09
-      }
-    },
-    "glm-5.3-flash": {
-      "gi": 86.21,
-      "sources": {
-        "lmsys": 86.21
-      }
-    },
-    "glm-5.3-max": {
-      "gi": 76.6,
-      "sources": {
-        "lmsys": 76.6
-      }
-    },
-    "glm-5v-turbo": {
-      "gi": 52.78,
-      "sources": {
-        "lmsys": 52.55,
-        "artificial_analysis": 53.01
-      }
-    },
-    "gpt-35-turbo": {
-      "gi": 3.4,
-      "sources": {
-        "artificial_analysis": 3.4
-      }
-    },
-    "gpt-4": {
-      "gi": 8.96,
-      "sources": {
-        "artificial_analysis": 8.96
-      }
-    },
-    "gpt-4-1": {
-      "gi": 28.75,
-      "sources": {
-        "artificial_analysis": 28.75
-      }
-    },
-    "gpt-4-1-mini": {
-      "gi": 21.33,
-      "sources": {
-        "artificial_analysis": 21.33
-      }
-    },
-    "gpt-4-1-nano": {
-      "gi": 13.29,
-      "sources": {
-        "artificial_analysis": 13.29
-      }
-    },
-    "gpt-4-5": {
-      "gi": 19.47,
-      "sources": {
-        "artificial_analysis": 19.47
-      }
-    },
-    "gpt-4-turbo": {
-      "gi": 10.36,
-      "sources": {
-        "artificial_analysis": 10.36
-      }
-    },
-    "gpt-4o": {
-      "gi": 15.61,
-      "sources": {
-        "artificial_analysis": 15.61
-      }
-    },
-    "gpt-4o-2024-05-13": {
-      "gi": 11.44,
-      "sources": {
-        "artificial_analysis": 11.44
-      }
-    },
-    "gpt-4o-2024-08-06": {
-      "gi": 12.98,
-      "sources": {
-        "artificial_analysis": 12.98
-      }
-    },
-    "gpt-4o-chatgpt": {
-      "gi": 10.97,
-      "sources": {
-        "artificial_analysis": 10.97
-      }
-    },
-    "gpt-4o-chatgpt-03-25": {
-      "gi": 17.47,
-      "sources": {
-        "artificial_analysis": 17.47
-      }
-    },
-    "gpt-4o-mini": {
-      "gi": 8.81,
-      "sources": {
-        "artificial_analysis": 8.81
-      }
-    },
-    "gpt-5": {
-      "gi": 53.01,
-      "sources": {
-        "artificial_analysis": 53.01
-      }
-    },
-    "gpt-5-1": {
-      "gi": 56.41,
-      "sources": {
-        "artificial_analysis": 56.41
-      }
-    },
-    "gpt-5-1-codex": {
-      "gi": 53.48,
-      "sources": {
-        "artificial_analysis": 53.48
-      }
-    },
-    "gpt-5-1-codex-mini": {
       "gi": 46.83,
       "sources": {
         "artificial_analysis": 46.83
       }
     },
-    "gpt-5-1-non-reasoning": {
-      "gi": 30.45,
+    "glm-5.1": {
+      "gi": 59.5,
       "sources": {
-        "artificial_analysis": 30.45
+        "lmsys": 59.5
+      }
+    },
+    "glm-5.2-max": {
+      "gi": 71.15,
+      "sources": {
+        "lmsys": 71.15
+      }
+    },
+    "glm-5.3-flash": {
+      "gi": 73.23,
+      "sources": {
+        "lmsys": 73.23
+      }
+    },
+    "glm-5.3-max": {
+      "gi": 65.12,
+      "sources": {
+        "lmsys": 65.12
+      }
+    },
+    "glm-5v-turbo": {
+      "gi": 42.53,
+      "sources": {
+        "lmsys": 44.38,
+        "artificial_analysis": 40.67
+      }
+    },
+    "gpt-35-turbo": {
+      "gi": 4.96,
+      "sources": {
+        "artificial_analysis": 4.96
+      }
+    },
+    "gpt-4": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "gpt-4-1": {
+      "gi": 19.25,
+      "sources": {
+        "artificial_analysis": 19.25
+      }
+    },
+    "gpt-4-1-mini": {
+      "gi": 14.29,
+      "sources": {
+        "artificial_analysis": 14.29
+      }
+    },
+    "gpt-4-1-nano": {
+      "gi": 9.52,
+      "sources": {
+        "artificial_analysis": 9.52
+      }
+    },
+    "gpt-4-5": {
+      "gi": 13.1,
+      "sources": {
+        "artificial_analysis": 13.1
+      }
+    },
+    "gpt-4-turbo": {
+      "gi": 7.94,
+      "sources": {
+        "artificial_analysis": 7.94
+      }
+    },
+    "gpt-4o": {
+      "gi": 10.71,
+      "sources": {
+        "artificial_analysis": 10.71
+      }
+    },
+    "gpt-4o-2024-05-13": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "gpt-4o-2024-08-06": {
+      "gi": 9.33,
+      "sources": {
+        "artificial_analysis": 9.33
+      }
+    },
+    "gpt-4o-chatgpt": {
+      "gi": 8.33,
+      "sources": {
+        "artificial_analysis": 8.33
+      }
+    },
+    "gpt-4o-chatgpt-03-25": {
+      "gi": 11.9,
+      "sources": {
+        "artificial_analysis": 11.9
+      }
+    },
+    "gpt-4o-mini": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "gpt-5": {
+      "gi": 39.68,
+      "sources": {
+        "artificial_analysis": 39.68
+      }
+    },
+    "gpt-5-1": {
+      "gi": 43.06,
+      "sources": {
+        "artificial_analysis": 43.06
+      }
+    },
+    "gpt-5-1-codex": {
+      "gi": 41.07,
+      "sources": {
+        "artificial_analysis": 41.07
+      }
+    },
+    "gpt-5-1-codex-mini": {
+      "gi": 34.52,
+      "sources": {
+        "artificial_analysis": 34.52
+      }
+    },
+    "gpt-5-1-non-reasoning": {
+      "gi": 20.44,
+      "sources": {
+        "artificial_analysis": 20.44
       }
     },
     "gpt-5-2": {
-      "gi": 65.38,
+      "gi": 54.37,
       "sources": {
-        "artificial_analysis": 65.38
+        "artificial_analysis": 54.37
       }
     },
     "gpt-5-2-codex": {
-      "gi": 62.13,
+      "gi": 50.6,
       "sources": {
-        "artificial_analysis": 62.13
+        "artificial_analysis": 50.6
       }
     },
     "gpt-5-2-medium": {
-      "gi": 58.58,
+      "gi": 46.63,
       "sources": {
-        "artificial_analysis": 58.58
+        "artificial_analysis": 46.63
       }
     },
     "gpt-5-2-non-reasoning": {
-      "gi": 39.41,
+      "gi": 27.78,
       "sources": {
-        "artificial_analysis": 39.41
+        "artificial_analysis": 27.78
       }
     },
     "gpt-5-3-codex": {
-      "gi": 68.78,
+      "gi": 58.53,
       "sources": {
-        "artificial_analysis": 68.78
+        "artificial_analysis": 58.53
       }
     },
     "gpt-5-4": {
-      "gi": 80.53,
+      "gi": 71.43,
       "sources": {
-        "artificial_analysis": 80.53
+        "artificial_analysis": 71.43
       }
     },
     "gpt-5-4-low": {
-      "gi": 60.59,
+      "gi": 48.81,
       "sources": {
-        "artificial_analysis": 60.59
+        "artificial_analysis": 48.81
       }
     },
     "gpt-5-4-mini": {
-      "gi": 61.67,
+      "gi": 42.86,
       "sources": {
-        "artificial_analysis": 61.67
+        "artificial_analysis": 42.86
       }
     },
     "gpt-5-4-mini-medium": {
-      "gi": 45.6,
+      "gi": 33.13,
       "sources": {
-        "artificial_analysis": 45.6
+        "artificial_analysis": 33.13
       }
     },
     "gpt-5-4-mini-non-reasoning": {
-      "gi": 24.42,
-      "sources": {
-        "artificial_analysis": 24.42
-      }
-    },
-    "gpt-5-4-nano": {
-      "gi": 59.81,
-      "sources": {
-        "artificial_analysis": 59.81
-      }
-    },
-    "gpt-5-4-nano-medium": {
-      "gi": 46.06,
-      "sources": {
-        "artificial_analysis": 46.06
-      }
-    },
-    "gpt-5-4-nano-non-reasoning": {
-      "gi": 25.97,
-      "sources": {
-        "artificial_analysis": 25.97
-      }
-    },
-    "gpt-5-4-non-reasoning": {
-      "gi": 42.19,
-      "sources": {
-        "artificial_analysis": 42.19
-      }
-    },
-    "gpt-5-5": {
-      "gi": 85.47,
-      "sources": {
-        "artificial_analysis": 85.47
-      }
-    },
-    "gpt-5-5-high": {
-      "gi": 83.0,
-      "sources": {
-        "artificial_analysis": 83.0
-      }
-    },
-    "gpt-5-5-instant-05-26": {
-      "gi": 51.47,
-      "sources": {
-        "artificial_analysis": 51.47
-      }
-    },
-    "gpt-5-5-instant-06-26": {
-      "gi": 43.59,
-      "sources": {
-        "artificial_analysis": 43.59
-      }
-    },
-    "gpt-5-5-low": {
-      "gi": 67.23,
-      "sources": {
-        "artificial_analysis": 67.23
-      }
-    },
-    "gpt-5-5-medium": {
-      "gi": 77.9,
-      "sources": {
-        "artificial_analysis": 77.9
-      }
-    },
-    "gpt-5-5-non-reasoning": {
-      "gi": 53.79,
-      "sources": {
-        "artificial_analysis": 53.79
-      }
-    },
-    "gpt-5-6-luna": {
-      "gi": 79.29,
-      "sources": {
-        "artificial_analysis": 79.29
-      }
-    },
-    "gpt-5-6-luna-high": {
-      "gi": 71.1,
-      "sources": {
-        "artificial_analysis": 71.1
-      }
-    },
-    "gpt-5-6-luna-low": {
-      "gi": 50.85,
-      "sources": {
-        "artificial_analysis": 50.85
-      }
-    },
-    "gpt-5-6-luna-medium": {
-      "gi": 58.58,
-      "sources": {
-        "artificial_analysis": 58.58
-      }
-    },
-    "gpt-5-6-luna-non-reasoning": {
-      "gi": 39.88,
-      "sources": {
-        "artificial_analysis": 39.88
-      }
-    },
-    "gpt-5-6-luna-xhigh": {
-      "gi": 75.89,
-      "sources": {
-        "artificial_analysis": 75.89
-      }
-    },
-    "gpt-5-6-sol": {
-      "gi": 92.58,
-      "sources": {
-        "artificial_analysis": 92.58
-      }
-    },
-    "gpt-5-6-sol-high": {
-      "gi": 87.02,
-      "sources": {
-        "artificial_analysis": 87.02
-      }
-    },
-    "gpt-5-6-sol-low": {
-      "gi": 76.82,
-      "sources": {
-        "artificial_analysis": 76.82
-      }
-    },
-    "gpt-5-6-sol-medium": {
-      "gi": 84.39,
-      "sources": {
-        "artificial_analysis": 84.39
-      }
-    },
-    "gpt-5-6-sol-non-reasoning": {
-      "gi": 63.21,
-      "sources": {
-        "artificial_analysis": 63.21
-      }
-    },
-    "gpt-5-6-sol-xhigh": {
-      "gi": 89.64,
-      "sources": {
-        "artificial_analysis": 89.64
-      }
-    },
-    "gpt-5-6-terra": {
-      "gi": 85.94,
-      "sources": {
-        "artificial_analysis": 85.94
-      }
-    },
-    "gpt-5-6-terra-high": {
-      "gi": 75.89,
-      "sources": {
-        "artificial_analysis": 75.89
-      }
-    },
-    "gpt-5-6-terra-low": {
-      "gi": 62.29,
-      "sources": {
-        "artificial_analysis": 62.29
-      }
-    },
-    "gpt-5-6-terra-medium": {
-      "gi": 70.79,
-      "sources": {
-        "artificial_analysis": 70.79
-      }
-    },
-    "gpt-5-6-terra-non-reasoning": {
-      "gi": 51.93,
-      "sources": {
-        "artificial_analysis": 51.93
-      }
-    },
-    "gpt-5-6-terra-xhigh": {
-      "gi": 80.06,
-      "sources": {
-        "artificial_analysis": 80.06
-      }
-    },
-    "gpt-5-chatgpt": {
-      "gi": 22.26,
-      "sources": {
-        "artificial_analysis": 22.26
-      }
-    },
-    "gpt-5-codex": {
-      "gi": 55.64,
-      "sources": {
-        "artificial_analysis": 55.64
-      }
-    },
-    "gpt-5-low": {
-      "gi": 47.76,
-      "sources": {
-        "artificial_analysis": 47.76
-      }
-    },
-    "gpt-5-medium": {
-      "gi": 53.88,
-      "sources": {
-        "lmsys": 55.83,
-        "artificial_analysis": 51.93
-      }
-    },
-    "gpt-5-mini": {
-      "gi": 38.33,
-      "sources": {
-        "artificial_analysis": 38.33
-      }
-    },
-    "gpt-5-mini-medium": {
-      "gi": 47.3,
-      "sources": {
-        "artificial_analysis": 47.3
-      }
-    },
-    "gpt-5-mini-minimal": {
-      "gi": 20.56,
-      "sources": {
-        "artificial_analysis": 20.56
-      }
-    },
-    "gpt-5-minimal": {
-      "gi": 25.19,
-      "sources": {
-        "artificial_analysis": 25.19
-      }
-    },
-    "gpt-5-nano": {
-      "gi": 29.52,
-      "sources": {
-        "artificial_analysis": 29.52
-      }
-    },
-    "gpt-5-nano-medium": {
-      "gi": 28.13,
-      "sources": {
-        "artificial_analysis": 28.13
-      }
-    },
-    "gpt-5-nano-minimal": {
-      "gi": 10.51,
-      "sources": {
-        "artificial_analysis": 10.51
-      }
-    },
-    "gpt-5.1": {
-      "gi": 43.02,
-      "sources": {
-        "lmsys": 43.02
-      }
-    },
-    "gpt-5.1-codex": {
-      "gi": 42.2,
-      "sources": {
-        "lmsys": 42.2
-      }
-    },
-    "gpt-5.1-codex-mini": {
-      "gi": 27.09,
-      "sources": {
-        "lmsys": 27.09
-      }
-    },
-    "gpt-5.1-medium": {
-      "gi": 51.23,
-      "sources": {
-        "lmsys": 51.23
-      }
-    },
-    "gpt-5.2": {
-      "gi": 55.83,
-      "sources": {
-        "lmsys": 55.83
-      }
-    },
-    "gpt-5.2-chat-latest-20260210": {
-      "gi": 65.19,
-      "sources": {
-        "lmsys": 65.19
-      }
-    },
-    "gpt-5.2-codex": {
-      "gi": 42.53,
-      "sources": {
-        "lmsys": 42.53
-      }
-    },
-    "gpt-5.3-codex (codex-harness)": {
-      "gi": 47.62,
-      "sources": {
-        "lmsys": 47.62
-      }
-    },
-    "gpt-5.4": {
-      "gi": 63.55,
-      "sources": {
-        "lmsys": 63.55
-      }
-    },
-    "gpt-5.4-high": {
-      "gi": 65.19,
-      "sources": {
-        "lmsys": 65.19
-      }
-    },
-    "gpt-5.4-high (codex-harness)": {
-      "gi": 63.05,
-      "sources": {
-        "lmsys": 63.05
-      }
-    },
-    "gpt-5.4-medium (codex-harness)": {
-      "gi": 59.61,
-      "sources": {
-        "lmsys": 59.61
-      }
-    },
-    "gpt-5.4-mini-high": {
-      "gi": 52.55,
-      "sources": {
-        "lmsys": 52.55
-      }
-    },
-    "gpt-5.5": {
-      "gi": 65.19,
-      "sources": {
-        "lmsys": 65.19
-      }
-    },
-    "gpt-5.5 (codex-harness)": {
-      "gi": 62.23,
-      "sources": {
-        "lmsys": 62.23
-      }
-    },
-    "gpt-5.5-high": {
-      "gi": 66.17,
-      "sources": {
-        "lmsys": 66.17
-      }
-    },
-    "gpt-5.5-high (codex-harness)": {
-      "gi": 66.83,
-      "sources": {
-        "lmsys": 66.83
-      }
-    },
-    "gpt-5.5-instant": {
-      "gi": 64.86,
-      "sources": {
-        "lmsys": 64.86
-      }
-    },
-    "gpt-5.5-xhigh (codex-harness)": {
-      "gi": 70.44,
-      "sources": {
-        "lmsys": 70.44
-      }
-    },
-    "gpt-5.6-luna-xhigh (codex-harness)": {
-      "gi": 72.09,
-      "sources": {
-        "lmsys": 72.09
-      }
-    },
-    "gpt-5.6-sol-xhigh": {
-      "gi": 66.34,
-      "sources": {
-        "lmsys": 66.34
-      }
-    },
-    "gpt-5.6-sol-xhigh (codex-harness)": {
-      "gi": 88.18,
-      "sources": {
-        "lmsys": 88.18
-      }
-    },
-    "gpt-5.6-terra-xhigh": {
-      "gi": 63.38,
-      "sources": {
-        "lmsys": 63.38
-      }
-    },
-    "gpt-5.6-terra-xhigh (codex-harness)": {
-      "gi": 72.41,
-      "sources": {
-        "lmsys": 72.41
-      }
-    },
-    "gpt-6-astra": {
-      "gi": 93.04,
-      "sources": {
-        "artificial_analysis": 93.04
-      }
-    },
-    "gpt-6-astra-high": {
-      "gi": 91.65,
-      "sources": {
-        "artificial_analysis": 91.65
-      }
-    },
-    "gpt-6-astra-low": {
-      "gi": 86.09,
-      "sources": {
-        "artificial_analysis": 86.09
-      }
-    },
-    "gpt-6-astra-medium": {
-      "gi": 89.95,
-      "sources": {
-        "artificial_analysis": 89.95
-      }
-    },
-    "gpt-6-astra-non-reasoning": {
-      "gi": 83.93,
-      "sources": {
-        "artificial_analysis": 83.93
-      }
-    },
-    "gpt-6-astra-xhigh": {
-      "gi": 92.74,
-      "sources": {
-        "artificial_analysis": 92.74
-      }
-    },
-    "gpt-oss-120b": {
-      "gi": 35.7,
-      "sources": {
-        "artificial_analysis": 35.7
-      }
-    },
-    "gpt-oss-120b-low": {
-      "gi": 21.48,
-      "sources": {
-        "artificial_analysis": 21.48
-      }
-    },
-    "gpt-oss-20b": {
-      "gi": 21.95,
-      "sources": {
-        "artificial_analysis": 21.95
-      }
-    },
-    "gpt-oss-20b-low": {
-      "gi": 20.71,
-      "sources": {
-        "artificial_analysis": 20.71
-      }
-    },
-    "granite-3-3-8b-instruct": {
-      "gi": 0.46,
-      "sources": {
-        "artificial_analysis": 0.46
-      }
-    },
-    "granite-4-0-350m": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "granite-4-0-h-350m": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "granite-4-0-h-nano-1b": {
-      "gi": 1.85,
-      "sources": {
-        "artificial_analysis": 1.85
-      }
-    },
-    "granite-4-0-h-small": {
-      "gi": 6.03,
-      "sources": {
-        "artificial_analysis": 6.03
-      }
-    },
-    "granite-4-0-micro": {
-      "gi": 1.55,
-      "sources": {
-        "artificial_analysis": 1.55
-      }
-    },
-    "granite-4-0-nano-1b": {
-      "gi": 0.93,
-      "sources": {
-        "artificial_analysis": 0.93
-      }
-    },
-    "granite-4-1-30b": {
-      "gi": 11.9,
-      "sources": {
-        "artificial_analysis": 11.9
-      }
-    },
-    "granite-4-1-3b": {
-      "gi": 5.26,
-      "sources": {
-        "artificial_analysis": 5.26
-      }
-    },
-    "granite-4-1-8b": {
-      "gi": 8.35,
-      "sources": {
-        "artificial_analysis": 8.35
-      }
-    },
-    "granite-4-2-30b": {
-      "gi": 35.09,
-      "sources": {
-        "artificial_analysis": 35.09
-      }
-    },
-    "granite-4-2-3b": {
-      "gi": 20.56,
-      "sources": {
-        "artificial_analysis": 20.56
-      }
-    },
-    "granite-4-2-8b": {
-      "gi": 28.75,
-      "sources": {
-        "artificial_analysis": 28.75
-      }
-    },
-    "granite-4.1-8b": {
-      "gi": 18.88,
-      "sources": {
-        "lmsys": 18.88
-      }
-    },
-    "grok-1": {
-      "gi": 7.42,
-      "sources": {
-        "artificial_analysis": 7.42
-      }
-    },
-    "grok-2-1212": {
-      "gi": 10.51,
-      "sources": {
-        "artificial_analysis": 10.51
-      }
-    },
-    "grok-3": {
-      "gi": 27.2,
-      "sources": {
-        "artificial_analysis": 27.2
-      }
-    },
-    "grok-3-mini-reasoning": {
-      "gi": 33.85,
-      "sources": {
-        "artificial_analysis": 33.85
-      }
-    },
-    "grok-3-reasoning": {
-      "gi": 21.95,
-      "sources": {
-        "artificial_analysis": 21.95
-      }
-    },
-    "grok-4": {
-      "gi": 51.16,
-      "sources": {
-        "artificial_analysis": 51.16
-      }
-    },
-    "grok-4-1-fast": {
-      "gi": 24.73,
-      "sources": {
-        "artificial_analysis": 24.73
-      }
-    },
-    "grok-4-1-fast-reasoning": {
-      "gi": 36.63,
-      "sources": {
-        "lmsys": 26.44,
-        "artificial_analysis": 46.83
-      }
-    },
-    "grok-4-20": {
-      "gi": 57.19,
-      "sources": {
-        "artificial_analysis": 57.19
-      }
-    },
-    "grok-4-20-0309": {
-      "gi": 56.26,
-      "sources": {
-        "artificial_analysis": 56.26
-      }
-    },
-    "grok-4-20-0309-non-reasoning": {
-      "gi": 33.85,
-      "sources": {
-        "artificial_analysis": 33.85
-      }
-    },
-    "grok-4-20-non-reasoning": {
-      "gi": 32.77,
-      "sources": {
-        "artificial_analysis": 32.77
-      }
-    },
-    "grok-4-3": {
-      "gi": 57.03,
-      "sources": {
-        "artificial_analysis": 57.03
-      }
-    },
-    "grok-4-3-low": {
-      "gi": 54.56,
-      "sources": {
-        "artificial_analysis": 54.56
-      }
-    },
-    "grok-4-3-medium": {
-      "gi": 55.49,
-      "sources": {
-        "artificial_analysis": 55.49
-      }
-    },
-    "grok-4-3-non-reasoning": {
-      "gi": 37.09,
-      "sources": {
-        "artificial_analysis": 37.09
-      }
-    },
-    "grok-4-5": {
-      "gi": 84.7,
-      "sources": {
-        "artificial_analysis": 84.7
-      }
-    },
-    "grok-4-6": {
-      "gi": 92.58,
-      "sources": {
-        "artificial_analysis": 92.58
-      }
-    },
-    "grok-4-6-low": {
-      "gi": 78.36,
-      "sources": {
-        "artificial_analysis": 78.36
-      }
-    },
-    "grok-4-6-medium": {
-      "gi": 89.64,
-      "sources": {
-        "artificial_analysis": 89.64
-      }
-    },
-    "grok-4-6-xhigh": {
-      "gi": 91.19,
-      "sources": {
-        "artificial_analysis": 91.19
-      }
-    },
-    "grok-4-fast": {
-      "gi": 24.11,
-      "sources": {
-        "artificial_analysis": 24.11
-      }
-    },
-    "grok-4-fast-reasoning": {
-      "gi": 27.44,
-      "sources": {
-        "lmsys": 13.3,
-        "artificial_analysis": 41.58
-      }
-    },
-    "grok-4.1": {
-      "gi": 62.4,
-      "sources": {
-        "lmsys": 62.4
-      }
-    },
-    "grok-4.1-thinking": {
-      "gi": 63.55,
-      "sources": {
-        "lmsys": 63.55
-      }
-    },
-    "grok-4.20-beta-0309-reasoning": {
-      "gi": 64.53,
-      "sources": {
-        "lmsys": 64.53
-      }
-    },
-    "grok-4.20-beta1": {
-      "gi": 65.02,
-      "sources": {
-        "lmsys": 65.02
-      }
-    },
-    "grok-4.20-multi-agent-beta-0309": {
-      "gi": 64.2,
-      "sources": {
-        "lmsys": 64.2
-      }
-    },
-    "grok-4.3": {
-      "gi": 45.65,
-      "sources": {
-        "lmsys": 45.65
-      }
-    },
-    "grok-4.5": {
-      "gi": 71.26,
-      "sources": {
-        "lmsys": 71.26
-      }
-    },
-    "grok-4.6-high": {
-      "gi": 90.31,
-      "sources": {
-        "lmsys": 90.31
-      }
-    },
-    "grok-beta": {
-      "gi": 9.74,
-      "sources": {
-        "artificial_analysis": 9.74
-      }
-    },
-    "grok-build-0-1-06-16": {
-      "gi": 61.36,
-      "sources": {
-        "artificial_analysis": 61.36
-      }
-    },
-    "grok-code-fast-1": {
-      "gi": 23.13,
-      "sources": {
-        "lmsys": 13.79,
-        "artificial_analysis": 32.46
-      }
-    },
-    "hermes-3-llama-3-1-70b": {
-      "gi": 5.87,
-      "sources": {
-        "artificial_analysis": 5.87
-      }
-    },
-    "hermes-4-llama-3-1-405b": {
-      "gi": 11.75,
-      "sources": {
-        "artificial_analysis": 11.75
-      }
-    },
-    "hermes-4-llama-3-1-405b-reasoning": {
-      "gi": 12.06,
-      "sources": {
-        "artificial_analysis": 12.06
-      }
-    },
-    "hermes-4-llama-3-1-70b": {
-      "gi": 8.81,
-      "sources": {
-        "artificial_analysis": 8.81
-      }
-    },
-    "hermes-4-llama-3-1-70b-reasoning": {
-      "gi": 13.76,
-      "sources": {
-        "artificial_analysis": 13.76
-      }
-    },
-    "hunyuan-hy3-preview": {
-      "gi": 45.65,
-      "sources": {
-        "lmsys": 45.65
-      }
-    },
-    "hy3": {
-      "gi": 67.88,
-      "sources": {
-        "lmsys": 72.09,
-        "artificial_analysis": 63.68
-      }
-    },
-    "hy3-non-reasoning": {
-      "gi": 39.57,
-      "sources": {
-        "artificial_analysis": 39.57
-      }
-    },
-    "hy3-preview": {
-      "gi": 51.62,
-      "sources": {
-        "artificial_analysis": 51.62
-      }
-    },
-    "hy4-preview": {
-      "gi": 89.82,
-      "sources": {
-        "lmsys": 89.82
-      }
-    },
-    "hyperclova-x-seed-think-32b": {
-      "gi": 25.04,
-      "sources": {
-        "artificial_analysis": 25.04
-      }
-    },
-    "hypernova-60b": {
-      "gi": 26.74,
-      "sources": {
-        "artificial_analysis": 26.74
-      }
-    },
-    "inkling": {
-      "gi": 59.26,
-      "sources": {
-        "lmsys": 54.68,
-        "artificial_analysis": 63.83
-      }
-    },
-    "inkling-small": {
-      "gi": 62.13,
-      "sources": {
-        "artificial_analysis": 62.13
-      }
-    },
-    "intellect-3": {
-      "gi": 22.72,
-      "sources": {
-        "artificial_analysis": 22.72
-      }
-    },
-    "jamba-1-5-large": {
-      "gi": 5.87,
-      "sources": {
-        "artificial_analysis": 5.87
-      }
-    },
-    "jamba-1-5-mini": {
-      "gi": 2.01,
-      "sources": {
-        "artificial_analysis": 2.01
-      }
-    },
-    "jamba-1-6-large": {
-      "gi": 5.72,
-      "sources": {
-        "artificial_analysis": 5.72
-      }
-    },
-    "jamba-1-6-mini": {
-      "gi": 1.7,
-      "sources": {
-        "artificial_analysis": 1.7
-      }
-    },
-    "jamba-1-7-large": {
-      "gi": 6.18,
-      "sources": {
-        "artificial_analysis": 6.18
-      }
-    },
-    "jamba-1-7-mini": {
-      "gi": 2.01,
-      "sources": {
-        "artificial_analysis": 2.01
-      }
-    },
-    "jamba-reasoning-3b": {
-      "gi": 4.33,
-      "sources": {
-        "artificial_analysis": 4.33
-      }
-    },
-    "jt-35b-flash": {
-      "gi": 43.28,
-      "sources": {
-        "artificial_analysis": 43.28
-      }
-    },
-    "jt-4-1-flash-236b-a21b": {
-      "gi": 60.12,
-      "sources": {
-        "artificial_analysis": 60.12
-      }
-    },
-    "jt-mini": {
-      "gi": 27.51,
-      "sources": {
-        "artificial_analysis": 27.51
-      }
-    },
-    "k-exaone": {
-      "gi": 33.23,
-      "sources": {
-        "artificial_analysis": 33.23
-      }
-    },
-    "k-exaone-2-0-0803": {
-      "gi": 46.37,
-      "sources": {
-        "artificial_analysis": 46.37
-      }
-    },
-    "k-exaone-non-reasoning": {
-      "gi": 24.57,
-      "sources": {
-        "artificial_analysis": 24.57
-      }
-    },
-    "k2-horizon-375b-a23b": {
-      "gi": 71.56,
-      "sources": {
-        "artificial_analysis": 71.56
-      }
-    },
-    "k2-think-v2": {
-      "gi": 25.35,
-      "sources": {
-        "artificial_analysis": 25.35
-      }
-    },
-    "k2-v2": {
-      "gi": 20.4,
-      "sources": {
-        "artificial_analysis": 20.4
-      }
-    },
-    "k2-v2-low": {
-      "gi": 11.44,
-      "sources": {
-        "artificial_analysis": 11.44
-      }
-    },
-    "k2-v2-medium": {
-      "gi": 17.62,
-      "sources": {
-        "artificial_analysis": 17.62
-      }
-    },
-    "kat-coder-pro-v1": {
-      "gi": 36.01,
-      "sources": {
-        "lmsys": 28.9,
-        "artificial_analysis": 43.12
-      }
-    },
-    "kat-coder-pro-v2": {
-      "gi": 50.54,
-      "sources": {
-        "artificial_analysis": 50.54
-      }
-    },
-    "kimi-k2": {
-      "gi": 28.9,
-      "sources": {
-        "artificial_analysis": 28.9
-      }
-    },
-    "kimi-k2-0905": {
-      "gi": 35.55,
-      "sources": {
-        "artificial_analysis": 35.55
-      }
-    },
-    "kimi-k2-5": {
-      "gi": 54.1,
-      "sources": {
-        "artificial_analysis": 54.1
-      }
-    },
-    "kimi-k2-5-non-reasoning": {
-      "gi": 44.98,
-      "sources": {
-        "artificial_analysis": 44.98
-      }
-    },
-    "kimi-k2-6": {
-      "gi": 68.16,
-      "sources": {
-        "artificial_analysis": 68.16
-      }
-    },
-    "kimi-k2-6-non-reasoning": {
-      "gi": 53.17,
-      "sources": {
-        "artificial_analysis": 53.17
-      }
-    },
-    "kimi-k2-7-code": {
-      "gi": 64.91,
-      "sources": {
-        "artificial_analysis": 64.91
-      }
-    },
-    "kimi-k2-thinking": {
-      "gi": 50.23,
-      "sources": {
-        "artificial_analysis": 50.23
-      }
-    },
-    "kimi-k2-thinking-turbo": {
-      "gi": 39.9,
-      "sources": {
-        "lmsys": 39.9
-      }
-    },
-    "kimi-k2.5-instant": {
-      "gi": 53.53,
-      "sources": {
-        "lmsys": 53.53
-      }
-    },
-    "kimi-k2.5-thinking": {
-      "gi": 58.62,
-      "sources": {
-        "lmsys": 58.62
-      }
-    },
-    "kimi-k2.6": {
-      "gi": 66.67,
-      "sources": {
-        "lmsys": 66.67
-      }
-    },
-    "kimi-k2.7-code": {
-      "gi": 64.7,
-      "sources": {
-        "lmsys": 64.7
-      }
-    },
-    "kimi-k3": {
-      "gi": 90.73,
-      "sources": {
-        "artificial_analysis": 90.73
-      }
-    },
-    "kimi-k3-low": {
-      "gi": 73.11,
-      "sources": {
-        "artificial_analysis": 73.11
-      }
-    },
-    "kimi-k3-max": {
-      "gi": 82.51,
-      "sources": {
-        "lmsys": 82.51
-      }
-    },
-    "kimi-linear-48b-a3b-instruct": {
-      "gi": 11.44,
-      "sources": {
-        "artificial_analysis": 11.44
-      }
-    },
-    "laguna-m.1": {
-      "gi": 44.33,
-      "sources": {
-        "lmsys": 44.33
-      }
-    },
-    "laguna-xs.2": {
-      "gi": 36.95,
-      "sources": {
-        "lmsys": 36.95
-      }
-    },
-    "lfm-40b": {
-      "gi": 3.09,
-      "sources": {
-        "artificial_analysis": 3.09
-      }
-    },
-    "lfm2-1-2b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "lfm2-2-6b": {
-      "gi": 2.01,
-      "sources": {
-        "artificial_analysis": 2.01
-      }
-    },
-    "lfm2-24b-a2b": {
-      "gi": 5.56,
-      "sources": {
-        "artificial_analysis": 5.56
-      }
-    },
-    "lfm2-5-1-2b-instruct": {
-      "gi": 2.01,
-      "sources": {
-        "artificial_analysis": 2.01
-      }
-    },
-    "lfm2-5-1-2b-thinking": {
-      "gi": 2.01,
-      "sources": {
-        "artificial_analysis": 2.01
-      }
-    },
-    "lfm2-5-2-6b": {
-      "gi": 15.46,
-      "sources": {
-        "artificial_analysis": 15.46
-      }
-    },
-    "lfm2-5-8b-a1b": {
-      "gi": 10.97,
-      "sources": {
-        "artificial_analysis": 10.97
-      }
-    },
-    "lfm2-5-vl-1-6b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "lfm2-8b-a1b": {
-      "gi": 0.46,
-      "sources": {
-        "artificial_analysis": 0.46
-      }
-    },
-    "ling-1t": {
-      "gi": 18.08,
-      "sources": {
-        "artificial_analysis": 18.08
-      }
-    },
-    "ling-2-6-1t": {
-      "gi": 39.57,
-      "sources": {
-        "artificial_analysis": 39.57
-      }
-    },
-    "ling-2-6-flash": {
-      "gi": 20.4,
-      "sources": {
-        "artificial_analysis": 20.4
-      }
-    },
-    "ling-3-0-flash": {
-      "gi": 56.88,
-      "sources": {
-        "artificial_analysis": 56.88
-      }
-    },
-    "ling-3-0-tiny": {
-      "gi": 36.32,
-      "sources": {
-        "artificial_analysis": 36.32
-      }
-    },
-    "ling-flash-2-0": {
-      "gi": 13.29,
-      "sources": {
-        "artificial_analysis": 13.29
-      }
-    },
-    "ling-mini-2-0": {
-      "gi": 3.71,
-      "sources": {
-        "artificial_analysis": 3.71
-      }
-    },
-    "llama-2-chat-13b": {
-      "gi": 2.47,
-      "sources": {
-        "artificial_analysis": 2.47
-      }
-    },
-    "llama-2-chat-70b": {
-      "gi": 2.47,
-      "sources": {
-        "artificial_analysis": 2.47
-      }
-    },
-    "llama-2-chat-7b": {
-      "gi": 4.48,
-      "sources": {
-        "artificial_analysis": 4.48
-      }
-    },
-    "llama-3-1-instruct-405b": {
-      "gi": 11.28,
-      "sources": {
-        "artificial_analysis": 11.28
-      }
-    },
-    "llama-3-1-instruct-70b": {
-      "gi": 8.5,
-      "sources": {
-        "artificial_analysis": 8.5
-      }
-    },
-    "llama-3-1-instruct-8b": {
-      "gi": 9.89,
-      "sources": {
-        "artificial_analysis": 9.89
-      }
-    },
-    "llama-3-1-nemotron-instruct-70b": {
-      "gi": 9.89,
-      "sources": {
-        "artificial_analysis": 9.89
-      }
-    },
-    "llama-3-1-nemotron-nano-4b-reasoning": {
-      "gi": 11.44,
-      "sources": {
-        "artificial_analysis": 11.44
-      }
-    },
-    "llama-3-1-nemotron-ultra-253b-v1-reasoning": {
-      "gi": 12.21,
-      "sources": {
-        "artificial_analysis": 12.21
-      }
-    },
-    "llama-3-2-instruct-11b-vision": {
-      "gi": 3.09,
-      "sources": {
-        "artificial_analysis": 3.09
-      }
-    },
-    "llama-3-2-instruct-1b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "llama-3-2-instruct-3b": {
-      "gi": 4.48,
-      "sources": {
-        "artificial_analysis": 4.48
-      }
-    },
-    "llama-3-2-instruct-90b-vision": {
-      "gi": 7.73,
-      "sources": {
-        "artificial_analysis": 7.73
-      }
-    },
-    "llama-3-3-instruct-70b": {
-      "gi": 12.83,
-      "sources": {
-        "artificial_analysis": 12.83
-      }
-    },
-    "llama-3-3-nemotron-super-49b": {
-      "gi": 11.28,
-      "sources": {
-        "artificial_analysis": 11.28
-      }
-    },
-    "llama-3-3-nemotron-super-49b-reasoning": {
-      "gi": 17.31,
-      "sources": {
-        "artificial_analysis": 17.31
-      }
-    },
-    "llama-3-instruct-70b": {
-      "gi": 3.25,
-      "sources": {
-        "artificial_analysis": 3.25
-      }
-    },
-    "llama-3-instruct-8b": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "llama-4-maverick": {
-      "gi": 20.87,
-      "sources": {
-        "artificial_analysis": 20.87
-      }
-    },
-    "llama-4-scout": {
-      "gi": 14.37,
-      "sources": {
-        "artificial_analysis": 14.37
-      }
-    },
-    "llama-65b": {
-      "gi": 1.08,
-      "sources": {
-        "artificial_analysis": 1.08
-      }
-    },
-    "llama-nemotron-super-49b-v1-5": {
-      "gi": 11.59,
-      "sources": {
-        "artificial_analysis": 11.59
-      }
-    },
-    "llama-nemotron-super-49b-v1-5-reasoning": {
-      "gi": 17.62,
-      "sources": {
-        "artificial_analysis": 17.62
-      }
-    },
-    "longcat-2-0": {
-      "gi": 51.0,
-      "sources": {
-        "artificial_analysis": 51.0
-      }
-    },
-    "longcat-flash-lite": {
-      "gi": 25.35,
-      "sources": {
-        "artificial_analysis": 25.35
-      }
-    },
-    "magistral-medium": {
-      "gi": 17.77,
-      "sources": {
-        "artificial_analysis": 17.77
-      }
-    },
-    "magistral-medium-2509": {
-      "gi": 26.28,
-      "sources": {
-        "artificial_analysis": 26.28
-      }
-    },
-    "magistral-small": {
-      "gi": 14.84,
-      "sources": {
-        "artificial_analysis": 14.84
-      }
-    },
-    "magistral-small-2509": {
-      "gi": 16.23,
-      "sources": {
-        "artificial_analysis": 16.23
-      }
-    },
-    "mercury-2": {
-      "gi": 23.29,
-      "sources": {
-        "lmsys": 14.29,
-        "artificial_analysis": 32.3
-      }
-    },
-    "mi-dm-k-2-5-pro-dec28": {
-      "gi": 24.11,
-      "sources": {
-        "artificial_analysis": 24.11
-      }
-    },
-    "mimo-v2-0206": {
-      "gi": 51.0,
-      "sources": {
-        "artificial_analysis": 51.0
-      }
-    },
-    "mimo-v2-5-0424": {
-      "gi": 57.19,
-      "sources": {
-        "artificial_analysis": 57.19
-      }
-    },
-    "mimo-v2-5-pro": {
-      "gi": 64.76,
-      "sources": {
-        "artificial_analysis": 64.76
-      }
-    },
-    "mimo-v2-5-pro-non-reasoning": {
-      "gi": 42.35,
-      "sources": {
-        "artificial_analysis": 42.35
-      }
-    },
-    "mimo-v2-flash": {
-      "gi": 37.25,
-      "sources": {
-        "artificial_analysis": 37.25
-      }
-    },
-    "mimo-v2-flash (non-thinking)": {
-      "gi": 41.38,
-      "sources": {
-        "lmsys": 41.38
-      }
-    },
-    "mimo-v2-flash (thinking)": {
-      "gi": 34.81,
-      "sources": {
-        "lmsys": 34.81
-      }
-    },
-    "mimo-v2-flash-reasoning": {
-      "gi": 47.76,
-      "sources": {
-        "artificial_analysis": 47.76
-      }
-    },
-    "mimo-v2-omni": {
-      "gi": 53.94,
-      "sources": {
-        "artificial_analysis": 53.94
-      }
-    },
-    "mimo-v2-omni-0327": {
-      "gi": 56.11,
-      "sources": {
-        "artificial_analysis": 56.11
-      }
-    },
-    "mimo-v2-pro": {
-      "gi": 60.29,
-      "sources": {
-        "lmsys": 58.13,
-        "artificial_analysis": 62.44
-      }
-    },
-    "mimo-v2.5": {
-      "gi": 58.78,
-      "sources": {
-        "lmsys": 58.78
-      }
-    },
-    "mimo-v2.5-pro": {
-      "gi": 64.53,
-      "sources": {
-        "lmsys": 64.53
-      }
-    },
-    "minicpm-v4-6-1-3b": {
-      "gi": 4.33,
-      "sources": {
-        "artificial_analysis": 4.33
-      }
-    },
-    "minicpm5-1b": {
-      "gi": 16.85,
-      "sources": {
-        "artificial_analysis": 16.85
-      }
-    },
-    "minicpm5-1b-non-reasoning": {
-      "gi": 16.54,
-      "sources": {
-        "artificial_analysis": 16.54
-      }
-    },
-    "minimax-m1-40k": {
-      "gi": 20.87,
-      "sources": {
-        "artificial_analysis": 20.87
-      }
-    },
-    "minimax-m1-80k": {
-      "gi": 26.12,
-      "sources": {
-        "artificial_analysis": 26.12
-      }
-    },
-    "minimax-m2": {
-      "gi": 39.46,
-      "sources": {
-        "lmsys": 35.8,
-        "artificial_analysis": 43.12
-      }
-    },
-    "minimax-m2-1": {
-      "gi": 48.07,
-      "sources": {
-        "artificial_analysis": 48.07
-      }
-    },
-    "minimax-m2-5": {
-      "gi": 51.78,
-      "sources": {
-        "artificial_analysis": 51.78
-      }
-    },
-    "minimax-m2-7": {
-      "gi": 58.58,
-      "sources": {
-        "artificial_analysis": 58.58
-      }
-    },
-    "minimax-m2.1-preview": {
-      "gi": 50.74,
-      "sources": {
-        "lmsys": 50.74
-      }
-    },
-    "minimax-m2.5": {
-      "gi": 50.41,
-      "sources": {
-        "lmsys": 50.41
-      }
-    },
-    "minimax-m2.7": {
-      "gi": 52.38,
-      "sources": {
-        "lmsys": 52.38
-      }
-    },
-    "minimax-m3": {
-      "gi": 67.89,
-      "sources": {
-        "lmsys": 67.16,
-        "artificial_analysis": 68.62
-      }
-    },
-    "ministral-3-14b": {
-      "gi": 15.77,
-      "sources": {
-        "artificial_analysis": 15.77
-      }
-    },
-    "ministral-3-3b": {
-      "gi": 9.43,
-      "sources": {
-        "artificial_analysis": 9.43
-      }
-    },
-    "ministral-3-8b": {
-      "gi": 12.36,
-      "sources": {
-        "artificial_analysis": 12.36
-      }
-    },
-    "mistral-7b-instruct": {
-      "gi": 1.08,
-      "sources": {
-        "artificial_analysis": 1.08
-      }
-    },
-    "mistral-8x22b-instruct": {
-      "gi": 4.64,
-      "sources": {
-        "artificial_analysis": 4.64
-      }
-    },
-    "mistral-large": {
-      "gi": 4.79,
-      "sources": {
-        "artificial_analysis": 4.79
-      }
-    },
-    "mistral-large-2": {
-      "gi": 12.36,
-      "sources": {
-        "artificial_analysis": 12.36
-      }
-    },
-    "mistral-large-2407": {
-      "gi": 9.27,
-      "sources": {
-        "artificial_analysis": 9.27
-      }
-    },
-    "mistral-large-3": {
-      "gi": 23.91,
-      "sources": {
-        "lmsys": 24.79,
-        "artificial_analysis": 23.03
-      }
-    },
-    "mistral-medium": {
-      "gi": 3.4,
-      "sources": {
-        "artificial_analysis": 3.4
-      }
-    },
-    "mistral-medium-3": {
-      "gi": 17.77,
-      "sources": {
-        "artificial_analysis": 17.77
-      }
-    },
-    "mistral-medium-3-1": {
-      "gi": 21.17,
-      "sources": {
-        "artificial_analysis": 21.17
-      }
-    },
-    "mistral-medium-3-5": {
-      "gi": 45.44,
-      "sources": {
-        "artificial_analysis": 45.44
-      }
-    },
-    "mistral-medium-3.5": {
-      "gi": 30.87,
-      "sources": {
-        "lmsys": 30.87
-      }
-    },
-    "mistral-saba": {
-      "gi": 8.04,
-      "sources": {
-        "artificial_analysis": 8.04
-      }
-    },
-    "mistral-small": {
-      "gi": 5.1,
-      "sources": {
-        "artificial_analysis": 5.1
-      }
-    },
-    "mistral-small-2402": {
-      "gi": 3.4,
-      "sources": {
-        "artificial_analysis": 3.4
-      }
-    },
-    "mistral-small-3": {
-      "gi": 8.81,
-      "sources": {
-        "artificial_analysis": 8.81
-      }
-    },
-    "mistral-small-3-1": {
-      "gi": 21.48,
-      "sources": {
-        "artificial_analysis": 21.48
-      }
-    },
-    "mistral-small-3-2": {
-      "gi": 14.99,
-      "sources": {
-        "artificial_analysis": 14.99
-      }
-    },
-    "mistral-small-4": {
-      "gi": 28.9,
-      "sources": {
-        "artificial_analysis": 28.9
-      }
-    },
-    "mistral-small-4-non-reasoning": {
-      "gi": 17.47,
-      "sources": {
-        "artificial_analysis": 17.47
-      }
-    },
-    "mixtral-8x7b-instruct": {
-      "gi": 1.55,
-      "sources": {
-        "artificial_analysis": 1.55
-      }
-    },
-    "molmo-7b-d": {
-      "gi": 3.71,
-      "sources": {
-        "artificial_analysis": 3.71
-      }
-    },
-    "molmo2-8b": {
-      "gi": 0.93,
-      "sources": {
-        "artificial_analysis": 0.93
-      }
-    },
-    "motif-0714": {
-      "gi": 68.47,
-      "sources": {
-        "artificial_analysis": 68.47
-      }
-    },
-    "motif-2-12-7b": {
-      "gi": 18.24,
-      "sources": {
-        "artificial_analysis": 18.24
-      }
-    },
-    "motif-3": {
-      "gi": 71.72,
-      "sources": {
-        "artificial_analysis": 71.72
-      }
-    },
-    "muse-glimmer": {
-      "gi": 52.7,
-      "sources": {
-        "artificial_analysis": 52.7
-      }
-    },
-    "muse-spark": {
-      "gi": 67.04,
-      "sources": {
-        "lmsys": 67.16,
-        "artificial_analysis": 66.92
-      }
-    },
-    "muse-spark-1-1": {
-      "gi": 80.68,
-      "sources": {
-        "artificial_analysis": 80.68
-      }
-    },
-    "muse-spark-1-2": {
-      "gi": 86.24,
-      "sources": {
-        "artificial_analysis": 86.24
-      }
-    },
-    "muse-spark-1-3": {
-      "gi": 94.44,
-      "sources": {
-        "artificial_analysis": 94.44
-      }
-    },
-    "muse-spark-1-3-xhigh": {
-      "gi": 92.43,
-      "sources": {
-        "artificial_analysis": 92.43
-      }
-    },
-    "muse-spark-1.1": {
-      "gi": 67.82,
-      "sources": {
-        "lmsys": 67.82
-      }
-    },
-    "muse-spark-1.2 (xhigh)": {
-      "gi": 68.97,
-      "sources": {
-        "lmsys": 68.97
-      }
-    },
-    "nanbeige4-1-3b": {
-      "gi": 15.46,
-      "sources": {
-        "artificial_analysis": 15.46
-      }
-    },
-    "nemotron-3-5-lightning": {
-      "gi": 34.93,
-      "sources": {
-        "artificial_analysis": 34.93
-      }
-    },
-    "nemotron-3-nano-omni-30b-a3b": {
-      "gi": 21.64,
-      "sources": {
-        "artificial_analysis": 21.64
-      }
-    },
-    "nemotron-cascade-2-30b-a3b": {
-      "gi": 25.97,
-      "sources": {
-        "artificial_analysis": 25.97
-      }
-    },
-    "nex-n2-pro": {
-      "gi": 62.91,
-      "sources": {
-        "artificial_analysis": 62.91
-      }
-    },
-    "north-mini-code": {
-      "gi": 29.68,
-      "sources": {
-        "artificial_analysis": 29.68
-      }
-    },
-    "nova-2-0-lite": {
-      "gi": 16.69,
-      "sources": {
-        "artificial_analysis": 16.69
-      }
-    },
-    "nova-2-0-lite-reasoning": {
-      "gi": 30.6,
-      "sources": {
-        "artificial_analysis": 30.6
-      }
-    },
-    "nova-2-0-lite-reasoning-low": {
-      "gi": 26.28,
-      "sources": {
-        "artificial_analysis": 26.28
-      }
-    },
-    "nova-2-0-lite-reasoning-medium": {
-      "gi": 28.13,
-      "sources": {
-        "artificial_analysis": 28.13
-      }
-    },
-    "nova-2-0-omni": {
-      "gi": 14.53,
-      "sources": {
-        "artificial_analysis": 14.53
-      }
-    },
-    "nova-2-0-omni-reasoning-low": {
-      "gi": 24.27,
-      "sources": {
-        "artificial_analysis": 24.27
-      }
-    },
-    "nova-2-0-omni-reasoning-medium": {
-      "gi": 31.38,
-      "sources": {
-        "artificial_analysis": 31.38
-      }
-    },
-    "nova-2-0-pro": {
-      "gi": 20.71,
-      "sources": {
-        "artificial_analysis": 20.71
-      }
-    },
-    "nova-2-0-pro-reasoning-low": {
-      "gi": 29.06,
-      "sources": {
-        "artificial_analysis": 29.06
-      }
-    },
-    "nova-2-0-pro-reasoning-medium": {
-      "gi": 32.61,
-      "sources": {
-        "artificial_analysis": 32.61
-      }
-    },
-    "nova-lite": {
-      "gi": 8.81,
-      "sources": {
-        "artificial_analysis": 8.81
-      }
-    },
-    "nova-micro": {
-      "gi": 5.26,
-      "sources": {
-        "artificial_analysis": 5.26
-      }
-    },
-    "nova-premier": {
-      "gi": 18.08,
-      "sources": {
-        "artificial_analysis": 18.08
-      }
-    },
-    "nova-pro": {
-      "gi": 10.05,
-      "sources": {
-        "artificial_analysis": 10.05
-      }
-    },
-    "nvidia-nemotron-3-nano-30b-a3b": {
-      "gi": 9.58,
-      "sources": {
-        "artificial_analysis": 9.58
-      }
-    },
-    "nvidia-nemotron-3-nano-30b-a3b-reasoning": {
-      "gi": 20.87,
-      "sources": {
-        "artificial_analysis": 20.87
-      }
-    },
-    "nvidia-nemotron-3-nano-4b": {
-      "gi": 11.75,
-      "sources": {
-        "artificial_analysis": 11.75
-      }
-    },
-    "nvidia-nemotron-3-super-120b-a12b": {
-      "gi": 38.18,
-      "sources": {
-        "artificial_analysis": 38.18
-      }
-    },
-    "nvidia-nemotron-3-ultra-550b-a55b": {
-      "gi": 57.65,
-      "sources": {
-        "artificial_analysis": 57.65
-      }
-    },
-    "nvidia-nemotron-nano-12b-v2-vl": {
-      "gi": 4.95,
-      "sources": {
-        "artificial_analysis": 4.95
-      }
-    },
-    "nvidia-nemotron-nano-12b-v2-vl-reasoning": {
-      "gi": 12.06,
-      "sources": {
-        "artificial_analysis": 12.06
-      }
-    },
-    "nvidia-nemotron-nano-9b-v2": {
-      "gi": 9.58,
-      "sources": {
-        "artificial_analysis": 9.58
-      }
-    },
-    "nvidia-nemotron-nano-9b-v2-reasoning": {
-      "gi": 11.9,
-      "sources": {
-        "artificial_analysis": 11.9
-      }
-    },
-    "o1": {
-      "gi": 35.39,
-      "sources": {
-        "artificial_analysis": 35.39
-      }
-    },
-    "o1-mini": {
-      "gi": 20.09,
-      "sources": {
-        "artificial_analysis": 20.09
-      }
-    },
-    "o1-preview": {
-      "gi": 25.04,
-      "sources": {
-        "artificial_analysis": 25.04
-      }
-    },
-    "o1-pro": {
-      "gi": 27.98,
-      "sources": {
-        "artificial_analysis": 27.98
-      }
-    },
-    "o3": {
-      "gi": 46.52,
-      "sources": {
-        "artificial_analysis": 46.52
-      }
-    },
-    "o3-mini": {
-      "gi": 28.13,
-      "sources": {
-        "artificial_analysis": 28.13
-      }
-    },
-    "o3-mini-high": {
-      "gi": 22.72,
-      "sources": {
-        "artificial_analysis": 22.72
-      }
-    },
-    "o3-pro": {
-      "gi": 49.92,
-      "sources": {
-        "artificial_analysis": 49.92
-      }
-    },
-    "o4-mini": {
-      "gi": 38.79,
-      "sources": {
-        "artificial_analysis": 38.79
-      }
-    },
-    "olmo-2-32b": {
-      "gi": 5.72,
-      "sources": {
-        "artificial_analysis": 5.72
-      }
-    },
-    "olmo-2-7b": {
-      "gi": 3.86,
-      "sources": {
-        "artificial_analysis": 3.86
-      }
-    },
-    "olmo-3-1-32b-instruct": {
-      "gi": 8.04,
-      "sources": {
-        "artificial_analysis": 8.04
-      }
-    },
-    "olmo-3-1-32b-think": {
-      "gi": 10.66,
-      "sources": {
-        "artificial_analysis": 10.66
-      }
-    },
-    "olmo-3-32b-think": {
-      "gi": 7.88,
-      "sources": {
-        "artificial_analysis": 7.88
-      }
-    },
-    "olmo-3-7b-instruct": {
-      "gi": 2.16,
-      "sources": {
-        "artificial_analysis": 2.16
-      }
-    },
-    "olmo-3-7b-think": {
-      "gi": 4.02,
-      "sources": {
-        "artificial_analysis": 4.02
-      }
-    },
-    "openchat-35": {
-      "gi": 2.47,
-      "sources": {
-        "artificial_analysis": 2.47
-      }
-    },
-    "palm-2": {
-      "gi": 2.78,
-      "sources": {
-        "artificial_analysis": 2.78
-      }
-    },
-    "phi-3-mini": {
-      "gi": 5.1,
-      "sources": {
-        "artificial_analysis": 5.1
-      }
-    },
-    "phi-4": {
-      "gi": 5.56,
-      "sources": {
-        "artificial_analysis": 5.56
-      }
-    },
-    "phi-4-mini": {
-      "gi": 7.26,
-      "sources": {
-        "artificial_analysis": 7.26
-      }
-    },
-    "phi-4-multimodal": {
-      "gi": 4.95,
-      "sources": {
-        "artificial_analysis": 4.95
-      }
-    },
-    "pixtral-large-2411": {
-      "gi": 10.82,
-      "sources": {
-        "artificial_analysis": 10.82
-      }
-    },
-    "quasar-438b": {
-      "gi": 64.91,
-      "sources": {
-        "artificial_analysis": 64.91
-      }
-    },
-    "qwen-2-5-max": {
-      "gi": 14.06,
-      "sources": {
-        "artificial_analysis": 14.06
-      }
-    },
-    "qwen-chat-14b": {
-      "gi": 1.08,
-      "sources": {
-        "artificial_analysis": 1.08
-      }
-    },
-    "qwen-chat-72b": {
-      "gi": 3.09,
-      "sources": {
-        "artificial_analysis": 3.09
-      }
-    },
-    "qwen-turbo": {
-      "gi": 7.73,
-      "sources": {
-        "artificial_analysis": 7.73
-      }
-    },
-    "qwen1.5-110b-chat": {
-      "gi": 4.17,
-      "sources": {
-        "artificial_analysis": 4.17
-      }
-    },
-    "qwen2-5-72b-instruct": {
-      "gi": 12.98,
-      "sources": {
-        "artificial_analysis": 12.98
-      }
-    },
-    "qwen2-5-coder-32b-instruct": {
-      "gi": 9.12,
-      "sources": {
-        "artificial_analysis": 9.12
-      }
-    },
-    "qwen2-5-coder-7b-instruct": {
-      "gi": 4.79,
-      "sources": {
-        "artificial_analysis": 4.79
-      }
-    },
-    "qwen2-72b-instruct": {
-      "gi": 7.26,
-      "sources": {
-        "artificial_analysis": 7.26
-      }
-    },
-    "qwen2.5-32b-instruct": {
-      "gi": 9.58,
-      "sources": {
-        "artificial_analysis": 9.58
-      }
-    },
-    "qwen3-0.6b-instruct": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "qwen3-0.6b-instruct-reasoning": {
-      "gi": 0.0,
-      "sources": {
-        "artificial_analysis": 0.0
-      }
-    },
-    "qwen3-1.7b-instruct": {
-      "gi": 0.15,
-      "sources": {
-        "artificial_analysis": 0.15
-      }
-    },
-    "qwen3-1.7b-instruct-reasoning": {
-      "gi": 1.85,
-      "sources": {
-        "artificial_analysis": 1.85
-      }
-    },
-    "qwen3-14b-instruct": {
-      "gi": 8.96,
-      "sources": {
-        "artificial_analysis": 8.96
-      }
-    },
-    "qwen3-14b-instruct-reasoning": {
-      "gi": 14.53,
-      "sources": {
-        "artificial_analysis": 14.53
-      }
-    },
-    "qwen3-235b-a22b-instruct": {
-      "gi": 15.15,
-      "sources": {
-        "artificial_analysis": 15.15
-      }
-    },
-    "qwen3-235b-a22b-instruct-2507": {
-      "gi": 26.89,
-      "sources": {
-        "artificial_analysis": 26.89
-      }
-    },
-    "qwen3-235b-a22b-instruct-2507-reasoning": {
-      "gi": 29.21,
-      "sources": {
-        "artificial_analysis": 29.21
-      }
-    },
-    "qwen3-235b-a22b-instruct-reasoning": {
-      "gi": 19.32,
-      "sources": {
-        "artificial_analysis": 19.32
-      }
-    },
-    "qwen3-30b-a3b-2507": {
-      "gi": 12.21,
-      "sources": {
-        "artificial_analysis": 12.21
-      }
-    },
-    "qwen3-30b-a3b-2507-reasoning": {
-      "gi": 21.02,
-      "sources": {
-        "artificial_analysis": 21.02
-      }
-    },
-    "qwen3-30b-a3b-instruct": {
-      "gi": 8.66,
-      "sources": {
-        "artificial_analysis": 8.66
-      }
-    },
-    "qwen3-30b-a3b-instruct-reasoning": {
-      "gi": 12.67,
-      "sources": {
-        "artificial_analysis": 12.67
-      }
-    },
-    "qwen3-32b-instruct": {
-      "gi": 11.59,
-      "sources": {
-        "artificial_analysis": 11.59
-      }
-    },
-    "qwen3-32b-instruct-reasoning": {
       "gi": 16.07,
       "sources": {
         "artificial_analysis": 16.07
       }
     },
-    "qwen3-4b-2507-instruct": {
-      "gi": 9.12,
+    "gpt-5-4-nano": {
+      "gi": 36.11,
       "sources": {
-        "artificial_analysis": 9.12
+        "artificial_analysis": 36.11
       }
     },
-    "qwen3-4b-2507-instruct-reasoning": {
-      "gi": 16.85,
+    "gpt-5-4-nano-medium": {
+      "gi": 33.73,
       "sources": {
-        "artificial_analysis": 16.85
+        "artificial_analysis": 33.73
       }
     },
-    "qwen3-4b-instruct": {
-      "gi": 8.5,
+    "gpt-5-4-nano-non-reasoning": {
+      "gi": 17.26,
       "sources": {
-        "artificial_analysis": 8.5
+        "artificial_analysis": 17.26
       }
     },
-    "qwen3-4b-instruct-reasoning": {
-      "gi": 11.13,
+    "gpt-5-4-non-reasoning": {
+      "gi": 30.16,
       "sources": {
-        "artificial_analysis": 11.13
+        "artificial_analysis": 30.16
       }
     },
-    "qwen3-5-0-8b": {
-      "gi": 6.49,
-      "sources": {
-        "artificial_analysis": 6.49
-      }
-    },
-    "qwen3-5-0-8b-non-reasoning": {
-      "gi": 2.94,
-      "sources": {
-        "artificial_analysis": 2.94
-      }
-    },
-    "qwen3-5-122b-a10b": {
-      "gi": 49.15,
-      "sources": {
-        "artificial_analysis": 49.15
-      }
-    },
-    "qwen3-5-122b-a10b-non-reasoning": {
-      "gi": 42.04,
-      "sources": {
-        "artificial_analysis": 42.04
-      }
-    },
-    "qwen3-5-27b": {
-      "gi": 51.93,
-      "sources": {
-        "artificial_analysis": 51.93
-      }
-    },
-    "qwen3-5-27b-non-reasoning": {
-      "gi": 44.82,
-      "sources": {
-        "artificial_analysis": 44.82
-      }
-    },
-    "qwen3-5-2b": {
-      "gi": 9.89,
-      "sources": {
-        "artificial_analysis": 9.89
-      }
-    },
-    "qwen3-5-2b-non-reasoning": {
-      "gi": 6.65,
-      "sources": {
-        "artificial_analysis": 6.65
-      }
-    },
-    "qwen3-5-35b-a3b": {
-      "gi": 44.67,
-      "sources": {
-        "artificial_analysis": 44.67
-      }
-    },
-    "qwen3-5-35b-a3b-non-reasoning": {
-      "gi": 36.01,
-      "sources": {
-        "artificial_analysis": 36.01
-      }
-    },
-    "qwen3-5-397b-a17b": {
-      "gi": 51.47,
-      "sources": {
-        "artificial_analysis": 51.47
-      }
-    },
-    "qwen3-5-397b-a17b-non-reasoning": {
-      "gi": 49.0,
-      "sources": {
-        "artificial_analysis": 49.0
-      }
-    },
-    "qwen3-5-4b": {
-      "gi": 29.98,
-      "sources": {
-        "artificial_analysis": 29.98
-      }
-    },
-    "qwen3-5-4b-non-reasoning": {
-      "gi": 23.34,
-      "sources": {
-        "artificial_analysis": 23.34
-      }
-    },
-    "qwen3-5-9b": {
-      "gi": 32.15,
-      "sources": {
-        "artificial_analysis": 32.15
-      }
-    },
-    "qwen3-5-9b-non-reasoning": {
-      "gi": 30.29,
-      "sources": {
-        "artificial_analysis": 30.29
-      }
-    },
-    "qwen3-5-omni-flash": {
-      "gi": 28.13,
-      "sources": {
-        "artificial_analysis": 28.13
-      }
-    },
-    "qwen3-5-omni-plus": {
-      "gi": 46.83,
-      "sources": {
-        "artificial_analysis": 46.83
-      }
-    },
-    "qwen3-6-27b": {
-      "gi": 56.72,
-      "sources": {
-        "artificial_analysis": 56.72
-      }
-    },
-    "qwen3-6-27b-non-reasoning": {
-      "gi": 46.83,
-      "sources": {
-        "artificial_analysis": 46.83
-      }
-    },
-    "qwen3-6-35b-a3b": {
-      "gi": 48.07,
-      "sources": {
-        "artificial_analysis": 48.07
-      }
-    },
-    "qwen3-6-35b-a3b-non-reasoning": {
-      "gi": 36.48,
-      "sources": {
-        "artificial_analysis": 36.48
-      }
-    },
-    "qwen3-6-max": {
-      "gi": 61.98,
-      "sources": {
-        "artificial_analysis": 61.98
-      }
-    },
-    "qwen3-6-plus": {
-      "gi": 61.05,
-      "sources": {
-        "artificial_analysis": 61.05
-      }
-    },
-    "qwen3-7-max": {
+    "gpt-5-5": {
       "gi": 70.63,
       "sources": {
         "artificial_analysis": 70.63
       }
     },
-    "qwen3-7-plus": {
-      "gi": 59.35,
+    "gpt-5-5-high": {
+      "gi": 68.06,
       "sources": {
-        "artificial_analysis": 59.35
+        "artificial_analysis": 68.06
       }
     },
-    "qwen3-8-2-4t-a95b": {
-      "gi": 87.64,
+    "gpt-5-5-instant-05-26": {
+      "gi": 39.09,
       "sources": {
-        "artificial_analysis": 87.64
+        "artificial_analysis": 39.09
       }
     },
-    "qwen3-8-27b": {
-      "gi": 78.83,
+    "gpt-5-5-instant-06-26": {
+      "gi": 47.22,
       "sources": {
-        "artificial_analysis": 78.83
+        "artificial_analysis": 47.22
       }
     },
-    "qwen3-8-27b-low": {
-      "gi": 64.76,
+    "gpt-5-5-low": {
+      "gi": 54.96,
       "sources": {
-        "artificial_analysis": 64.76
+        "artificial_analysis": 54.96
       }
     },
-    "qwen3-8-27b-medium": {
-      "gi": 67.23,
+    "gpt-5-5-medium": {
+      "gi": 61.9,
       "sources": {
-        "artificial_analysis": 67.23
+        "artificial_analysis": 61.9
       }
     },
-    "qwen3-8-27b-non-reasoning": {
-      "gi": 52.09,
+    "gpt-5-5-non-reasoning": {
+      "gi": 40.08,
       "sources": {
-        "artificial_analysis": 52.09
+        "artificial_analysis": 40.08
       }
     },
-    "qwen3-8-flash-next": {
-      "gi": 84.7,
+    "gpt-5-6-luna": {
+      "gi": 68.45,
       "sources": {
-        "artificial_analysis": 84.7
+        "artificial_analysis": 68.45
       }
     },
-    "qwen3-8-max": {
-      "gi": 88.25,
+    "gpt-5-6-luna-high": {
+      "gi": 58.33,
       "sources": {
-        "artificial_analysis": 88.25
+        "artificial_analysis": 58.33
       }
     },
-    "qwen3-8b-instruct": {
-      "gi": 5.87,
+    "gpt-5-6-luna-low": {
+      "gi": 36.71,
       "sources": {
-        "artificial_analysis": 5.87
+        "artificial_analysis": 36.71
       }
     },
-    "qwen3-8b-instruct-reasoning": {
-      "gi": 11.28,
+    "gpt-5-6-luna-medium": {
+      "gi": 44.64,
       "sources": {
-        "artificial_analysis": 11.28
+        "artificial_analysis": 44.64
       }
     },
-    "qwen3-coder-30b-a3b-instruct": {
-      "gi": 19.47,
+    "gpt-5-6-luna-non-reasoning": {
+      "gi": 25.99,
       "sources": {
-        "artificial_analysis": 19.47
+        "artificial_analysis": 25.99
       }
     },
-    "qwen3-coder-480b-a35b-instruct": {
-      "gi": 29.14,
+    "gpt-5-6-luna-xhigh": {
+      "gi": 63.1,
       "sources": {
-        "lmsys": 31.69,
-        "artificial_analysis": 26.58
+        "artificial_analysis": 63.1
       }
     },
-    "qwen3-coder-next": {
-      "gi": 31.38,
+    "gpt-5-6-sol": {
+      "gi": 87.5,
       "sources": {
-        "artificial_analysis": 31.38
+        "artificial_analysis": 87.5
       }
     },
-    "qwen3-max": {
-      "gi": 36.32,
+    "gpt-5-6-sol-high": {
+      "gi": 78.37,
       "sources": {
-        "artificial_analysis": 36.32
+        "artificial_analysis": 78.37
       }
     },
-    "qwen3-max-preview": {
-      "gi": 28.44,
+    "gpt-5-6-sol-low": {
+      "gi": 61.11,
       "sources": {
-        "artificial_analysis": 28.44
+        "artificial_analysis": 61.11
       }
     },
-    "qwen3-max-thinking": {
-      "gi": 48.69,
+    "gpt-5-6-sol-medium": {
+      "gi": 72.42,
       "sources": {
-        "artificial_analysis": 48.69
+        "artificial_analysis": 72.42
       }
     },
-    "qwen3-max-thinking-preview": {
-      "gi": 37.87,
+    "gpt-5-6-sol-non-reasoning": {
+      "gi": 50.2,
       "sources": {
-        "artificial_analysis": 37.87
+        "artificial_analysis": 50.2
       }
     },
-    "qwen3-next-80b-a3b-instruct": {
-      "gi": 19.78,
+    "gpt-5-6-sol-xhigh": {
+      "gi": 81.55,
       "sources": {
-        "artificial_analysis": 19.78
+        "artificial_analysis": 81.55
       }
     },
-    "qwen3-next-80b-a3b-reasoning": {
-      "gi": 24.57,
+    "gpt-5-6-terra": {
+      "gi": 77.98,
       "sources": {
-        "artificial_analysis": 24.57
+        "artificial_analysis": 77.98
       }
     },
-    "qwen3-omni-30b-a3b-instruct": {
-      "gi": 5.87,
+    "gpt-5-6-terra-high": {
+      "gi": 62.5,
       "sources": {
-        "artificial_analysis": 5.87
+        "artificial_analysis": 62.5
       }
     },
-    "qwen3-omni-30b-a3b-reasoning": {
-      "gi": 13.14,
+    "gpt-5-6-terra-low": {
+      "gi": 49.4,
       "sources": {
-        "artificial_analysis": 13.14
+        "artificial_analysis": 49.4
       }
     },
-    "qwen3-vl-235b-a22b-instruct": {
-      "gi": 20.71,
+    "gpt-5-6-terra-medium": {
+      "gi": 54.37,
       "sources": {
-        "artificial_analysis": 20.71
+        "artificial_analysis": 54.37
       }
     },
-    "qwen3-vl-235b-a22b-reasoning": {
-      "gi": 30.76,
+    "gpt-5-6-terra-non-reasoning": {
+      "gi": 36.11,
       "sources": {
-        "artificial_analysis": 30.76
+        "artificial_analysis": 36.11
       }
     },
-    "qwen3-vl-30b-a3b-instruct": {
-      "gi": 13.76,
+    "gpt-5-6-terra-xhigh": {
+      "gi": 69.84,
       "sources": {
-        "artificial_analysis": 13.76
+        "artificial_analysis": 69.84
       }
     },
-    "qwen3-vl-30b-a3b-reasoning": {
-      "gi": 19.17,
-      "sources": {
-        "artificial_analysis": 19.17
-      }
-    },
-    "qwen3-vl-32b-instruct": {
-      "gi": 15.46,
-      "sources": {
-        "artificial_analysis": 15.46
-      }
-    },
-    "qwen3-vl-32b-reasoning": {
-      "gi": 26.43,
-      "sources": {
-        "artificial_analysis": 26.43
-      }
-    },
-    "qwen3-vl-4b-instruct": {
-      "gi": 4.17,
-      "sources": {
-        "artificial_analysis": 4.17
-      }
-    },
-    "qwen3-vl-4b-reasoning": {
-      "gi": 10.36,
-      "sources": {
-        "artificial_analysis": 10.36
-      }
-    },
-    "qwen3-vl-8b-instruct": {
-      "gi": 11.13,
-      "sources": {
-        "artificial_analysis": 11.13
-      }
-    },
-    "qwen3-vl-8b-reasoning": {
+    "gpt-5-chatgpt": {
       "gi": 14.68,
       "sources": {
         "artificial_analysis": 14.68
       }
     },
-    "qwen3.5-122b-a10b": {
-      "gi": 45.98,
+    "gpt-5-codex": {
+      "gi": 43.45,
       "sources": {
-        "lmsys": 45.98
+        "artificial_analysis": 43.45
       }
     },
-    "qwen3.5-27b": {
-      "gi": 45.81,
+    "gpt-5-low": {
+      "gi": 35.32,
       "sources": {
-        "lmsys": 45.81
+        "artificial_analysis": 35.32
       }
     },
-    "qwen3.5-35b-a3b": {
-      "gi": 28.24,
+    "gpt-5-medium": {
+      "gi": 43.32,
       "sources": {
-        "lmsys": 28.24
+        "lmsys": 47.16,
+        "artificial_analysis": 39.48
       }
     },
-    "qwen3.5-397b-a17b": {
-      "gi": 52.71,
+    "gpt-5-mini": {
+      "gi": 28.57,
       "sources": {
-        "lmsys": 52.71
+        "artificial_analysis": 28.57
       }
     },
-    "qwen3.5-flash": {
-      "gi": 26.11,
+    "gpt-5-mini-medium": {
+      "gi": 34.92,
       "sources": {
-        "lmsys": 26.11
+        "artificial_analysis": 34.92
       }
     },
-    "qwen3.5-max-preview": {
-      "gi": 63.38,
+    "gpt-5-mini-minimal": {
+      "gi": 13.69,
       "sources": {
-        "lmsys": 63.38
+        "artificial_analysis": 13.69
       }
     },
-    "qwen3.6-max-preview": {
-      "gi": 64.12,
+    "gpt-5-minimal": {
+      "gi": 16.67,
       "sources": {
-        "lmsys": 64.12
+        "artificial_analysis": 16.67
       }
     },
-    "qwen3.6-plus": {
-      "gi": 62.56,
+    "gpt-5-nano": {
+      "gi": 19.84,
       "sources": {
-        "lmsys": 62.56
+        "artificial_analysis": 19.84
       }
     },
-    "qwen3.7-max-20260517": {
-      "gi": 71.92,
+    "gpt-5-nano-medium": {
+      "gi": 18.85,
       "sources": {
-        "lmsys": 71.92
+        "artificial_analysis": 18.85
       }
     },
-    "qwen3.7-max-preview": {
-      "gi": 64.86,
+    "gpt-5-nano-minimal": {
+      "gi": 8.13,
       "sources": {
-        "lmsys": 64.86
+        "artificial_analysis": 8.13
       }
     },
-    "qwen3.7-plus": {
-      "gi": 62.23,
+    "gpt-5.1": {
+      "gi": 36.34,
       "sources": {
-        "lmsys": 62.23
+        "lmsys": 36.34
       }
     },
-    "qwen3.8-27b": {
-      "gi": 85.06,
+    "gpt-5.1-codex": {
+      "gi": 35.64,
       "sources": {
-        "lmsys": 85.06
+        "lmsys": 35.64
       }
     },
-    "qwen3.8-flash-next": {
-      "gi": 89.16,
+    "gpt-5.1-codex-mini": {
+      "gi": 22.88,
       "sources": {
-        "lmsys": 89.16
+        "lmsys": 22.88
       }
     },
-    "qwen3.8-max": {
-      "gi": 96.88,
+    "gpt-5.1-medium": {
+      "gi": 43.27,
       "sources": {
-        "lmsys": 96.88
+        "lmsys": 43.27
       }
     },
-    "qwen3.8-max-0902": {
+    "gpt-5.2": {
+      "gi": 47.16,
+      "sources": {
+        "lmsys": 47.16
+      }
+    },
+    "gpt-5.2-chat-latest-20260210": {
+      "gi": 55.06,
+      "sources": {
+        "lmsys": 55.06
+      }
+    },
+    "gpt-5.2-codex": {
+      "gi": 35.92,
+      "sources": {
+        "lmsys": 35.92
+      }
+    },
+    "gpt-5.3-codex (codex-harness)": {
+      "gi": 40.22,
+      "sources": {
+        "lmsys": 40.22
+      }
+    },
+    "gpt-5.4": {
+      "gi": 53.68,
+      "sources": {
+        "lmsys": 53.68
+      }
+    },
+    "gpt-5.4-high": {
+      "gi": 55.06,
+      "sources": {
+        "lmsys": 55.06
+      }
+    },
+    "gpt-5.4-high (codex-harness)": {
+      "gi": 53.26,
+      "sources": {
+        "lmsys": 53.26
+      }
+    },
+    "gpt-5.4-medium (codex-harness)": {
+      "gi": 50.35,
+      "sources": {
+        "lmsys": 50.35
+      }
+    },
+    "gpt-5.4-mini-high": {
+      "gi": 44.38,
+      "sources": {
+        "lmsys": 44.38
+      }
+    },
+    "gpt-5.5": {
+      "gi": 55.06,
+      "sources": {
+        "lmsys": 55.06
+      }
+    },
+    "gpt-5.5 (codex-harness)": {
+      "gi": 52.57,
+      "sources": {
+        "lmsys": 52.57
+      }
+    },
+    "gpt-5.5-high": {
+      "gi": 55.89,
+      "sources": {
+        "lmsys": 55.89
+      }
+    },
+    "gpt-5.5-high (codex-harness)": {
+      "gi": 56.59,
+      "sources": {
+        "lmsys": 56.59
+      }
+    },
+    "gpt-5.5-instant": {
+      "gi": 54.79,
+      "sources": {
+        "lmsys": 54.79
+      }
+    },
+    "gpt-5.5-xhigh (codex-harness)": {
+      "gi": 59.78,
+      "sources": {
+        "lmsys": 59.78
+      }
+    },
+    "gpt-5.6-luna-xhigh (codex-harness)": {
+      "gi": 61.03,
+      "sources": {
+        "lmsys": 61.03
+      }
+    },
+    "gpt-5.6-sol-xhigh": {
+      "gi": 56.03,
+      "sources": {
+        "lmsys": 56.03
+      }
+    },
+    "gpt-5.6-sol-xhigh (codex-harness)": {
+      "gi": 74.62,
+      "sources": {
+        "lmsys": 74.62
+      }
+    },
+    "gpt-5.6-terra-xhigh": {
+      "gi": 53.54,
+      "sources": {
+        "lmsys": 53.54
+      }
+    },
+    "gpt-5.6-terra-xhigh (codex-harness)": {
+      "gi": 61.3,
+      "sources": {
+        "lmsys": 61.3
+      }
+    },
+    "gpt-6-astra": {
+      "gi": 98.81,
+      "sources": {
+        "artificial_analysis": 98.81
+      }
+    },
+    "gpt-6-astra-high": {
+      "gi": 95.24,
+      "sources": {
+        "artificial_analysis": 95.24
+      }
+    },
+    "gpt-6-astra-low": {
+      "gi": 85.32,
+      "sources": {
+        "artificial_analysis": 85.32
+      }
+    },
+    "gpt-6-astra-max": {
       "gi": 100.0,
       "sources": {
         "lmsys": 100.0
       }
     },
-    "qwq-32b": {
-      "gi": 19.17,
+    "gpt-6-astra-medium": {
+      "gi": 92.66,
       "sources": {
-        "artificial_analysis": 19.17
+        "artificial_analysis": 92.66
       }
     },
-    "qwq-32b-preview": {
-      "gi": 12.52,
+    "gpt-6-astra-xhigh": {
+      "gi": 98.21,
       "sources": {
-        "artificial_analysis": 12.52
+        "artificial_analysis": 98.21
       }
     },
-    "r1-1776": {
-      "gi": 7.73,
+    "gpt-oss-120b": {
+      "gi": 18.45,
       "sources": {
-        "artificial_analysis": 7.73
+        "artificial_analysis": 18.45
       }
     },
-    "reka-flash": {
-      "gi": 7.73,
+    "gpt-oss-120b-low": {
+      "gi": 14.29,
       "sources": {
-        "artificial_analysis": 7.73
+        "artificial_analysis": 14.29
       }
     },
-    "reka-flash-3": {
+    "gpt-oss-20b": {
+      "gi": 11.9,
+      "sources": {
+        "artificial_analysis": 11.9
+      }
+    },
+    "gpt-oss-20b-low": {
+      "gi": 13.89,
+      "sources": {
+        "artificial_analysis": 13.89
+      }
+    },
+    "granite-3-3-8b-instruct": {
+      "gi": 3.77,
+      "sources": {
+        "artificial_analysis": 3.77
+      }
+    },
+    "granite-4-0-350m": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "granite-4-0-h-350m": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "granite-4-0-h-nano-1b": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "granite-4-0-h-small": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "granite-4-0-micro": {
       "gi": 4.17,
       "sources": {
         "artificial_analysis": 4.17
       }
     },
-    "ring-1t": {
-      "gi": 23.65,
+    "granite-4-0-nano-1b": {
+      "gi": 3.97,
       "sources": {
-        "artificial_analysis": 23.65
+        "artificial_analysis": 3.97
       }
     },
-    "ring-2-6-1t": {
-      "gi": 47.45,
+    "granite-4-1-30b": {
+      "gi": 8.73,
       "sources": {
-        "artificial_analysis": 47.45
+        "artificial_analysis": 8.73
       }
     },
-    "ring-flash-2-0": {
-      "gi": 10.82,
+    "granite-4-1-3b": {
+      "gi": 5.75,
       "sources": {
-        "artificial_analysis": 10.82
+        "artificial_analysis": 5.75
       }
     },
-    "sarvam-105b": {
-      "gi": 16.85,
+    "granite-4-1-8b": {
+      "gi": 7.14,
       "sources": {
-        "artificial_analysis": 16.85
+        "artificial_analysis": 7.14
       }
     },
-    "sarvam-30b": {
-      "gi": 8.35,
+    "granite-4-2-30b": {
+      "gi": 23.41,
       "sources": {
-        "artificial_analysis": 8.35
+        "artificial_analysis": 23.41
       }
     },
-    "sarvam-m-reasoning": {
-      "gi": 2.47,
+    "granite-4-2-3b": {
+      "gi": 12.1,
       "sources": {
-        "artificial_analysis": 2.47
+        "artificial_analysis": 12.1
       }
     },
-    "seed-2.1-pro-preview": {
-      "gi": 72.58,
+    "granite-4-2-8b": {
+      "gi": 17.46,
       "sources": {
-        "lmsys": 72.58
+        "artificial_analysis": 17.46
       }
     },
-    "seed-oss-36b-instruct": {
-      "gi": 27.05,
+    "granite-4.1-8b": {
+      "gi": 15.95,
       "sources": {
-        "artificial_analysis": 27.05
+        "lmsys": 15.95
       }
     },
-    "solar-mini": {
-      "gi": 7.73,
+    "grok-1": {
+      "gi": 6.55,
       "sources": {
-        "artificial_analysis": 7.73
+        "artificial_analysis": 6.55
       }
     },
-    "solar-open-100b-reasoning": {
-      "gi": 21.95,
+    "grok-2-1212": {
+      "gi": 8.13,
       "sources": {
-        "artificial_analysis": 21.95
+        "artificial_analysis": 8.13
       }
     },
-    "solar-open2-250b": {
-      "gi": 56.26,
+    "grok-3": {
+      "gi": 18.06,
       "sources": {
-        "artificial_analysis": 56.26
+        "artificial_analysis": 18.06
       }
     },
-    "solar-pro-2": {
-      "gi": 10.2,
+    "grok-3-mini-reasoning": {
+      "gi": 23.02,
       "sources": {
-        "artificial_analysis": 10.2
+        "artificial_analysis": 23.02
       }
     },
-    "solar-pro-2-preview": {
-      "gi": 13.76,
+    "grok-3-reasoning": {
+      "gi": 14.68,
       "sources": {
-        "artificial_analysis": 13.76
+        "artificial_analysis": 14.68
       }
     },
-    "solar-pro-2-preview-reasoning": {
-      "gi": 17.77,
+    "grok-4": {
+      "gi": 38.69,
       "sources": {
-        "artificial_analysis": 17.77
+        "artificial_analysis": 38.69
       }
     },
-    "solar-pro-2-reasoning": {
-      "gi": 12.06,
+    "grok-4-1-fast": {
+      "gi": 16.47,
       "sources": {
-        "artificial_analysis": 12.06
+        "artificial_analysis": 16.47
       }
     },
-    "solar-pro-3": {
-      "gi": 20.87,
+    "grok-4-1-fast-reasoning": {
+      "gi": 28.43,
       "sources": {
-        "artificial_analysis": 20.87
+        "lmsys": 22.33,
+        "artificial_analysis": 34.52
       }
     },
-    "solar-pro4": {
-      "gi": 62.75,
+    "grok-4-20": {
+      "gi": 45.04,
       "sources": {
-        "artificial_analysis": 62.75
+        "artificial_analysis": 45.04
       }
     },
-    "sonar": {
-      "gi": 12.98,
+    "grok-4-20-0309": {
+      "gi": 44.05,
       "sources": {
-        "artificial_analysis": 12.98
+        "artificial_analysis": 44.05
       }
     },
-    "sonar-pro": {
-      "gi": 12.52,
+    "grok-4-20-0309-non-reasoning": {
+      "gi": 23.02,
       "sources": {
-        "artificial_analysis": 12.52
+        "artificial_analysis": 23.02
       }
     },
-    "sonar-reasoning": {
-      "gi": 16.38,
+    "grok-4-20-non-reasoning": {
+      "gi": 22.22,
       "sources": {
-        "artificial_analysis": 16.38
+        "artificial_analysis": 22.22
       }
     },
-    "sonar-reasoning-pro": {
-      "gi": 26.28,
+    "grok-4-3": {
+      "gi": 44.44,
       "sources": {
-        "artificial_analysis": 26.28
+        "artificial_analysis": 44.44
       }
     },
-    "step-3-5-flash": {
-      "gi": 39.41,
+    "grok-4-3-low": {
+      "gi": 42.26,
       "sources": {
-        "artificial_analysis": 39.41
+        "artificial_analysis": 42.26
       }
     },
-    "step-3-5-flash-0202": {
-      "gi": 38.64,
+    "grok-4-3-medium": {
+      "gi": 43.25,
       "sources": {
-        "artificial_analysis": 38.64
+        "artificial_analysis": 43.25
       }
     },
-    "step-3-7-flash": {
-      "gi": 46.21,
+    "grok-4-3-non-reasoning": {
+      "gi": 22.82,
       "sources": {
-        "artificial_analysis": 46.21
+        "artificial_analysis": 22.82
       }
     },
-    "step-3-vl-10b": {
-      "gi": 12.83,
+    "grok-4-5": {
+      "gi": 71.63,
       "sources": {
-        "artificial_analysis": 12.83
+        "artificial_analysis": 71.63
       }
     },
-    "tiny-aya-global": {
+    "grok-4-6": {
+      "gi": 82.14,
+      "sources": {
+        "artificial_analysis": 82.14
+      }
+    },
+    "grok-4-6-low": {
+      "gi": 64.29,
+      "sources": {
+        "artificial_analysis": 64.29
+      }
+    },
+    "grok-4-6-medium": {
+      "gi": 79.37,
+      "sources": {
+        "artificial_analysis": 79.37
+      }
+    },
+    "grok-4-6-xhigh": {
+      "gi": 81.94,
+      "sources": {
+        "artificial_analysis": 81.94
+      }
+    },
+    "grok-4-fast": {
+      "gi": 16.07,
+      "sources": {
+        "artificial_analysis": 16.07
+      }
+    },
+    "grok-4-fast-reasoning": {
+      "gi": 20.4,
+      "sources": {
+        "lmsys": 11.23,
+        "artificial_analysis": 29.56
+      }
+    },
+    "grok-4.1": {
+      "gi": 52.7,
+      "sources": {
+        "lmsys": 52.7
+      }
+    },
+    "grok-4.1-thinking": {
+      "gi": 53.68,
+      "sources": {
+        "lmsys": 53.68
+      }
+    },
+    "grok-4.20-beta-0309-reasoning": {
+      "gi": 54.51,
+      "sources": {
+        "lmsys": 54.51
+      }
+    },
+    "grok-4.20-beta1": {
+      "gi": 54.92,
+      "sources": {
+        "lmsys": 54.92
+      }
+    },
+    "grok-4.20-multi-agent-beta-0309": {
+      "gi": 54.23,
+      "sources": {
+        "lmsys": 54.23
+      }
+    },
+    "grok-4.3": {
+      "gi": 38.56,
+      "sources": {
+        "lmsys": 38.56
+      }
+    },
+    "grok-4.5": {
+      "gi": 66.02,
+      "sources": {
+        "lmsys": 66.02
+      }
+    },
+    "grok-4.6-high": {
+      "gi": 74.76,
+      "sources": {
+        "lmsys": 74.76
+      }
+    },
+    "grok-beta": {
+      "gi": 7.74,
+      "sources": {
+        "artificial_analysis": 7.74
+      }
+    },
+    "grok-build-0-1-06-16": {
+      "gi": 48.02,
+      "sources": {
+        "artificial_analysis": 48.02
+      }
+    },
+    "grok-code-fast-1": {
+      "gi": 16.84,
+      "sources": {
+        "lmsys": 11.65,
+        "artificial_analysis": 22.02
+      }
+    },
+    "hermes-3-llama-3-1-70b": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "hermes-4-llama-3-1-405b": {
+      "gi": 8.73,
+      "sources": {
+        "artificial_analysis": 8.73
+      }
+    },
+    "hermes-4-llama-3-1-405b-reasoning": {
+      "gi": 8.93,
+      "sources": {
+        "artificial_analysis": 8.93
+      }
+    },
+    "hermes-4-llama-3-1-70b": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "hermes-4-llama-3-1-70b-reasoning": {
+      "gi": 9.72,
+      "sources": {
+        "artificial_analysis": 9.72
+      }
+    },
+    "hunyuan-hy3-preview": {
+      "gi": 38.56,
+      "sources": {
+        "lmsys": 38.56
+      }
+    },
+    "hy3": {
+      "gi": 52.72,
+      "sources": {
+        "lmsys": 60.19,
+        "artificial_analysis": 45.24
+      }
+    },
+    "hy3-non-reasoning": {
+      "gi": 27.78,
+      "sources": {
+        "artificial_analysis": 27.78
+      }
+    },
+    "hy3-preview": {
+      "gi": 39.09,
+      "sources": {
+        "artificial_analysis": 39.09
+      }
+    },
+    "hy4-preview": {
+      "gi": 75.59,
+      "sources": {
+        "lmsys": 75.59
+      }
+    },
+    "hyperclova-x-seed-think-32b": {
+      "gi": 16.67,
+      "sources": {
+        "artificial_analysis": 16.67
+      }
+    },
+    "hypernova-60b": {
+      "gi": 17.26,
+      "sources": {
+        "artificial_analysis": 17.26
+      }
+    },
+    "inkling": {
+      "gi": 45.41,
+      "sources": {
+        "lmsys": 46.19,
+        "artificial_analysis": 44.64
+      }
+    },
+    "inkling-small": {
+      "gi": 45.83,
+      "sources": {
+        "artificial_analysis": 45.83
+      }
+    },
+    "intellect-3": {
+      "gi": 15.08,
+      "sources": {
+        "artificial_analysis": 15.08
+      }
+    },
+    "jamba-1-5-large": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "jamba-1-5-mini": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "jamba-1-6-large": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "jamba-1-6-mini": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "jamba-1-7-large": {
+      "gi": 6.15,
+      "sources": {
+        "artificial_analysis": 6.15
+      }
+    },
+    "jamba-1-7-mini": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "jamba-reasoning-3b": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "jt-35b-flash": {
+      "gi": 31.15,
+      "sources": {
+        "artificial_analysis": 31.15
+      }
+    },
+    "jt-4-1-flash-236b-a21b": {
+      "gi": 48.21,
+      "sources": {
+        "artificial_analysis": 48.21
+      }
+    },
+    "jt-mini": {
+      "gi": 18.25,
+      "sources": {
+        "artificial_analysis": 18.25
+      }
+    },
+    "k-exaone": {
+      "gi": 22.62,
+      "sources": {
+        "artificial_analysis": 22.62
+      }
+    },
+    "k-exaone-2-0-0803": {
+      "gi": 33.13,
+      "sources": {
+        "artificial_analysis": 33.13
+      }
+    },
+    "k-exaone-non-reasoning": {
+      "gi": 16.27,
+      "sources": {
+        "artificial_analysis": 16.27
+      }
+    },
+    "k2-1b-final": {
       "gi": 0.0,
       "sources": {
         "artificial_analysis": 0.0
       }
     },
-    "tri-21b-think-preview": {
-      "gi": 19.47,
+    "k2-4b-ph1": {
+      "gi": 26.19,
       "sources": {
-        "artificial_analysis": 19.47
+        "artificial_analysis": 26.19
+      }
+    },
+    "k2-7b-ph2": {
+      "gi": 35.71,
+      "sources": {
+        "artificial_analysis": 35.71
+      }
+    },
+    "k2-horizon-375b-a23b": {
+      "gi": 55.16,
+      "sources": {
+        "artificial_analysis": 55.16
+      }
+    },
+    "k2-mova-36b-mid5": {
+      "gi": 45.04,
+      "sources": {
+        "artificial_analysis": 45.04
+      }
+    },
+    "k2-think-v2": {
+      "gi": 16.87,
+      "sources": {
+        "artificial_analysis": 16.87
+      }
+    },
+    "k2-v2": {
+      "gi": 13.69,
+      "sources": {
+        "artificial_analysis": 13.69
+      }
+    },
+    "k2-v2-low": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "k2-v2-medium": {
+      "gi": 11.9,
+      "sources": {
+        "artificial_analysis": 11.9
+      }
+    },
+    "kat-coder-pro-v1": {
+      "gi": 27.68,
+      "sources": {
+        "lmsys": 24.41,
+        "artificial_analysis": 30.95
+      }
+    },
+    "kat-coder-pro-v2": {
+      "gi": 37.1,
+      "sources": {
+        "artificial_analysis": 37.1
+      }
+    },
+    "kimi-k2": {
+      "gi": 19.25,
+      "sources": {
+        "artificial_analysis": 19.25
+      }
+    },
+    "kimi-k2-0905": {
+      "gi": 24.4,
+      "sources": {
+        "artificial_analysis": 24.4
+      }
+    },
+    "kimi-k2-5": {
+      "gi": 40.67,
+      "sources": {
+        "artificial_analysis": 40.67
+      }
+    },
+    "kimi-k2-5-non-reasoning": {
+      "gi": 32.54,
+      "sources": {
+        "artificial_analysis": 32.54
+      }
+    },
+    "kimi-k2-6": {
+      "gi": 48.61,
+      "sources": {
+        "artificial_analysis": 48.61
+      }
+    },
+    "kimi-k2-6-non-reasoning": {
+      "gi": 40.87,
+      "sources": {
+        "artificial_analysis": 40.87
+      }
+    },
+    "kimi-k2-7-code": {
+      "gi": 46.23,
+      "sources": {
+        "artificial_analysis": 46.23
+      }
+    },
+    "kimi-k2-thinking": {
+      "gi": 37.7,
+      "sources": {
+        "artificial_analysis": 37.7
+      }
+    },
+    "kimi-k2-thinking-turbo": {
+      "gi": 33.7,
+      "sources": {
+        "lmsys": 33.7
+      }
+    },
+    "kimi-k2.5-instant": {
+      "gi": 45.21,
+      "sources": {
+        "lmsys": 45.21
+      }
+    },
+    "kimi-k2.5-thinking": {
+      "gi": 49.51,
+      "sources": {
+        "lmsys": 49.51
+      }
+    },
+    "kimi-k2.6": {
+      "gi": 59.64,
+      "sources": {
+        "lmsys": 59.64
+      }
+    },
+    "kimi-k2.7-code": {
+      "gi": 54.65,
+      "sources": {
+        "lmsys": 54.65
+      }
+    },
+    "kimi-k3": {
+      "gi": 80.95,
+      "sources": {
+        "artificial_analysis": 80.95
+      }
+    },
+    "kimi-k3-low": {
+      "gi": 54.56,
+      "sources": {
+        "artificial_analysis": 54.56
+      }
+    },
+    "kimi-k3-max": {
+      "gi": 69.42,
+      "sources": {
+        "lmsys": 69.42
+      }
+    },
+    "kimi-linear-48b-a3b-instruct": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "laguna-m.1": {
+      "gi": 37.45,
+      "sources": {
+        "lmsys": 37.45
+      }
+    },
+    "laguna-xs.2": {
+      "gi": 31.21,
+      "sources": {
+        "lmsys": 31.21
+      }
+    },
+    "lfm-40b": {
+      "gi": 4.76,
+      "sources": {
+        "artificial_analysis": 4.76
+      }
+    },
+    "lfm2-1-2b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "lfm2-2-6b": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "lfm2-24b-a2b": {
+      "gi": 5.75,
+      "sources": {
+        "artificial_analysis": 5.75
+      }
+    },
+    "lfm2-5-1-2b-instruct": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "lfm2-5-1-2b-thinking": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "lfm2-5-2-6b": {
+      "gi": 10.71,
+      "sources": {
+        "artificial_analysis": 10.71
+      }
+    },
+    "lfm2-5-8b-a1b": {
+      "gi": 8.33,
+      "sources": {
+        "artificial_analysis": 8.33
+      }
+    },
+    "lfm2-5-vl-1-6b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "lfm2-8b-a1b": {
+      "gi": 3.77,
+      "sources": {
+        "artificial_analysis": 3.77
+      }
+    },
+    "ling-1t": {
+      "gi": 12.3,
+      "sources": {
+        "artificial_analysis": 12.3
+      }
+    },
+    "ling-2-6-1t": {
+      "gi": 27.78,
+      "sources": {
+        "artificial_analysis": 27.78
+      }
+    },
+    "ling-2-6-flash": {
+      "gi": 13.29,
+      "sources": {
+        "artificial_analysis": 13.29
+      }
+    },
+    "ling-3-0-flash": {
+      "gi": 34.92,
+      "sources": {
+        "artificial_analysis": 34.92
+      }
+    },
+    "ling-3-0-flash-fin": {
+      "gi": 39.68,
+      "sources": {
+        "artificial_analysis": 39.68
+      }
+    },
+    "ling-3-0-flash-vl": {
+      "gi": 43.65,
+      "sources": {
+        "artificial_analysis": 43.65
+      }
+    },
+    "ling-3-0-tiny": {
+      "gi": 17.66,
+      "sources": {
+        "artificial_analysis": 17.66
+      }
+    },
+    "ling-flash-2-0": {
+      "gi": 9.52,
+      "sources": {
+        "artificial_analysis": 9.52
+      }
+    },
+    "ling-mini-2-0": {
+      "gi": 4.96,
+      "sources": {
+        "artificial_analysis": 4.96
+      }
+    },
+    "llama-2-chat-13b": {
+      "gi": 4.56,
+      "sources": {
+        "artificial_analysis": 4.56
+      }
+    },
+    "llama-2-chat-70b": {
+      "gi": 4.56,
+      "sources": {
+        "artificial_analysis": 4.56
+      }
+    },
+    "llama-2-chat-7b": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "llama-3-1-instruct-405b": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "llama-3-1-instruct-70b": {
+      "gi": 7.14,
+      "sources": {
+        "artificial_analysis": 7.14
+      }
+    },
+    "llama-3-1-instruct-8b": {
+      "gi": 7.74,
+      "sources": {
+        "artificial_analysis": 7.74
+      }
+    },
+    "llama-3-1-nemotron-instruct-70b": {
+      "gi": 7.74,
+      "sources": {
+        "artificial_analysis": 7.74
+      }
+    },
+    "llama-3-1-nemotron-nano-4b-reasoning": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "llama-3-1-nemotron-ultra-253b-v1-reasoning": {
+      "gi": 8.93,
+      "sources": {
+        "artificial_analysis": 8.93
+      }
+    },
+    "llama-3-2-instruct-11b-vision": {
+      "gi": 4.76,
+      "sources": {
+        "artificial_analysis": 4.76
+      }
+    },
+    "llama-3-2-instruct-1b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "llama-3-2-instruct-3b": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "llama-3-2-instruct-90b-vision": {
+      "gi": 6.75,
+      "sources": {
+        "artificial_analysis": 6.75
+      }
+    },
+    "llama-3-3-instruct-70b": {
+      "gi": 9.33,
+      "sources": {
+        "artificial_analysis": 9.33
+      }
+    },
+    "llama-3-3-nemotron-super-49b": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "llama-3-3-nemotron-super-49b-reasoning": {
+      "gi": 11.71,
+      "sources": {
+        "artificial_analysis": 11.71
+      }
+    },
+    "llama-3-instruct-70b": {
+      "gi": 4.96,
+      "sources": {
+        "artificial_analysis": 4.96
+      }
+    },
+    "llama-3-instruct-8b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "llama-4-maverick": {
+      "gi": 12.5,
+      "sources": {
+        "artificial_analysis": 12.5
+      }
+    },
+    "llama-4-scout": {
+      "gi": 6.94,
+      "sources": {
+        "artificial_analysis": 6.94
+      }
+    },
+    "llama-65b": {
+      "gi": 3.97,
+      "sources": {
+        "artificial_analysis": 3.97
+      }
+    },
+    "llama-nemotron-super-49b-v1-5": {
+      "gi": 8.73,
+      "sources": {
+        "artificial_analysis": 8.73
+      }
+    },
+    "llama-nemotron-super-49b-v1-5-reasoning": {
+      "gi": 11.9,
+      "sources": {
+        "artificial_analysis": 11.9
+      }
+    },
+    "longcat-2-0": {
+      "gi": 33.13,
+      "sources": {
+        "artificial_analysis": 33.13
+      }
+    },
+    "longcat-flash-lite": {
+      "gi": 16.87,
+      "sources": {
+        "artificial_analysis": 16.87
+      }
+    },
+    "magistral-medium": {
+      "gi": 12.1,
+      "sources": {
+        "artificial_analysis": 12.1
+      }
+    },
+    "magistral-medium-2509": {
+      "gi": 17.46,
+      "sources": {
+        "artificial_analysis": 17.46
+      }
+    },
+    "magistral-small": {
+      "gi": 10.32,
+      "sources": {
+        "artificial_analysis": 10.32
+      }
+    },
+    "magistral-small-2509": {
+      "gi": 11.11,
+      "sources": {
+        "artificial_analysis": 11.11
+      }
+    },
+    "mercury-2": {
+      "gi": 14.47,
+      "sources": {
+        "lmsys": 12.07,
+        "artificial_analysis": 16.87
+      }
+    },
+    "mi-dm-k-2-5-pro-dec28": {
+      "gi": 15.87,
+      "sources": {
+        "artificial_analysis": 15.87
+      }
+    },
+    "mimo-v2-0206": {
+      "gi": 38.49,
+      "sources": {
+        "artificial_analysis": 38.49
+      }
+    },
+    "mimo-v2-5-0424": {
+      "gi": 38.29,
+      "sources": {
+        "artificial_analysis": 38.29
+      }
+    },
+    "mimo-v2-5-pro": {
+      "gi": 46.43,
+      "sources": {
+        "artificial_analysis": 46.43
+      }
+    },
+    "mimo-v2-5-pro-non-reasoning": {
+      "gi": 30.36,
+      "sources": {
+        "artificial_analysis": 30.36
+      }
+    },
+    "mimo-v2-flash": {
+      "gi": 25.79,
+      "sources": {
+        "artificial_analysis": 25.79
+      }
+    },
+    "mimo-v2-flash (non-thinking)": {
+      "gi": 34.95,
+      "sources": {
+        "lmsys": 34.95
+      }
+    },
+    "mimo-v2-flash (thinking)": {
+      "gi": 29.4,
+      "sources": {
+        "lmsys": 29.4
+      }
+    },
+    "mimo-v2-flash-reasoning": {
+      "gi": 35.32,
+      "sources": {
+        "artificial_analysis": 35.32
+      }
+    },
+    "mimo-v2-omni": {
+      "gi": 41.47,
+      "sources": {
+        "artificial_analysis": 41.47
+      }
+    },
+    "mimo-v2-omni-0327": {
+      "gi": 43.85,
+      "sources": {
+        "artificial_analysis": 43.85
+      }
+    },
+    "mimo-v2-pro": {
+      "gi": 49.95,
+      "sources": {
+        "lmsys": 49.1,
+        "artificial_analysis": 50.79
+      }
+    },
+    "mimo-v2.5": {
+      "gi": 49.65,
+      "sources": {
+        "lmsys": 49.65
+      }
+    },
+    "mimo-v2.5-pro": {
+      "gi": 54.92,
+      "sources": {
+        "lmsys": 54.92
+      }
+    },
+    "minicpm-v4-6-1-3b": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "minicpm5-1b": {
+      "gi": 11.51,
+      "sources": {
+        "artificial_analysis": 11.51
+      }
+    },
+    "minicpm5-1b-non-reasoning": {
+      "gi": 11.31,
+      "sources": {
+        "artificial_analysis": 11.31
+      }
+    },
+    "minicpm5-2b": {
+      "gi": 20.04,
+      "sources": {
+        "artificial_analysis": 20.04
+      }
+    },
+    "minimax-m1-40k": {
+      "gi": 13.89,
+      "sources": {
+        "artificial_analysis": 13.89
+      }
+    },
+    "minimax-m1-80k": {
+      "gi": 17.26,
+      "sources": {
+        "artificial_analysis": 17.26
+      }
+    },
+    "minimax-m2": {
+      "gi": 30.59,
+      "sources": {
+        "lmsys": 30.24,
+        "artificial_analysis": 30.95
+      }
+    },
+    "minimax-m2-1": {
+      "gi": 35.52,
+      "sources": {
+        "artificial_analysis": 35.52
+      }
+    },
+    "minimax-m2-5": {
+      "gi": 39.29,
+      "sources": {
+        "artificial_analysis": 39.29
+      }
+    },
+    "minimax-m2-7": {
+      "gi": 40.08,
+      "sources": {
+        "artificial_analysis": 40.08
+      }
+    },
+    "minimax-m2.1-preview": {
+      "gi": 42.86,
+      "sources": {
+        "lmsys": 42.86
+      }
+    },
+    "minimax-m2.5": {
+      "gi": 42.58,
+      "sources": {
+        "lmsys": 42.58
+      }
+    },
+    "minimax-m2.7": {
+      "gi": 44.24,
+      "sources": {
+        "lmsys": 44.24
+      }
+    },
+    "minimax-m3": {
+      "gi": 54.68,
+      "sources": {
+        "lmsys": 56.59,
+        "artificial_analysis": 52.78
+      }
+    },
+    "ministral-3-14b": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "ministral-3-3b": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "ministral-3-8b": {
+      "gi": 4.96,
+      "sources": {
+        "artificial_analysis": 4.96
+      }
+    },
+    "mistral-7b-instruct": {
+      "gi": 3.97,
+      "sources": {
+        "artificial_analysis": 3.97
+      }
+    },
+    "mistral-8x22b-instruct": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "mistral-large": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "mistral-large-2": {
+      "gi": 9.13,
+      "sources": {
+        "artificial_analysis": 9.13
+      }
+    },
+    "mistral-large-2407": {
+      "gi": 7.54,
+      "sources": {
+        "artificial_analysis": 7.54
+      }
+    },
+    "mistral-large-3": {
+      "gi": 17.12,
+      "sources": {
+        "lmsys": 20.94,
+        "artificial_analysis": 13.29
+      }
+    },
+    "mistral-medium": {
+      "gi": 4.96,
+      "sources": {
+        "artificial_analysis": 4.96
+      }
+    },
+    "mistral-medium-3": {
+      "gi": 11.9,
+      "sources": {
+        "artificial_analysis": 11.9
+      }
+    },
+    "mistral-medium-3-1": {
+      "gi": 12.9,
+      "sources": {
+        "artificial_analysis": 12.9
+      }
+    },
+    "mistral-medium-3-5": {
+      "gi": 23.61,
+      "sources": {
+        "artificial_analysis": 23.61
+      }
+    },
+    "mistral-medium-3.5": {
+      "gi": 26.07,
+      "sources": {
+        "lmsys": 26.07
+      }
+    },
+    "mistral-saba": {
+      "gi": 6.94,
+      "sources": {
+        "artificial_analysis": 6.94
+      }
+    },
+    "mistral-small": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "mistral-small-2402": {
+      "gi": 4.96,
+      "sources": {
+        "artificial_analysis": 4.96
+      }
+    },
+    "mistral-small-3": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "mistral-small-3-1": {
+      "gi": 8.73,
+      "sources": {
+        "artificial_analysis": 8.73
+      }
+    },
+    "mistral-small-3-2": {
+      "gi": 7.94,
+      "sources": {
+        "artificial_analysis": 7.94
+      }
+    },
+    "mistral-small-4": {
+      "gi": 16.87,
+      "sources": {
+        "artificial_analysis": 16.87
+      }
+    },
+    "mistral-small-4-non-reasoning": {
+      "gi": 11.9,
+      "sources": {
+        "artificial_analysis": 11.9
+      }
+    },
+    "mixtral-8x7b-instruct": {
+      "gi": 4.17,
+      "sources": {
+        "artificial_analysis": 4.17
+      }
+    },
+    "molmo-7b-d": {
+      "gi": 5.16,
+      "sources": {
+        "artificial_analysis": 5.16
+      }
+    },
+    "molmo2-8b": {
+      "gi": 3.97,
+      "sources": {
+        "artificial_analysis": 3.97
+      }
+    },
+    "motif-0714": {
+      "gi": 58.13,
+      "sources": {
+        "artificial_analysis": 58.13
+      }
+    },
+    "motif-2-12-7b": {
+      "gi": 12.3,
+      "sources": {
+        "artificial_analysis": 12.3
+      }
+    },
+    "motif-3": {
+      "gi": 60.71,
+      "sources": {
+        "artificial_analysis": 60.71
+      }
+    },
+    "muse-glimmer": {
+      "gi": 29.96,
+      "sources": {
+        "artificial_analysis": 29.96
+      }
+    },
+    "muse-spark": {
+      "gi": 56.44,
+      "sources": {
+        "lmsys": 56.73,
+        "artificial_analysis": 56.15
+      }
+    },
+    "muse-spark-1-1": {
+      "gi": 62.1,
+      "sources": {
+        "artificial_analysis": 62.1
+      }
+    },
+    "muse-spark-1-2": {
+      "gi": 73.02,
+      "sources": {
+        "artificial_analysis": 73.02
+      }
+    },
+    "muse-spark-1-3": {
+      "gi": 89.68,
+      "sources": {
+        "artificial_analysis": 89.68
+      }
+    },
+    "muse-spark-1-3-xhigh": {
+      "gi": 83.73,
+      "sources": {
+        "artificial_analysis": 83.73
+      }
+    },
+    "muse-spark-1.1": {
+      "gi": 60.82,
+      "sources": {
+        "lmsys": 60.82
+      }
+    },
+    "muse-spark-1.2 (xhigh)": {
+      "gi": 60.75,
+      "sources": {
+        "lmsys": 60.75
+      }
+    },
+    "muse-spark-1.3 (xhigh)": {
+      "gi": 75.45,
+      "sources": {
+        "lmsys": 75.45
+      }
+    },
+    "muse-spark-1.3-max": {
+      "gi": 68.45,
+      "sources": {
+        "lmsys": 68.45
+      }
+    },
+    "nanbeige4-1-3b": {
+      "gi": 10.71,
+      "sources": {
+        "artificial_analysis": 10.71
+      }
+    },
+    "nemotron-3-5-lightning": {
+      "gi": 21.03,
+      "sources": {
+        "artificial_analysis": 21.03
+      }
+    },
+    "nemotron-3-nano-omni-30b-a3b": {
+      "gi": 14.48,
+      "sources": {
+        "artificial_analysis": 14.48
+      }
+    },
+    "nemotron-cascade-2-30b-a3b": {
+      "gi": 17.26,
+      "sources": {
+        "artificial_analysis": 17.26
+      }
+    },
+    "nex-n2-pro": {
+      "gi": 50.0,
+      "sources": {
+        "artificial_analysis": 50.0
+      }
+    },
+    "north-mini-code": {
+      "gi": 13.69,
+      "sources": {
+        "artificial_analysis": 13.69
+      }
+    },
+    "nova-2-0-lite": {
+      "gi": 11.31,
+      "sources": {
+        "artificial_analysis": 11.31
+      }
+    },
+    "nova-2-0-lite-reasoning": {
+      "gi": 20.63,
+      "sources": {
+        "artificial_analysis": 20.63
+      }
+    },
+    "nova-2-0-lite-reasoning-low": {
+      "gi": 17.46,
+      "sources": {
+        "artificial_analysis": 17.46
+      }
+    },
+    "nova-2-0-lite-reasoning-medium": {
+      "gi": 18.85,
+      "sources": {
+        "artificial_analysis": 18.85
+      }
+    },
+    "nova-2-0-omni": {
+      "gi": 10.32,
+      "sources": {
+        "artificial_analysis": 10.32
+      }
+    },
+    "nova-2-0-omni-reasoning-low": {
+      "gi": 16.07,
+      "sources": {
+        "artificial_analysis": 16.07
+      }
+    },
+    "nova-2-0-omni-reasoning-medium": {
+      "gi": 21.03,
+      "sources": {
+        "artificial_analysis": 21.03
+      }
+    },
+    "nova-2-0-pro": {
+      "gi": 13.89,
+      "sources": {
+        "artificial_analysis": 13.89
+      }
+    },
+    "nova-2-0-pro-reasoning-low": {
+      "gi": 19.44,
+      "sources": {
+        "artificial_analysis": 19.44
+      }
+    },
+    "nova-2-0-pro-reasoning-medium": {
+      "gi": 22.22,
+      "sources": {
+        "artificial_analysis": 22.22
+      }
+    },
+    "nova-lite": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "nova-micro": {
+      "gi": 5.75,
+      "sources": {
+        "artificial_analysis": 5.75
+      }
+    },
+    "nova-premier": {
+      "gi": 12.3,
+      "sources": {
+        "artificial_analysis": 12.3
+      }
+    },
+    "nova-pro": {
+      "gi": 7.94,
+      "sources": {
+        "artificial_analysis": 7.94
+      }
+    },
+    "nvidia-nemotron-3-nano-30b-a3b": {
+      "gi": 7.54,
+      "sources": {
+        "artificial_analysis": 7.54
+      }
+    },
+    "nvidia-nemotron-3-nano-30b-a3b-reasoning": {
+      "gi": 11.71,
+      "sources": {
+        "artificial_analysis": 11.71
+      }
+    },
+    "nvidia-nemotron-3-nano-4b": {
+      "gi": 8.73,
+      "sources": {
+        "artificial_analysis": 8.73
+      }
+    },
+    "nvidia-nemotron-3-super-120b-a12b": {
+      "gi": 21.03,
+      "sources": {
+        "artificial_analysis": 21.03
+      }
+    },
+    "nvidia-nemotron-3-ultra-550b-a55b": {
+      "gi": 40.48,
+      "sources": {
+        "artificial_analysis": 40.48
+      }
+    },
+    "nvidia-nemotron-nano-12b-v2-vl": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "nvidia-nemotron-nano-12b-v2-vl-reasoning": {
+      "gi": 8.93,
+      "sources": {
+        "artificial_analysis": 8.93
+      }
+    },
+    "nvidia-nemotron-nano-9b-v2": {
+      "gi": 7.54,
+      "sources": {
+        "artificial_analysis": 7.54
+      }
+    },
+    "nvidia-nemotron-nano-9b-v2-reasoning": {
+      "gi": 8.73,
+      "sources": {
+        "artificial_analysis": 8.73
+      }
+    },
+    "o1": {
+      "gi": 24.21,
+      "sources": {
+        "artificial_analysis": 24.21
+      }
+    },
+    "o1-mini": {
+      "gi": 13.49,
+      "sources": {
+        "artificial_analysis": 13.49
+      }
+    },
+    "o1-preview": {
+      "gi": 16.67,
+      "sources": {
+        "artificial_analysis": 16.67
+      }
+    },
+    "o1-pro": {
+      "gi": 18.65,
+      "sources": {
+        "artificial_analysis": 18.65
+      }
+    },
+    "o3": {
+      "gi": 34.13,
+      "sources": {
+        "artificial_analysis": 34.13
+      }
+    },
+    "o3-mini": {
+      "gi": 18.85,
+      "sources": {
+        "artificial_analysis": 18.85
+      }
+    },
+    "o3-mini-high": {
+      "gi": 15.87,
+      "sources": {
+        "artificial_analysis": 15.87
+      }
+    },
+    "o3-pro": {
+      "gi": 37.5,
+      "sources": {
+        "artificial_analysis": 37.5
+      }
+    },
+    "o4-mini": {
+      "gi": 27.18,
+      "sources": {
+        "artificial_analysis": 27.18
+      }
+    },
+    "olmo-2-32b": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "olmo-2-7b": {
+      "gi": 5.16,
+      "sources": {
+        "artificial_analysis": 5.16
+      }
+    },
+    "olmo-3-1-32b-instruct": {
+      "gi": 6.94,
+      "sources": {
+        "artificial_analysis": 6.94
+      }
+    },
+    "olmo-3-1-32b-think": {
+      "gi": 8.13,
+      "sources": {
+        "artificial_analysis": 8.13
+      }
+    },
+    "olmo-3-32b-think": {
+      "gi": 6.94,
+      "sources": {
+        "artificial_analysis": 6.94
+      }
+    },
+    "olmo-3-7b-instruct": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "olmo-3-7b-think": {
+      "gi": 5.16,
+      "sources": {
+        "artificial_analysis": 5.16
+      }
+    },
+    "openchat-35": {
+      "gi": 4.56,
+      "sources": {
+        "artificial_analysis": 4.56
+      }
+    },
+    "palm-2": {
+      "gi": 4.76,
+      "sources": {
+        "artificial_analysis": 4.76
+      }
+    },
+    "phi-3-mini": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "phi-4": {
+      "gi": 5.75,
+      "sources": {
+        "artificial_analysis": 5.75
+      }
+    },
+    "phi-4-mini": {
+      "gi": 6.55,
+      "sources": {
+        "artificial_analysis": 6.55
+      }
+    },
+    "phi-4-multimodal": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "pixtral-large-2411": {
+      "gi": 8.13,
+      "sources": {
+        "artificial_analysis": 8.13
+      }
+    },
+    "quasar-438b": {
+      "gi": 47.82,
+      "sources": {
+        "artificial_analysis": 47.82
+      }
+    },
+    "qwen-2-5-max": {
+      "gi": 9.92,
+      "sources": {
+        "artificial_analysis": 9.92
+      }
+    },
+    "qwen-chat-14b": {
+      "gi": 3.97,
+      "sources": {
+        "artificial_analysis": 3.97
+      }
+    },
+    "qwen-chat-72b": {
+      "gi": 4.76,
+      "sources": {
+        "artificial_analysis": 4.76
+      }
+    },
+    "qwen-turbo": {
+      "gi": 6.75,
+      "sources": {
+        "artificial_analysis": 6.75
+      }
+    },
+    "qwen1.5-110b-chat": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "qwen2-5-72b-instruct": {
+      "gi": 9.33,
+      "sources": {
+        "artificial_analysis": 9.33
+      }
+    },
+    "qwen2-5-coder-32b-instruct": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "qwen2-5-coder-7b-instruct": {
+      "gi": 5.56,
+      "sources": {
+        "artificial_analysis": 5.56
+      }
+    },
+    "qwen2-72b-instruct": {
+      "gi": 6.55,
+      "sources": {
+        "artificial_analysis": 6.55
+      }
+    },
+    "qwen2.5-32b-instruct": {
+      "gi": 7.74,
+      "sources": {
+        "artificial_analysis": 7.74
+      }
+    },
+    "qwen3-0.6b-instruct": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "qwen3-0.6b-instruct-reasoning": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "qwen3-1.7b-instruct": {
+      "gi": 3.77,
+      "sources": {
+        "artificial_analysis": 3.77
+      }
+    },
+    "qwen3-1.7b-instruct-reasoning": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "qwen3-14b-instruct": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "qwen3-14b-instruct-reasoning": {
+      "gi": 6.75,
+      "sources": {
+        "artificial_analysis": 6.75
+      }
+    },
+    "qwen3-235b-a22b-instruct": {
+      "gi": 10.52,
+      "sources": {
+        "artificial_analysis": 10.52
+      }
+    },
+    "qwen3-235b-a22b-instruct-2507": {
+      "gi": 17.86,
+      "sources": {
+        "artificial_analysis": 17.86
+      }
+    },
+    "qwen3-235b-a22b-instruct-2507-reasoning": {
+      "gi": 19.25,
+      "sources": {
+        "artificial_analysis": 19.25
+      }
+    },
+    "qwen3-235b-a22b-instruct-reasoning": {
+      "gi": 12.9,
+      "sources": {
+        "artificial_analysis": 12.9
+      }
+    },
+    "qwen3-30b-a3b-2507": {
+      "gi": 8.93,
+      "sources": {
+        "artificial_analysis": 8.93
+      }
+    },
+    "qwen3-30b-a3b-2507-reasoning": {
+      "gi": 13.49,
+      "sources": {
+        "artificial_analysis": 13.49
+      }
+    },
+    "qwen3-30b-a3b-instruct": {
+      "gi": 7.14,
+      "sources": {
+        "artificial_analysis": 7.14
+      }
+    },
+    "qwen3-30b-a3b-instruct-reasoning": {
+      "gi": 9.13,
+      "sources": {
+        "artificial_analysis": 9.13
+      }
+    },
+    "qwen3-32b-instruct": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "qwen3-32b-instruct-reasoning": {
+      "gi": 8.33,
+      "sources": {
+        "artificial_analysis": 8.33
+      }
+    },
+    "qwen3-4b-2507-instruct": {
+      "gi": 7.34,
+      "sources": {
+        "artificial_analysis": 7.34
+      }
+    },
+    "qwen3-4b-2507-instruct-reasoning": {
+      "gi": 11.51,
+      "sources": {
+        "artificial_analysis": 11.51
+      }
+    },
+    "qwen3-4b-instruct": {
+      "gi": 7.14,
+      "sources": {
+        "artificial_analysis": 7.14
+      }
+    },
+    "qwen3-4b-instruct-reasoning": {
+      "gi": 8.33,
+      "sources": {
+        "artificial_analysis": 8.33
+      }
+    },
+    "qwen3-5-0-8b": {
+      "gi": 6.15,
+      "sources": {
+        "artificial_analysis": 6.15
+      }
+    },
+    "qwen3-5-0-8b-non-reasoning": {
+      "gi": 4.76,
+      "sources": {
+        "artificial_analysis": 4.76
+      }
+    },
+    "qwen3-5-122b-a10b": {
+      "gi": 26.19,
+      "sources": {
+        "artificial_analysis": 26.19
+      }
+    },
+    "qwen3-5-122b-a10b-non-reasoning": {
+      "gi": 29.17,
+      "sources": {
+        "artificial_analysis": 29.17
+      }
+    },
+    "qwen3-5-27b": {
+      "gi": 39.48,
+      "sources": {
+        "artificial_analysis": 39.48
+      }
+    },
+    "qwen3-5-27b-non-reasoning": {
+      "gi": 32.54,
+      "sources": {
+        "artificial_analysis": 32.54
+      }
+    },
+    "qwen3-5-2b": {
+      "gi": 7.74,
+      "sources": {
+        "artificial_analysis": 7.74
+      }
+    },
+    "qwen3-5-2b-non-reasoning": {
+      "gi": 6.35,
+      "sources": {
+        "artificial_analysis": 6.35
+      }
+    },
+    "qwen3-5-35b-a3b": {
+      "gi": 32.34,
+      "sources": {
+        "artificial_analysis": 32.34
+      }
+    },
+    "qwen3-5-35b-a3b-non-reasoning": {
+      "gi": 24.01,
+      "sources": {
+        "artificial_analysis": 24.01
+      }
+    },
+    "qwen3-5-397b-a17b": {
+      "gi": 31.94,
+      "sources": {
+        "artificial_analysis": 31.94
+      }
+    },
+    "qwen3-5-397b-a17b-non-reasoning": {
+      "gi": 36.51,
+      "sources": {
+        "artificial_analysis": 36.51
+      }
+    },
+    "qwen3-5-4b": {
+      "gi": 20.04,
+      "sources": {
+        "artificial_analysis": 20.04
+      }
+    },
+    "qwen3-5-4b-non-reasoning": {
+      "gi": 15.48,
+      "sources": {
+        "artificial_analysis": 15.48
+      }
+    },
+    "qwen3-5-9b": {
+      "gi": 21.23,
+      "sources": {
+        "artificial_analysis": 21.23
+      }
+    },
+    "qwen3-5-9b-non-reasoning": {
+      "gi": 20.44,
+      "sources": {
+        "artificial_analysis": 20.44
+      }
+    },
+    "qwen3-5-omni-flash": {
+      "gi": 18.85,
+      "sources": {
+        "artificial_analysis": 18.85
+      }
+    },
+    "qwen3-5-omni-plus": {
+      "gi": 34.52,
+      "sources": {
+        "artificial_analysis": 34.52
+      }
+    },
+    "qwen3-6-27b": {
+      "gi": 37.5,
+      "sources": {
+        "artificial_analysis": 37.5
+      }
+    },
+    "qwen3-6-27b-non-reasoning": {
+      "gi": 33.33,
+      "sources": {
+        "artificial_analysis": 33.33
+      }
+    },
+    "qwen3-6-35b-a3b": {
+      "gi": 31.35,
+      "sources": {
+        "artificial_analysis": 31.35
+      }
+    },
+    "qwen3-6-35b-a3b-non-reasoning": {
+      "gi": 24.21,
+      "sources": {
+        "artificial_analysis": 24.21
+      }
+    },
+    "qwen3-6-max": {
+      "gi": 50.4,
+      "sources": {
+        "artificial_analysis": 50.4
+      }
+    },
+    "qwen3-6-plus": {
+      "gi": 47.62,
+      "sources": {
+        "artificial_analysis": 47.62
+      }
+    },
+    "qwen3-7-max": {
+      "gi": 53.37,
+      "sources": {
+        "artificial_analysis": 53.37
+      }
+    },
+    "qwen3-7-plus": {
+      "gi": 45.24,
+      "sources": {
+        "artificial_analysis": 45.24
+      }
+    },
+    "qwen3-8-2-4t-a95b": {
+      "gi": 73.41,
+      "sources": {
+        "artificial_analysis": 73.41
+      }
+    },
+    "qwen3-8-27b": {
+      "gi": 61.31,
+      "sources": {
+        "artificial_analysis": 61.31
+      }
+    },
+    "qwen3-8-27b-low": {
+      "gi": 46.63,
+      "sources": {
+        "artificial_analysis": 46.63
+      }
+    },
+    "qwen3-8-27b-medium": {
+      "gi": 49.21,
+      "sources": {
+        "artificial_analysis": 49.21
+      }
+    },
+    "qwen3-8-27b-non-reasoning": {
+      "gi": 38.49,
+      "sources": {
+        "artificial_analysis": 38.49
+      }
+    },
+    "qwen3-8-flash-next": {
+      "gi": 73.21,
+      "sources": {
+        "artificial_analysis": 73.21
+      }
+    },
+    "qwen3-8-max": {
+      "gi": 84.13,
+      "sources": {
+        "artificial_analysis": 84.13
+      }
+    },
+    "qwen3-8-max-0803": {
+      "gi": 74.01,
+      "sources": {
+        "artificial_analysis": 74.01
+      }
+    },
+    "qwen3-8b-instruct": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "qwen3-8b-instruct-reasoning": {
+      "gi": 4.37,
+      "sources": {
+        "artificial_analysis": 4.37
+      }
+    },
+    "qwen3-coder-30b-a3b-instruct": {
+      "gi": 13.1,
+      "sources": {
+        "artificial_analysis": 13.1
+      }
+    },
+    "qwen3-coder-480b-a35b-instruct": {
+      "gi": 22.21,
+      "sources": {
+        "lmsys": 26.77,
+        "artificial_analysis": 17.66
+      }
+    },
+    "qwen3-coder-next": {
+      "gi": 14.09,
+      "sources": {
+        "artificial_analysis": 14.09
+      }
+    },
+    "qwen3-max": {
+      "gi": 25.0,
+      "sources": {
+        "artificial_analysis": 25.0
+      }
+    },
+    "qwen3-max-preview": {
+      "gi": 19.05,
+      "sources": {
+        "artificial_analysis": 19.05
+      }
+    },
+    "qwen3-max-thinking": {
+      "gi": 36.31,
+      "sources": {
+        "artificial_analysis": 36.31
+      }
+    },
+    "qwen3-max-thinking-preview": {
+      "gi": 26.39,
+      "sources": {
+        "artificial_analysis": 26.39
+      }
+    },
+    "qwen3-next-80b-a3b-instruct": {
+      "gi": 13.1,
+      "sources": {
+        "artificial_analysis": 13.1
+      }
+    },
+    "qwen3-next-80b-a3b-reasoning": {
+      "gi": 16.27,
+      "sources": {
+        "artificial_analysis": 16.27
+      }
+    },
+    "qwen3-omni-30b-a3b-instruct": {
+      "gi": 5.95,
+      "sources": {
+        "artificial_analysis": 5.95
+      }
+    },
+    "qwen3-omni-30b-a3b-reasoning": {
+      "gi": 9.52,
+      "sources": {
+        "artificial_analysis": 9.52
+      }
+    },
+    "qwen3-vl-235b-a22b-instruct": {
+      "gi": 13.69,
+      "sources": {
+        "artificial_analysis": 13.69
+      }
+    },
+    "qwen3-vl-235b-a22b-reasoning": {
+      "gi": 20.63,
+      "sources": {
+        "artificial_analysis": 20.63
+      }
+    },
+    "qwen3-vl-30b-a3b-instruct": {
+      "gi": 9.72,
+      "sources": {
+        "artificial_analysis": 9.72
+      }
+    },
+    "qwen3-vl-30b-a3b-reasoning": {
+      "gi": 12.9,
+      "sources": {
+        "artificial_analysis": 12.9
+      }
+    },
+    "qwen3-vl-32b-instruct": {
+      "gi": 10.71,
+      "sources": {
+        "artificial_analysis": 10.71
+      }
+    },
+    "qwen3-vl-32b-reasoning": {
+      "gi": 17.66,
+      "sources": {
+        "artificial_analysis": 17.66
+      }
+    },
+    "qwen3-vl-4b-instruct": {
+      "gi": 5.36,
+      "sources": {
+        "artificial_analysis": 5.36
+      }
+    },
+    "qwen3-vl-4b-reasoning": {
+      "gi": 7.94,
+      "sources": {
+        "artificial_analysis": 7.94
+      }
+    },
+    "qwen3-vl-8b-instruct": {
+      "gi": 8.53,
+      "sources": {
+        "artificial_analysis": 8.53
+      }
+    },
+    "qwen3-vl-8b-reasoning": {
+      "gi": 10.32,
+      "sources": {
+        "artificial_analysis": 10.32
+      }
+    },
+    "qwen3.5-122b-a10b": {
+      "gi": 38.83,
+      "sources": {
+        "lmsys": 38.83
+      }
+    },
+    "qwen3.5-27b": {
+      "gi": 38.7,
+      "sources": {
+        "lmsys": 38.7
+      }
+    },
+    "qwen3.5-35b-a3b": {
+      "gi": 23.86,
+      "sources": {
+        "lmsys": 23.86
+      }
+    },
+    "qwen3.5-397b-a17b": {
+      "gi": 44.52,
+      "sources": {
+        "lmsys": 44.52
+      }
+    },
+    "qwen3.5-flash": {
+      "gi": 22.05,
+      "sources": {
+        "lmsys": 22.05
+      }
+    },
+    "qwen3.5-max-preview": {
+      "gi": 53.54,
+      "sources": {
+        "lmsys": 53.54
+      }
+    },
+    "qwen3.6-max-preview": {
+      "gi": 55.48,
+      "sources": {
+        "lmsys": 55.48
+      }
+    },
+    "qwen3.6-plus": {
+      "gi": 52.84,
+      "sources": {
+        "lmsys": 52.84
+      }
+    },
+    "qwen3.7-max-20260517": {
+      "gi": 60.75,
+      "sources": {
+        "lmsys": 60.75
+      }
+    },
+    "qwen3.7-max-preview": {
+      "gi": 54.79,
+      "sources": {
+        "lmsys": 54.79
+      }
+    },
+    "qwen3.7-plus": {
+      "gi": 52.57,
+      "sources": {
+        "lmsys": 52.57
+      }
+    },
+    "qwen3.8-27b": {
+      "gi": 71.29,
+      "sources": {
+        "lmsys": 71.29
+      }
+    },
+    "qwen3.8-flash-next": {
+      "gi": 77.12,
+      "sources": {
+        "lmsys": 77.12
+      }
+    },
+    "qwen3.8-max": {
+      "gi": 82.11,
+      "sources": {
+        "lmsys": 82.11
+      }
+    },
+    "qwen3.8-max-0902": {
+      "gi": 83.5,
+      "sources": {
+        "lmsys": 83.5
+      }
+    },
+    "qwq-32b": {
+      "gi": 12.9,
+      "sources": {
+        "artificial_analysis": 12.9
+      }
+    },
+    "qwq-32b-preview": {
+      "gi": 9.13,
+      "sources": {
+        "artificial_analysis": 9.13
+      }
+    },
+    "r1-1776": {
+      "gi": 6.75,
+      "sources": {
+        "artificial_analysis": 6.75
+      }
+    },
+    "reka-flash": {
+      "gi": 6.75,
+      "sources": {
+        "artificial_analysis": 6.75
+      }
+    },
+    "reka-flash-3": {
+      "gi": 5.16,
+      "sources": {
+        "artificial_analysis": 5.16
+      }
+    },
+    "ring-1t": {
+      "gi": 15.67,
+      "sources": {
+        "artificial_analysis": 15.67
+      }
+    },
+    "ring-2-6-1t": {
+      "gi": 28.37,
+      "sources": {
+        "artificial_analysis": 28.37
+      }
+    },
+    "ring-flash-2-0": {
+      "gi": 8.33,
+      "sources": {
+        "artificial_analysis": 8.33
+      }
+    },
+    "sarvam-105b": {
+      "gi": 11.51,
+      "sources": {
+        "artificial_analysis": 11.51
+      }
+    },
+    "sarvam-30b": {
+      "gi": 7.14,
+      "sources": {
+        "artificial_analysis": 7.14
+      }
+    },
+    "sarvam-m-reasoning": {
+      "gi": 4.56,
+      "sources": {
+        "artificial_analysis": 4.56
+      }
+    },
+    "seed-2.1-pro-preview": {
+      "gi": 61.03,
+      "sources": {
+        "lmsys": 61.03
+      }
+    },
+    "seed-oss-36b-instruct": {
+      "gi": 18.06,
+      "sources": {
+        "artificial_analysis": 18.06
+      }
+    },
+    "solar-mini": {
+      "gi": 6.75,
+      "sources": {
+        "artificial_analysis": 6.75
+      }
+    },
+    "solar-open-100b-reasoning": {
+      "gi": 14.68,
+      "sources": {
+        "artificial_analysis": 14.68
+      }
+    },
+    "solar-open2-250b": {
+      "gi": 43.06,
+      "sources": {
+        "artificial_analysis": 43.06
+      }
+    },
+    "solar-pro-2": {
+      "gi": 7.94,
+      "sources": {
+        "artificial_analysis": 7.94
+      }
+    },
+    "solar-pro-2-preview": {
+      "gi": 9.72,
+      "sources": {
+        "artificial_analysis": 9.72
+      }
+    },
+    "solar-pro-2-preview-reasoning": {
+      "gi": 12.1,
+      "sources": {
+        "artificial_analysis": 12.1
+      }
+    },
+    "solar-pro-2-reasoning": {
+      "gi": 8.93,
+      "sources": {
+        "artificial_analysis": 8.93
+      }
+    },
+    "solar-pro-3": {
+      "gi": 9.52,
+      "sources": {
+        "artificial_analysis": 9.52
+      }
+    },
+    "solar-pro4": {
+      "gi": 50.0,
+      "sources": {
+        "artificial_analysis": 50.0
+      }
+    },
+    "sonar": {
+      "gi": 9.33,
+      "sources": {
+        "artificial_analysis": 9.33
+      }
+    },
+    "sonar-pro": {
+      "gi": 9.13,
+      "sources": {
+        "artificial_analysis": 9.13
+      }
+    },
+    "sonar-reasoning": {
+      "gi": 11.31,
+      "sources": {
+        "artificial_analysis": 11.31
+      }
+    },
+    "sonar-reasoning-pro": {
+      "gi": 17.46,
+      "sources": {
+        "artificial_analysis": 17.46
+      }
+    },
+    "step-3-5-flash": {
+      "gi": 27.78,
+      "sources": {
+        "artificial_analysis": 27.78
+      }
+    },
+    "step-3-5-flash-0202": {
+      "gi": 26.98,
+      "sources": {
+        "artificial_analysis": 26.98
+      }
+    },
+    "step-3-7-flash": {
+      "gi": 32.74,
+      "sources": {
+        "artificial_analysis": 32.74
+      }
+    },
+    "step-3-vl-10b": {
+      "gi": 9.33,
+      "sources": {
+        "artificial_analysis": 9.33
+      }
+    },
+    "tiny-aya-global": {
+      "gi": 3.57,
+      "sources": {
+        "artificial_analysis": 3.57
+      }
+    },
+    "tri-21b-think-preview": {
+      "gi": 13.1,
+      "sources": {
+        "artificial_analysis": 13.1
       }
     },
     "tri-21b-think-v0-5": {
-      "gi": 17.47,
+      "gi": 11.9,
       "sources": {
-        "artificial_analysis": 17.47
+        "artificial_analysis": 11.9
       }
     },
     "trinity-large-thinking": {
-      "gi": 26.81,
+      "gi": 18.93,
       "sources": {
-        "lmsys": 26.27,
-        "artificial_analysis": 27.36
+        "lmsys": 22.19,
+        "artificial_analysis": 15.67
       }
     },
     "tulu3-405b": {
-      "gi": 10.97,
+      "gi": 8.33,
       "sources": {
-        "artificial_analysis": 10.97
+        "artificial_analysis": 8.33
       }
     },
     "big-pickle": {
@@ -4911,14 +5016,14 @@
       }
     }
   },
-  "note": "LMSYS Arena 2026-09-03 text+code Elo (mean of boards) overlaid onto prior lmsys.json; AA export 2026-09-04; seed retained for seed-only prior ids; OpenRouter+LiteLLM synonym aliases.",
+  "note": "LMSYS Arena 2026-09-17 text+code Elo (mean of boards) overlaid onto prior lmsys.json; AA export 2026-09-17; seed retained for seed-only prior ids; OpenRouter+LiteLLM synonym aliases.",
   "coverage": {
-    "matched": 1142,
-    "total": 1281,
-    "pct": 89.149,
+    "matched": 1156,
+    "total": 1307,
+    "pct": 88.447,
     "via": {
-      "deterministic": 1135,
-      "synonym": 7,
+      "deterministic": 1145,
+      "synonym": 11,
       "llm": 0
     }
   }
